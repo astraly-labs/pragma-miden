@@ -1,0 +1,46 @@
+const ORACLE_SOURCE: &str = "
+
+#! Add imports
+use.miden::account
+use.miden::contracts::auth::basic
+
+#! Pushes new price data into the oracle's data slots. 
+#!
+#! Inputs:  [WORD_1, WORD_2, WORD_3, WORD_4]
+#! Outputs: [ ]
+#!
+#! - WORD_X is the tuple (base asset/code asset, price, decimals, publisher Id)
+#!
+#! Here 16 elements from the stack will be read, so we can start with 4 price updates
+#! This is just to start; in the future, the inputs to this function should be (how_many_words_to_set, WORD1, WORD2, ...) 
+export.push_oracle_data
+
+   push. 1 dup movdn.5
+   # => [1, WORD_1, 1, WORD_2, ...]
+   
+   repeat.4
+        exec.account::set_item
+        drow drow
+        # => [index, WORD_index+1, ...]
+        
+        add.1 dup movdn.5
+        # => [index+1, WORD_index+1, index+1, ...]
+    end
+end
+
+#! Read price data from the oracle's data slots. 
+#!
+#! Inputs:  [base asset/code asset]
+#! Outputs: [WORD]
+#!
+#! - WORD is the tuple (base asset/code asset, price, decimals, publisher Id)
+#!
+export.read_oracle_data
+        exec.account::get_item
+        # => [WORD]
+        
+        # maybe you need to bump up the nonce, not 100% sure how foreign procedure invocation works yet.
+end
+
+export.basic::auth_tx_rpo_falcon512
+";
