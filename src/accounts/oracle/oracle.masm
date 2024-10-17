@@ -9,7 +9,7 @@ use.miden::contracts::auth::basic
 #! Inputs:  [WORD_1, WORD_2, WORD_3, WORD_4]
 #! Outputs: [ ]
 #!
-#! - WORD_X is the tuple (base asset/code asset, price, decimals, publisher Id)
+#! - WORD_X is the tuple (base asset/quote asset, price, decimals, publisher Id)
 #!
 #! Here 16 elements from the stack will be read, so we can start with 4 price updates
 #! This is just to start; in the future, the inputs to this function should be (how_many_words_to_set, WORD1, WORD2, ...) 
