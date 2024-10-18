@@ -4,6 +4,28 @@ const ORACLE_SOURCE: &str = "
 use.miden::account
 use.miden::contracts::auth::basic
 
+# Slot in account storage at which the data prover's public key is stored.
+const.DATA_PROVIDER_PUBLIC_KEY_SLOT=1
+
+#! Verify the signature of the data provider
+#! Stack: [WORD_1, WORD_2, WORD_3, WORD_4]
+#! Output: []
+#!
+export.verify_data_provider_signature
+    # Compute the hash of the data to be signed
+    hmerge hmerge hmerge
+    # => [DATA_HASH]
+
+    # Get data provider's public key from account storage at slot 1
+    push.DATA_PROVIDER_PUBLIC_KEY_SLOT exec.account::get_item
+    # => [PUB_KEY, DATA_HASH]
+
+    # Verify the signature against the public key and the message hash.
+    # The signature is provided via the advice stack.
+    exec.rpo_falcon512::verify
+    # => []
+end
+
 #! Pushes new price data into the oracle's data slots. 
 #!
 #! Inputs:  [WORD_1, WORD_2, WORD_3, WORD_4]
@@ -15,8 +37,8 @@ use.miden::contracts::auth::basic
 #! This is just to start; in the future, the inputs to this function should be (how_many_words_to_set, WORD1, WORD2, ...) 
 export.push_oracle_data
 
-   push. 1 dup movdn.5
-   # => [1, WORD_1, 1, WORD_2, ...]
+   push. 2 dup movdn.5
+   # => [2, WORD_1, 2, WORD_2, ...]
    
    repeat.4
         exec.account::set_item
@@ -42,5 +64,6 @@ export.read_oracle_data
         # maybe you need to bump up the nonce, not 100% sure how foreign procedure invocation works yet.
 end
 
+#! basic auth
 export.basic::auth_tx_rpo_falcon512
 ";
