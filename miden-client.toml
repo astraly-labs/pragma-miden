@@ -1,0 +1,12 @@
+token_symbol_map_filepath = "token_symbol_map.toml"
+
+[rpc]
+timeout_ms = 10000
+
+[rpc.endpoint]
+protocol = "https"
+host = "18.203.155.106"
+port = 57291
+
+[store]
+database_filepath = "store.sqlite3"
