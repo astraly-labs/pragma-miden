@@ -1,12 +1,15 @@
 mod accounts;
 mod tests;
 
-use miden_crypto::{Felt, EMPTY_WORD, merkle::{PartialMmr, MmrPeaks}};
+use miden_crypto::{
+    merkle::{MmrPeaks, PartialMmr},
+    Felt, EMPTY_WORD,
+};
 use miden_objects::{
     accounts::{Account, AccountId},
     notes::NoteId,
     transaction::{ChainMmr, InputNotes},
-    BlockHeader, Word, Digest
+    BlockHeader, Digest, Word,
 };
 use miden_tx::{DataStore, DataStoreError, TransactionInputs};
 
@@ -58,19 +61,23 @@ impl DataStore for OracleDataStore {
             0,
         );
 
-        let peaks = MmrPeaks::new(0, Vec::new())
-            .map_err(|e| DataStoreError::InternalError(format!("Failed to create MmrPeaks: {:?}", e)))?;    
-        let chain_mmr = ChainMmr::new(PartialMmr::from_peaks(peaks), vec![block_header])
-            .map_err(|e| DataStoreError::InternalError(format!("Failed to create ChainMmr: {:?}", e)))?;
-        let input_notes = InputNotes::new(Vec::new())
-            .map_err(|e| DataStoreError::InternalError(format!("Failed to create InputNotes: {:?}", e)))?;
+        let peaks = MmrPeaks::new(0, Vec::new()).map_err(|e| {
+            DataStoreError::InternalError(format!("Failed to create MmrPeaks: {:?}", e))
+        })?;
+        let chain_mmr =
+            ChainMmr::new(PartialMmr::from_peaks(peaks), vec![block_header]).map_err(|e| {
+                DataStoreError::InternalError(format!("Failed to create ChainMmr: {:?}", e))
+            })?;
+        let input_notes = InputNotes::new(Vec::new()).map_err(|e| {
+            DataStoreError::InternalError(format!("Failed to create InputNotes: {:?}", e))
+        })?;
 
         TransactionInputs::new(
             self.account.clone(),
-            None,  // No account seed
-            block_header,  // Use a default BlockHeader
-            chain_mmr, // Empty chain MMR
-            input_notes, // Empty input notes
+            None,         // No account seed
+            block_header, // Use a default BlockHeader
+            chain_mmr,    // Empty chain MMR
+            input_notes,  // Empty input notes
         )
         .map_err(|e| DataStoreError::InvalidTransactionInput(e))
     }

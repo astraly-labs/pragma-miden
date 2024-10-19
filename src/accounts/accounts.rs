@@ -1,17 +1,18 @@
+use super::{data_to_word, word_to_masm, OracleData, OracleDataStore};
 use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt};
 use miden_lib::{transaction::TransactionKernel, AuthScheme};
 use miden_objects::{
     accounts::{
-        Account, AccountCode, AccountId, AccountStorage, AccountStorageType, AccountType, SlotItem, AuthSecretKey
+        Account, AccountCode, AccountId, AccountStorage, AccountStorageType, AccountType,
+        AuthSecretKey, SlotItem,
     },
-    transaction::{TransactionScript, TransactionArgs},
+    transaction::{TransactionArgs, TransactionScript},
     AccountError, Word,
 };
-use miden_tx::{TransactionExecutor, auth::BasicAuthenticator};
-use std::collections::BTreeMap;
+use miden_tx::{auth::BasicAuthenticator, TransactionExecutor};
 use rand::rngs::OsRng;
+use std::collections::BTreeMap;
 use std::rc::Rc;
-use super::{data_to_word, word_to_masm, OracleData, OracleDataStore};
 
 pub fn get_oracle_account(
     init_seed: [u8; 32],
@@ -97,9 +98,8 @@ pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> R
     )
     .unwrap();
     let tx_args = TransactionArgs::with_tx_script(tx_script);
-    let keys: Vec<([Felt; 4], AuthSecretKey)> = Vec::new();
-    let authenticator = Rc::new(BasicAuthenticator::<OsRng>::new(&[]));
-    let tx: TransactionExecutor<OracleDataStore, BasicAuthenticator<OsRng>> = TransactionExecutor::new(OracleDataStore::new(account.clone()), Some(authenticator));
+    let tx: TransactionExecutor<OracleDataStore, BasicAuthenticator<OsRng>> =
+        TransactionExecutor::new(OracleDataStore::new(account.clone()), None);
     match tx.execute_transaction(account.id(), 0, &[], tx_args) {
         Ok(_) => Ok(()),
         Err(e) => Err(e.to_string()),
