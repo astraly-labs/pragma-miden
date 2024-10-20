@@ -2,9 +2,10 @@ use clap::Parser;
 
 use crate::{
     commands::{
-        init::InitCmd, sync::SyncCmd,
+        init::InitCmd,
         new_oracle::AccountCmd,
-        // push_data::PushCmd,
+        push_data::PushDataCmd,
+        sync::SyncCmd,
     },
     setup::setup_client,
 };
@@ -15,7 +16,7 @@ pub enum Command {
     Init(InitCmd),
     Sync(SyncCmd),
     NewOracle(AccountCmd),
-    // PushData(PushCmd),
+    PushData(PushDataCmd),
 }
 
 /// Root CLI struct
@@ -39,7 +40,7 @@ impl Cli {
             Command::Sync(sync) => sync.execute(&mut client).await,
             Command::Init(init) => init.execute(),
             Command::NewOracle(new_oracle) => new_oracle.execute(&mut client).await,
-            // Command::PushData(push_data) => push_data.execute(&mut client).await,
+            Command::PushData(push_data) => push_data.execute(&mut client).await,
         }
     }
 }

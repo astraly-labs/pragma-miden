@@ -12,7 +12,9 @@ use miden_objects::{
 use miden_tx::{auth::BasicAuthenticator, TransactionExecutor};
 use rand::rngs::OsRng;
 use std::collections::BTreeMap;
-use std::rc::Rc;
+
+// Include the oracle module source code
+const ORACLE_SOURCE: &str = include_str!("oracle/oracle.masm");
 
 pub fn get_oracle_account(
     init_seed: [u8; 32],
@@ -25,17 +27,8 @@ pub fn get_oracle_account(
         AuthScheme::RpoFalcon512 { pub_key } => ("auth_tx_rpo_falcon512", pub_key.into()),
     };
 
-    let oracle_source: String = format!(
-        "
-    export.verify_data_provider_signature
-    export.push_oracle_data
-    export.read_oracle_data
-    export.::miden::contracts::auth::basic::{auth_scheme_procedure}
-    "
-    );
-
     let assembler = TransactionKernel::assembler();
-    let oracle_account_code = AccountCode::compile(oracle_source, assembler).unwrap();
+    let oracle_account_code = AccountCode::compile(ORACLE_SOURCE, assembler).unwrap();
 
     let account_storage = AccountStorage::new(
         vec![

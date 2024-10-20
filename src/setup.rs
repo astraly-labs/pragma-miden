@@ -6,13 +6,7 @@ use miden_client::{
     config::{Endpoint, RpcConfig},
     crypto::{FeltRng, RpoRandomCoin},
     rpc::{NodeRpcClient, TonicRpcClient},
-    store::{
-        sqlite_store::{config::SqliteStoreConfig, SqliteStore},
-        InputNoteRecord, NoteFilter, Store,
-    },
-    transactions::{
-        request::{TransactionRequest, TransactionRequestError},
-    },
+    store::sqlite_store::{config::SqliteStoreConfig, SqliteStore},
     Client, Felt,
 };
 use miden_lib::notes::create_swap_note;

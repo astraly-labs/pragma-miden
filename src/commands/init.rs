@@ -1,5 +1,5 @@
-use crate::{DB_FILE_PATH};
 use crate::setup::setup_client;
+use crate::DB_FILE_PATH;
 use clap::Parser;
 use std::{
     fs::{self, File},

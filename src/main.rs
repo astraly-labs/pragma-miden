@@ -1,8 +1,8 @@
-mod cli;
 mod accounts;
+mod cli;
 mod commands;
-mod setup;
 mod errors;
+mod setup;
 
 use clap::Parser;
 use cli::Cli;
