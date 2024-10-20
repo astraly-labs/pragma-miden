@@ -1,5 +1,18 @@
+mod cli;
 mod accounts;
+mod commands;
+mod setup;
+mod errors;
 
-fn main() {
-    println!("Pragma Miden!");
+use clap::Parser;
+use cli::Cli;
+
+pub const DB_FILE_PATH: &str = "store.sqlite3";
+pub const CLIENT_CONFIG_FILE_NAME: &str = "oracle_data.toml";
+
+#[tokio::main]
+async fn main() -> Result<(), String> {
+    env_logger::init();
+    let cli = Cli::parse();
+    cli.execute().await
 }

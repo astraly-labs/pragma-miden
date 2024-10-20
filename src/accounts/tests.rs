@@ -18,7 +18,7 @@ fn oracle_account_creation_and_pushing_data() {
         204, 149, 90, 166, 68, 100, 73, 106, 168, 125, 237, 138, 16,
     ];
 
-    let account_type = miden_objects::accounts::AccountType::FungibleFaucet;
+    let account_type = miden_objects::accounts::AccountType::RegularAccountImmutableCode;
     let storage_type = AccountStorageType::OffChain;
     let data_provider_public_key = rpo_falcon512::PublicKey::new([ONE; 4]);
 

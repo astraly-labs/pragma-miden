@@ -27,6 +27,7 @@ pub fn get_oracle_account(
 
     let oracle_source: String = format!(
         "
+    export.verify_data_provider_signature
     export.push_oracle_data
     export.read_oracle_data
     export.::miden::contracts::auth::basic::{auth_scheme_procedure}
