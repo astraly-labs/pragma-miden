@@ -1,12 +1,7 @@
 use clap::Parser;
 
 use crate::{
-    commands::{
-        init::InitCmd,
-        new_oracle::AccountCmd,
-        push_data::PushDataCmd,
-        sync::SyncCmd,
-    },
+    commands::{init::InitCmd, new_oracle::AccountCmd, push_data::PushDataCmd, sync::SyncCmd},
     setup::setup_client,
 };
 

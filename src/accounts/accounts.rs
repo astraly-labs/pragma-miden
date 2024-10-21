@@ -23,7 +23,7 @@ pub fn get_oracle_account(
     account_storage_type: AccountStorageType,
     data_provider_public_key: PublicKey,
 ) -> Result<(Account, Word), AccountError> {
-    let (auth_scheme_procedure, storage_slot_0_data): (&str, Word) = match auth_scheme {
+    let (_auth_scheme_procedure, storage_slot_0_data): (&str, Word) = match auth_scheme {
         AuthScheme::RpoFalcon512 { pub_key } => ("auth_tx_rpo_falcon512", pub_key.into()),
     };
 
@@ -101,7 +101,7 @@ pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> R
 }
 
 /// Read data from oracle account
-pub fn read_data_from_oracle_account(account: &Account) -> OracleData {
+pub fn read_data_from_oracle_account(account: &Account, asset_pair: String) -> OracleData {
     // TODO: Implement the actual reading logic after foreign invocation procedure is merged!
     OracleData {
         asset_pair: String::from("BTC/USD"),
