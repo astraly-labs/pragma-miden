@@ -1,5 +1,3 @@
-const ORACLE_SOURCE: &str = "
-
 #! Add imports
 use.std::account
 use.std::contracts::auth::basic
@@ -67,4 +65,3 @@ end
 
 #! basic auth
 export.basic::auth_tx_rpo_falcon512
-";
