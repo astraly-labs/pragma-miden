@@ -87,7 +87,7 @@ pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> R
     // Compile the transaction script
     let tx_script = TransactionScript::compile(
         tx_script_code,
-        vec![], // No inputs in this example
+        vec![], // TODO: is any inputs needed?
         assembler,
     )
     .unwrap();

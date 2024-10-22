@@ -8,7 +8,6 @@ use clap::Parser;
 use cli::Cli;
 
 pub const DB_FILE_PATH: &str = "store.sqlite3";
-pub const CLIENT_CONFIG_FILE_NAME: &str = "oracle_data.toml";
 
 #[tokio::main]
 async fn main() -> Result<(), String> {

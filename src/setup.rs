@@ -1,17 +1,12 @@
-use core::panic;
 use miden_client::{
-    accounts::AccountId,
-    assets::{Asset, FungibleAsset},
-    auth::{StoreAuthenticator, TransactionAuthenticator},
+    auth::StoreAuthenticator,
     config::{Endpoint, RpcConfig},
-    crypto::{FeltRng, RpoRandomCoin},
-    rpc::{NodeRpcClient, TonicRpcClient},
+    crypto::RpoRandomCoin,
+    rpc::TonicRpcClient,
     store::sqlite_store::{config::SqliteStoreConfig, SqliteStore},
     Client, Felt,
 };
-use miden_lib::notes::create_swap_note;
-use rand::{seq::SliceRandom, Rng};
-use rusqlite::{Connection, Result};
+use rand::Rng;
 use std::rc::Rc;
 
 // seting up Miden Client

@@ -5,7 +5,7 @@ use crate::{
     setup::setup_client,
 };
 
-/// CLI actions
+/// CLI commands
 #[derive(Debug, Parser)]
 pub enum Command {
     Init(InitCmd),
@@ -14,7 +14,7 @@ pub enum Command {
     PushData(PushDataCmd),
 }
 
-/// Root CLI struct
+/// CLI struct
 #[derive(Parser, Debug)]
 #[clap(
     name = "Pragma Miden",

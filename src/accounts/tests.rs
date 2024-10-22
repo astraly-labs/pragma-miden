@@ -9,7 +9,7 @@ use miden_objects::accounts::{Account, AccountStorageType};
 use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
 
 #[test]
-fn oracle_account_creation_and_pushing_data() {
+fn oracle_account_creation_and_pushing_data_to_read() {
     let pub_key = rpo_falcon512::PublicKey::new([ONE; 4]);
     let auth_scheme: AuthScheme = AuthScheme::RpoFalcon512 { pub_key };
 
