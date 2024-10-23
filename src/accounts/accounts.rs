@@ -14,7 +14,8 @@ use rand::rngs::OsRng;
 use std::collections::BTreeMap;
 
 // Include the oracle module source code
-const ORACLE_SOURCE: &str = include_str!("oracle/oracle.masm");
+const PUSH_ORACLE_SOURCE: &str = include_str!("oracle/push_oracle.masm");
+const READ_ORACLE_SOURCE: &str = include_str!("oracle/read_oracle.masm");
 
 pub fn get_oracle_account(
     init_seed: [u8; 32],
@@ -23,12 +24,17 @@ pub fn get_oracle_account(
     account_storage_type: AccountStorageType,
     data_provider_public_key: PublicKey,
 ) -> Result<(Account, Word), AccountError> {
-    let (_auth_scheme_procedure, storage_slot_0_data): (&str, Word) = match auth_scheme {
+    let (auth_scheme_procedure, storage_slot_0_data): (&str, Word) = match auth_scheme {
         AuthScheme::RpoFalcon512 { pub_key } => ("auth_tx_rpo_falcon512", pub_key.into()),
     };
 
     let assembler = TransactionKernel::assembler();
-    let oracle_account_code = AccountCode::compile(ORACLE_SOURCE, assembler).unwrap();
+    let source_code = format!(
+        "
+        export.::miden::contracts::auth::basic::{auth_scheme_procedure}
+    "
+    );
+    let oracle_account_code = AccountCode::compile(source_code, assembler).unwrap();
 
     let account_storage = AccountStorage::new(
         vec![
@@ -57,6 +63,8 @@ pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> R
 
     let tx_script_code = format!(
         "
+        use.crate::accounts::oracle::push_oracle
+
         begin
                 # Load data to the stack
                 push.{}
@@ -65,16 +73,16 @@ pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> R
                 push.{}
 
                 # Verify the signature of the data provider
-                call.verify_data_provider_signature
+                exec.push_oracle::verify_data_provider_signature
 
                 # Call the oracle contract procedure
-                call.push_oracle_data
+                exec.push_oracle::push_oracle_data
 
                 # Clear the stack
                 dropw dropw dropw dropw
 
                 call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
-                dropw dropw drop
+                dropw dropw dropw
         end
         ",
         word_to_masm(&word),
