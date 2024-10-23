@@ -1,4 +1,5 @@
 use crate::accounts::{push_data_to_oracle_account, OracleData};
+use crate::commands::account_id_parser;
 use clap::Parser;
 use miden_client::{rpc::NodeRpcClient, store::Store, Client, ClientError};
 use miden_objects::{
@@ -9,11 +10,12 @@ use miden_objects::{
 use miden_tx::auth::TransactionAuthenticator;
 use winter_maybe_async::{maybe_async, maybe_await};
 
-const ORACLE_ACCOUNT_ID: AccountId;
-
 #[derive(Debug, Clone, Parser)]
 #[clap(about = "Push data to a pragma oracle account on Miden")]
 pub struct PushDataCmd {
+    #[arg(long, required = true, value_parser = account_id_parser)]
+    account_id: AccountId,
+
     #[arg(long, required = true)]
     asset_pair: String,
 
@@ -52,7 +54,7 @@ impl PushDataCmd {
         };
 
         client
-            .push_oracle_data(&ORACLE_ACCOUNT_ID, oracle_data)
+            .push_oracle_data(&self.account_id, oracle_data)
             .await
             .map_err(|e| e.to_string())?;
 
