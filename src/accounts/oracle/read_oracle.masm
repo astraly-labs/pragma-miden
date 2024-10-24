@@ -17,10 +17,6 @@ export.read_oracle_data
     padw padw push.0.0.0
     # => [pad(11)]
 
-    #! Inputs:  [FOREIGN_PROC_ROOT, foreign_account_id ...]
-    #! Outputs: [<values returned from the foreign procedure>]
-    export.execute_foreign_procedure
-
     # push the index of desired storage item
     push.0
 
