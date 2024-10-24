@@ -182,7 +182,7 @@ pub fn read_data_from_oracle_account(account: &Account, asset_pair: String) -> O
     match tx.execute_transaction(account.id(), 0, &[], tx_args) {
         Ok(result_word) => {
             // Convert the result Word to OracleData
-            let oracle_data = word_to_data(&result_word.tx_outputs.account_delta.storage[0].value);
+            // let oracle_data = word_to_data(&result_word.tx_outputs.account_delta.storage[0].value);
             oracle_data
         }
         Err(e) => panic!("Transaction execution failed: {}", e),
