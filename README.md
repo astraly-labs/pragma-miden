@@ -87,10 +87,6 @@ Next, to push some data to the Pragma Oracle you can run `pragma-miden push-data
 
 And, to read data from the Pragma oracle you can run `pragma-miden read-data --account-id <ACCOUNT_ID> --asset-pair <ASSET_PAIR>`
 
-## Contributing
-
-TODO
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

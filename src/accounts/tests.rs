@@ -19,7 +19,7 @@ fn oracle_account_creation_and_pushing_data_to_read() {
     ];
 
     let account_type = miden_objects::accounts::AccountType::RegularAccountImmutableCode;
-    let storage_type = AccountStorageType::OffChain;
+    let storage_type = AccountStorageType::OnChain;
     let data_provider_public_key = rpo_falcon512::PublicKey::new([ONE; 4]);
 
     let (mut oracle_account, _) = get_oracle_account(

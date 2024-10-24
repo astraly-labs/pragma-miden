@@ -1,4 +1,5 @@
-use super::{data_to_word, word_to_masm, OracleData, OracleDataStore};
+use super::{data_to_word, word_to_masm, word_to_data, OracleData, OracleDataStore};
+use assembly::{ast::Module, Assembler, Library, LibraryPath};
 use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt};
 use miden_lib::{transaction::TransactionKernel, AuthScheme};
 use miden_objects::{
@@ -10,7 +11,6 @@ use miden_objects::{
     AccountError, Word,
 };
 use miden_tx::{auth::BasicAuthenticator, TransactionExecutor};
-use assembly::{ast::Module, Assembler, Library, LibraryPath};
 use rand::rngs::OsRng;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -31,23 +31,11 @@ pub fn get_oracle_account(
     };
 
     let assembler = TransactionKernel::assembler();
-    let source_manager = Arc::new(assembly::DefaultSourceManager::default());
     let source_code = format!(
         "
         export.::miden::contracts::auth::basic::{auth_scheme_procedure}
     "
     );
-
-    // Parse the external MASM library
-    let module = Module::parser(assembly::ast::ModuleKind::Library)
-        .parse_str(
-            LibraryPath::new("oracle::push_oracle").unwrap(),
-            PUSH_ORACLE_SOURCE,
-            &source_manager,
-        )
-        .unwrap();
-
-    assembler.clone().assemble_library(&[*module]).unwrap();
 
     let oracle_account_code = AccountCode::compile(source_code, assembler).unwrap();
 
@@ -107,6 +95,18 @@ pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> R
     );
 
     let assembler = TransactionKernel::assembler();
+    let source_manager = Arc::new(assembly::DefaultSourceManager::default());
+
+    // Parse the external MASM library
+    let module = Module::parser(assembly::ast::ModuleKind::Library)
+        .parse_str(
+            LibraryPath::new("oracle::push_oracle").unwrap(),
+            PUSH_ORACLE_SOURCE,
+            &source_manager,
+        )
+        .unwrap();
+    assembler.clone().assemble_library(&[*module]).unwrap();
+
     // Compile the transaction script
     let tx_script = TransactionScript::compile(
         tx_script_code,
@@ -125,11 +125,66 @@ pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> R
 
 /// Read data from oracle account
 pub fn read_data_from_oracle_account(account: &Account, asset_pair: String) -> OracleData {
-    // TODO: Implement the actual reading logic after foreign invocation procedure is merged!
-    OracleData {
-        asset_pair: String::from("BTC/USD"),
-        price: 50000,
-        decimals: 2,
-        publisher_id: 1,
+    let oracle_data = OracleData {
+        asset_pair,
+        price: 0,
+        decimals: 0,
+        publisher_id: 0,
+    };
+    let asset_pair_word = data_to_word(&oracle_data);
+
+    // Create the transaction script code
+    let tx_script_code = format!(
+        "
+        use.crate::accounts::oracle::read_oracle
+
+        begin
+            # Load asset pair to the stack
+            push.{}
+
+            # Call the oracle contract procedure
+            exec.read_oracle::read_oracle_data
+
+            # Clear the stack
+            dropw dropw dropw dropw
+
+            call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+            dropw dropw dropw
+        end
+        ",
+        word_to_masm(&asset_pair_word)
+    );
+
+    let assembler = TransactionKernel::assembler();
+    let source_manager = Arc::new(assembly::DefaultSourceManager::default());
+
+    // Parse the external MASM library
+    let module = Module::parser(assembly::ast::ModuleKind::Library)
+        .parse_str(
+            LibraryPath::new("oracle::read_oracle").unwrap(),
+            READ_ORACLE_SOURCE,
+            &source_manager,
+        )
+        .unwrap();
+    assembler.clone().assemble_library(&[*module]).unwrap();
+
+    // Compile the transaction script
+    let tx_script = TransactionScript::compile(
+        tx_script_code,
+        vec![], // TODO: is any inputs needed?
+        assembler,
+    )
+    .unwrap();
+    let tx_args = TransactionArgs::with_tx_script(tx_script);
+    let tx: TransactionExecutor<OracleDataStore, BasicAuthenticator<OsRng>> =
+        TransactionExecutor::new(OracleDataStore::new(account.clone()), None);
+
+    match tx.execute_transaction(account.id(), 0, &[], tx_args) {
+        Ok(result_word) => {
+            // Convert the result Word to OracleData
+            let oracle_data = word_to_data(&result_word.tx_outputs.account_delta.storage[0].value);
+            oracle_data
+        }
+        Err(e) => panic!("Transaction execution failed: {}", e),
     }
 }

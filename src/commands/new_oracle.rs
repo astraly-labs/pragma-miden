@@ -11,14 +11,11 @@ use miden_objects::{
     Word,
 };
 use miden_tx::auth::TransactionAuthenticator;
-use std::str::FromStr;
 use winter_maybe_async::{maybe_async, maybe_await};
 
 #[derive(Debug, Clone, Parser)]
 #[clap(about = "Create a new pragma oracle account on Miden")]
 pub struct AccountCmd {
-    // #[arg(long, default_value = "off_chain", value_enum)]
-    // storage_type: AccountStorageType,
     #[arg(long, required = true, value_parser = parse_public_key)]
     data_provider_public_key: PublicKey,
 }
@@ -42,7 +39,7 @@ impl AccountCmd {
     {
         let (account, seed) = client
             .new_oracle_account(
-                AccountStorageType::OffChain,
+                AccountStorageType::OnChain,
                 self.data_provider_public_key.clone(),
             )
             .await
