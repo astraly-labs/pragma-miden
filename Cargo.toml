@@ -9,6 +9,7 @@ miden-crypto = { version = "0.10", default-features = false }
 miden-lib = { version = "0.5", default-features = false }
 miden-objects = { version = "0.5", default-features = false }
 miden-tx = { version = "0.5" }
+assembly = { package = "miden-assembly", version = "0.10", default-features = false }
 
 rusqlite = { version = "0.31", features = ["vtab", "array", "bundled"]}
 rand = "0.8"

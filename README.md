@@ -65,13 +65,13 @@ The project is organized as follows:
 
 | Feature                    | Status |
 |----------------------------|--------|
-| Oracle Account             | ❌     |
+| Oracle Account             | ✅     |
 | Publisher Registry Account | ❌     |
 | Python SDK                 | ❌     |
 
 ## Getting Started
 
-*This project is built with Rust. If you don't have Rust and Cargo installed, you can get them from the Rust website. Follow the installation instructions for your operating system.*
+*This project is built with Rust. If you don't have Rust and Cargo installed, you can get them from the [Rust website](https://www.rust-lang.org/). Follow the installation instructions for your operating system.*
 
 First of all, run `cargo install --path .  ` to install the CLI. This will compile the project and install the `pragma-miden` binary in your Cargo binary directory.
 
@@ -81,9 +81,11 @@ To synchronize the state of the rollup and update your local state, use the `pra
 
 Now, if you want to create your own oracle account on Miden rollup, you can run `pragma-miden new-oracle --data-provider-public-key <PUB_KEY>` given that you have the data provider for your oracle! 
 
-We have our oracle account on Miden already with this AccountID - 
+We have our oracle account on Miden already with this AccountID - <PRAGMA ORACLE ACCOUNT ID>
 
 Next, to push some data to the Pragma Oracle you can run `pragma-miden push-data --asset-pair <ASSET_PAIR> --price <PRICE> --decimals <DECIMALS> --publisher-id <PUBLISHER_ID>`
+
+And, to read data from the Pragma oracle you can run `pragma-miden read-data --account-id <ACCOUNT_ID> --asset-pair <ASSET_PAIR>`
 
 ## Contributing
 
@@ -92,16 +94,3 @@ TODO
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Continuous Integration
-
-This project uses GitHub Actions for continuous integration. The workflow does the following:
-
-- Builds the project
-- Runs all tests
-- Checks code formatting
-- Runs the Clippy linter
-
-You can see the status of the latest build in the GitHub Actions tab of this repository.
-
-[![Build and Test](https://github.com/your-username/pragma-miden/actions/workflows/build_and_test.yml/badge.svg)](https://github.com/your-username/pragma-miden/actions/workflows/build_and_test.yml)

@@ -10,8 +10,10 @@ use miden_objects::{
     AccountError, Word,
 };
 use miden_tx::{auth::BasicAuthenticator, TransactionExecutor};
+use assembly::{ast::Module, Assembler, Library, LibraryPath};
 use rand::rngs::OsRng;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 // Include the oracle module source code
 const PUSH_ORACLE_SOURCE: &str = include_str!("oracle/push_oracle.masm");
@@ -29,11 +31,24 @@ pub fn get_oracle_account(
     };
 
     let assembler = TransactionKernel::assembler();
+    let source_manager = Arc::new(assembly::DefaultSourceManager::default());
     let source_code = format!(
         "
         export.::miden::contracts::auth::basic::{auth_scheme_procedure}
     "
     );
+
+    // Parse the external MASM library
+    let module = Module::parser(assembly::ast::ModuleKind::Library)
+        .parse_str(
+            LibraryPath::new("oracle::push_oracle").unwrap(),
+            PUSH_ORACLE_SOURCE,
+            &source_manager,
+        )
+        .unwrap();
+
+    assembler.clone().assemble_library(&[*module]).unwrap();
+
     let oracle_account_code = AccountCode::compile(source_code, assembler).unwrap();
 
     let account_storage = AccountStorage::new(
