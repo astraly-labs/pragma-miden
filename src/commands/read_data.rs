@@ -22,13 +22,7 @@ pub trait OracleDataReader {
         &self,
         account_id: &AccountId,
         asset_pair: String,
-    ) -> Result<Vec<u64>, ClientError>;
-}
-
-impl OracleData {
-    fn to_vector(&self) -> Vec<u64> {
-        vec![self.price, self.decimals, self.publisher_id]
-    }
+    ) -> Result<Vec<u64>, Box<dyn std::error::Error>>;
 }
 
 impl ReadDataCmd {
@@ -60,9 +54,9 @@ impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> Oracle
         &self,
         account_id: &AccountId,
         asset_pair: String,
-    ) -> Result<Vec<u64>, ClientError> {
+    ) -> Result<Vec<u64>, Box<dyn std::error::Error>> {
         let (account, _) = self.get_account(*account_id)?;
-        let oracle_data = read_data_from_oracle_account(&account, asset_pair);
+        let oracle_data = read_data_from_oracle_account(&account, asset_pair)?;
         Ok(oracle_data.to_vector())
     }
 }

@@ -5,7 +5,7 @@ use.miden::kernel_proc_offsets
 
 #! Read price data from the oracle's data slots. 
 #!
-#! Inputs:  [base asset/code asset]
+#! Inputs:  [base asset/quote asset]
 #! Outputs: [WORD]
 #!
 #! - WORD is the tuple (base asset/code asset, price, decimals, publisher Id)

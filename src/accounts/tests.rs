@@ -40,7 +40,7 @@ fn oracle_account_creation_and_pushing_data_to_read() {
 
     push_data_to_oracle_account(&mut oracle_account, oracle_data.clone()).unwrap();
 
-    let read_data = read_data_from_oracle_account(&oracle_account, oracle_data.asset_pair.clone());
+    let read_data = read_data_from_oracle_account(&oracle_account, oracle_data.asset_pair.clone()).unwrap();
     assert_eq!(oracle_data, read_data);
 }
 

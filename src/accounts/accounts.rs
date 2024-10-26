@@ -1,7 +1,8 @@
 use super::{data_to_word, word_to_masm, word_to_data, OracleData, OracleDataStore};
 use assembly::{ast::Module, Assembler, Library, LibraryPath};
 use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt};
-use miden_lib::{transaction::TransactionKernel, AuthScheme};
+use miden_client::transactions::request::TransactionRequest;
+use miden_lib::{transaction::TransactionKernel, AuthScheme, compile_miden_lib};
 use miden_objects::{
     accounts::{
         Account, AccountCode, AccountId, AccountStorage, AccountStorageType, AccountType,
@@ -14,10 +15,16 @@ use miden_tx::{auth::BasicAuthenticator, TransactionExecutor};
 use rand::rngs::OsRng;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 // Include the oracle module source code
 const PUSH_ORACLE_SOURCE: &str = include_str!("oracle/push_oracle.masm");
 const READ_ORACLE_SOURCE: &str = include_str!("oracle/read_oracle.masm");
+const ASM_DIR: &str = "asm";
+const ASSETS_DIR: &str = "assets";
 
 pub fn get_oracle_account(
     init_seed: [u8; 32],
@@ -61,12 +68,21 @@ pub fn get_oracle_account(
     ))
 }
 
-pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> Result<(), String> {
+pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> Result<(), Box<dyn std::error::Error>> {
+    let build_dir = env::var("OUT_DIR").unwrap();
+    let dst = Path::new(&build_dir).to_path_buf();
+
+    // set source directory to {OUT_DIR}/asm
+    let source_dir = dst.join(ASM_DIR);
+
+    // set target directory to {OUT_DIR}/assets
+    let target_dir = Path::new(&build_dir).join(ASSETS_DIR);
+
     let word = data_to_word(&data);
 
     let tx_script_code = format!(
         "
-        use.crate::accounts::oracle::push_oracle
+        use.oracle::push_oracle
 
         begin
                 # Load data to the stack
@@ -76,10 +92,10 @@ pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> R
                 push.{}
 
                 # Verify the signature of the data provider
-                exec.push_oracle::verify_data_provider_signature
+                call.push_oracle::verify_data_provider_signature
 
                 # Call the oracle contract procedure
-                exec.push_oracle::push_oracle_data
+                call.push_oracle::push_oracle_data
 
                 # Clear the stack
                 dropw dropw dropw dropw
@@ -105,26 +121,28 @@ pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> R
             &source_manager,
         )
         .unwrap();
+
     assembler.clone().assemble_library(&[*module]).unwrap();
+
+    let miden_lib = compile_miden_lib(&source_dir, &target_dir, assembler.clone())?;
+    assembler.add_library(miden_lib)?;
 
     // Compile the transaction script
     let tx_script = TransactionScript::compile(
         tx_script_code,
-        vec![], // TODO: is any inputs needed?
+        vec![],
         assembler,
     )
     .unwrap();
-    let tx_args = TransactionArgs::with_tx_script(tx_script);
-    let tx: TransactionExecutor<OracleDataStore, BasicAuthenticator<OsRng>> =
-        TransactionExecutor::new(OracleDataStore::new(account.clone()), None);
-    match tx.execute_transaction(account.id(), 0, &[], tx_args) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
+
+    let tx_request = TransactionRequest::new();
+    TransactionRequest::with_custom_script(tx_request, tx_script);
+
+    Ok(())
 }
 
 /// Read data from oracle account
-pub fn read_data_from_oracle_account(account: &Account, asset_pair: String) -> OracleData {
+pub fn read_data_from_oracle_account(account: &Account, asset_pair: String) -> Result<OracleData, Box<dyn std::error::Error>> {
     let oracle_data = OracleData {
         asset_pair,
         price: 0,
@@ -136,14 +154,14 @@ pub fn read_data_from_oracle_account(account: &Account, asset_pair: String) -> O
     // Create the transaction script code
     let tx_script_code = format!(
         "
-        use.crate::accounts::oracle::read_oracle
+        use.oracle::read_oracle
 
         begin
             # Load asset pair to the stack
             push.{}
 
             # Call the oracle contract procedure
-            exec.read_oracle::read_oracle_data
+            call.read_oracle::read_oracle_data
 
             # Clear the stack
             dropw dropw dropw dropw
@@ -171,20 +189,13 @@ pub fn read_data_from_oracle_account(account: &Account, asset_pair: String) -> O
     // Compile the transaction script
     let tx_script = TransactionScript::compile(
         tx_script_code,
-        vec![], // TODO: is any inputs needed?
+        vec![], 
         assembler,
     )
     .unwrap();
-    let tx_args = TransactionArgs::with_tx_script(tx_script);
-    let tx: TransactionExecutor<OracleDataStore, BasicAuthenticator<OsRng>> =
-        TransactionExecutor::new(OracleDataStore::new(account.clone()), None);
 
-    match tx.execute_transaction(account.id(), 0, &[], tx_args) {
-        Ok(result_word) => {
-            // Convert the result Word to OracleData
-            // let oracle_data = word_to_data(&result_word.tx_outputs.account_delta.storage[0].value);
-            oracle_data
-        }
-        Err(e) => panic!("Transaction execution failed: {}", e),
-    }
+    let tx_request = TransactionRequest::new();
+    TransactionRequest::with_custom_script(tx_request, tx_script);
+
+    Ok(oracle_data)
 }

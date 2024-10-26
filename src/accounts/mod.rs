@@ -25,6 +25,12 @@ pub struct OracleData {
     pub publisher_id: u64,
 }
 
+impl OracleData {
+    pub fn to_vector(&self) -> Vec<u64> {
+        vec![self.price, self.decimals, self.publisher_id]
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct OracleDataStore {
     account: Account,
