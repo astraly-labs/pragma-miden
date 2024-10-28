@@ -3,7 +3,11 @@ use crate::accounts::{
     push_data_to_oracle_account, read_data_from_oracle_account, word_to_data, word_to_masm,
     OracleData,
 };
-use miden_crypto::{Felt, ZERO};
+use miden_crypto::{
+    Felt, ZERO,
+    dsa::rpo_falcon512::{KeyPair, SecretKey},
+    rand::RpoRandomCoin,
+};
 use miden_lib::AuthScheme;
 use miden_objects::accounts::{Account, AccountStorageType};
 use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
@@ -68,4 +72,36 @@ fn test_oracle_data_conversion() {
     assert_eq!(original_data.price, converted_data.price);
     assert_eq!(original_data.decimals, converted_data.decimals);
     assert_eq!(original_data.publisher_id, converted_data.publisher_id);
+}
+
+#[test]
+fn test_falcon_private_key_to_felts() {
+    // Create a random key pair
+    let mut rng = RpoRandomCoin::new([1u8; 32]);
+    let key_pair = KeyPair::new(&mut rng).unwrap();
+    let private_key = key_pair.secret_key();
+    
+    // Get the short lattice basis
+    let basis = private_key.short_lattice_basis();
+    
+    // Convert to Felts
+    let private_key_felts = [
+        Felt::new(basis[0].lc() as u64), // g polynomial
+        Felt::new(basis[1].lc() as u64), // f polynomial
+        Felt::new(basis[2].lc() as u64), // G polynomial
+        Felt::new(basis[3].lc() as u64), // F polynomial
+    ];
+
+    // Verify we have 4 elements
+    assert_eq!(private_key_felts.len(), 4);
+
+    // Verify each element is a valid Felt
+    for felt in private_key_felts.iter() {
+        assert!(felt.as_int() <= u64::MAX as u128);
+    }
+
+    // Verify the values match the original basis coefficients
+    for (i, felt) in private_key_felts.iter().enumerate() {
+        assert_eq!(felt.as_int() as u64, basis[i].lc() as u64);
+    }
 }

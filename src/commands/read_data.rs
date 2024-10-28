@@ -55,8 +55,8 @@ impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> Oracle
         account_id: &AccountId,
         asset_pair: String,
     ) -> Result<Vec<u64>, Box<dyn std::error::Error>> {
-        let (account, _) = self.get_account(*account_id)?;
-        let oracle_data = read_data_from_oracle_account(&account, asset_pair)?;
+        let (mut account, _) = self.get_account(*account_id)?;
+        let oracle_data = read_data_from_oracle_account(self, &mut account, asset_pair)?;
         Ok(oracle_data.to_vector())
     }
 }

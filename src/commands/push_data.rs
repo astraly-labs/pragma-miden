@@ -74,7 +74,7 @@ impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> Oracle
         data: OracleData,
     ) -> Result<(), ClientError> {
         let (mut account, _) = self.get_account(*account_id)?;
-        push_data_to_oracle_account(&mut account, data).map_err(|e| {
+        push_data_to_oracle_account(self, &mut account, data, ).map_err(|e| {
             ClientError::AccountError(miden_objects::AccountError::AccountCodeAssemblyError(
                 e.to_string(),
             ))

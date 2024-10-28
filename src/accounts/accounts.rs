@@ -1,8 +1,10 @@
-use super::{data_to_word, word_to_masm, word_to_data, OracleData, OracleDataStore};
+use super::{data_to_word, word_to_data, word_to_masm, OracleData};
 use assembly::{ast::Module, Assembler, Library, LibraryPath};
-use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt};
-use miden_client::transactions::request::TransactionRequest;
-use miden_lib::{transaction::TransactionKernel, AuthScheme, compile_miden_lib};
+use miden_client::{rpc::NodeRpcClient, store::Store, transactions::request::TransactionRequest, Client};
+use miden_crypto::{
+    dsa::rpo_falcon512::{PublicKey, SecretKey}, rand::FeltRng, Felt
+};
+use miden_lib::{transaction::TransactionKernel, AuthScheme};
 use miden_objects::{
     accounts::{
         Account, AccountCode, AccountId, AccountStorage, AccountStorageType, AccountType,
@@ -11,18 +13,18 @@ use miden_objects::{
     transaction::{TransactionArgs, TransactionScript},
     AccountError, Word,
 };
-use miden_tx::{auth::BasicAuthenticator, TransactionExecutor};
+use miden_tx::{auth::{BasicAuthenticator, TransactionAuthenticator}, TransactionExecutor};
 use rand::rngs::OsRng;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::{
     env,
     path::{Path, PathBuf},
+    io,
 };
-
 // Include the oracle module source code
-const PUSH_ORACLE_SOURCE: &str = include_str!("oracle/push_oracle.masm");
-const READ_ORACLE_SOURCE: &str = include_str!("oracle/read_oracle.masm");
+pub const PUSH_ORACLE_SOURCE: &str = include_str!("oracle/push_oracle.masm");
+pub const READ_ORACLE_SOURCE: &str = include_str!("oracle/read_oracle.masm");
 const ASM_DIR: &str = "asm";
 const ASSETS_DIR: &str = "assets";
 
@@ -68,17 +70,29 @@ pub fn get_oracle_account(
     ))
 }
 
-pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> Result<(), Box<dyn std::error::Error>> {
-    let build_dir = env::var("OUT_DIR").unwrap();
-    let dst = Path::new(&build_dir).to_path_buf();
-
-    // set source directory to {OUT_DIR}/asm
-    let source_dir = dst.join(ASM_DIR);
-
-    // set target directory to {OUT_DIR}/assets
-    let target_dir = Path::new(&build_dir).join(ASSETS_DIR);
-
+pub async fn push_data_to_oracle_account<N, R, S, A>(
+    client: &mut Client<N, R, S, A>,
+    account: &mut Account,
+    data: OracleData,
+    private_key: &SecretKey,
+) -> Result<(), Box<dyn std::error::Error>> 
+where
+    N: NodeRpcClient,
+    R: FeltRng,
+    S: Store,
+    A: TransactionAuthenticator,
+{
+    let (source_dir, target_dir) = get_build_directories()?;
+    
     let word = data_to_word(&data);
+
+    let basis = private_key.short_lattice_basis();
+    let private_key_felts = [
+        Felt::new(basis[0].lc() as u64), // g polynomial
+        Felt::new(basis[1].lc() as u64), // f polynomial
+        Felt::new(basis[2].lc() as u64), // G polynomial
+        Felt::new(basis[3].lc() as u64), // F polynomial
+    ];
 
     let tx_script_code = format!(
         "
@@ -122,33 +136,52 @@ pub fn push_data_to_oracle_account(account: &mut Account, data: OracleData) -> R
         )
         .unwrap();
 
-    assembler.clone().assemble_library(&[*module]).unwrap();
-
-    let miden_lib = compile_miden_lib(&source_dir, &target_dir, assembler.clone())?;
-    assembler.add_library(miden_lib)?;
+    let library = assembler.clone().assemble_library(&[*module]).unwrap();
+    assembler.clone().with_library(library).unwrap();
 
     // Compile the transaction script
     let tx_script = TransactionScript::compile(
         tx_script_code,
-        vec![],
+        vec![(private_key_felts, Vec::new())],
         assembler,
     )
     .unwrap();
 
     let tx_request = TransactionRequest::new();
-    TransactionRequest::with_custom_script(tx_request, tx_script);
+    let request = TransactionRequest::with_custom_script(tx_request, tx_script)
+        .map_err(|err| err.to_string())?;
+    let transaction_execution_result = client.new_transaction(account.id(), request)?;
+    let transaction_id = transaction_execution_result.executed_transaction().id();
+    client
+        .submit_transaction(transaction_execution_result)
+        .await?;
+    
+    println!("Data successfully pushed to oracle account! Transaction ID: {}", transaction_id);
 
     Ok(())
 }
 
 /// Read data from oracle account
-pub fn read_data_from_oracle_account(account: &Account, asset_pair: String) -> Result<OracleData, Box<dyn std::error::Error>> {
+pub async fn read_data_from_oracle_account<N, R, S, A>(
+    client: &mut Client<N, R, S, A>,
+    account: &Account,
+    asset_pair: String,
+) -> Result<OracleData, Box<dyn std::error::Error>>
+where
+    N: NodeRpcClient,
+    R: FeltRng,
+    S: Store,
+    A: TransactionAuthenticator,
+{
+    let (source_dir, target_dir) = get_build_directories()?;
+    
     let oracle_data = OracleData {
         asset_pair,
         price: 0,
         decimals: 0,
         publisher_id: 0,
     };
+
     let asset_pair_word = data_to_word(&oracle_data);
 
     // Create the transaction script code
@@ -184,18 +217,38 @@ pub fn read_data_from_oracle_account(account: &Account, asset_pair: String) -> R
             &source_manager,
         )
         .unwrap();
-    assembler.clone().assemble_library(&[*module]).unwrap();
+
+    let library = assembler.clone().assemble_library(&[*module]).unwrap();
+    assembler.clone().with_library(library).unwrap();
 
     // Compile the transaction script
     let tx_script = TransactionScript::compile(
         tx_script_code,
-        vec![], 
+        vec![],
         assembler,
     )
     .unwrap();
 
     let tx_request = TransactionRequest::new();
-    TransactionRequest::with_custom_script(tx_request, tx_script);
+    let request = TransactionRequest::with_custom_script(tx_request, tx_script)
+        .map_err(|err| err.to_string())?;
+    let transaction_execution_result = client.new_transaction(account.id(), request)?;
+    let transaction_id = transaction_execution_result.executed_transaction().id();
+    let oracle_data = client
+        .submit_transaction(transaction_execution_result).await?;
 
     Ok(oracle_data)
+}
+
+fn get_build_directories() -> io::Result<(PathBuf, PathBuf)> {
+    let build_dir = env::var("OUT_DIR").map_err(|e| io::Error::new(io::ErrorKind::NotFound, e))?;
+    let dst = Path::new(&build_dir).to_path_buf();
+
+    // set source directory to {OUT_DIR}/asm
+    let source_dir = dst.join(ASM_DIR);
+
+    // set target directory to {OUT_DIR}/assets 
+    let target_dir = dst.join(ASSETS_DIR);
+
+    Ok((source_dir, target_dir))
 }

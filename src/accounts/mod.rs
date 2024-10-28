@@ -31,64 +31,6 @@ impl OracleData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct OracleDataStore {
-    account: Account,
-}
-
-impl OracleDataStore {
-    fn new(account: Account) -> Self {
-        Self { account }
-    }
-}
-
-impl DataStore for OracleDataStore {
-    fn get_transaction_inputs(
-        &self,
-        account_id: AccountId,
-        block_num: u32,
-        _notes: &[NoteId],
-    ) -> Result<TransactionInputs, DataStoreError> {
-        if account_id != self.account.id() {
-            return Err(DataStoreError::AccountNotFound(account_id));
-        }
-
-        // Create the dummy BlockHeader for the transaction inputs
-        let block_header = BlockHeader::new(
-            1,
-            Digest::default(),
-            block_num,
-            Digest::default(),
-            Digest::default(),
-            Digest::default(),
-            Digest::default(),
-            Digest::default(),
-            Digest::default(),
-            0,
-        );
-
-        let peaks = MmrPeaks::new(0, Vec::new()).map_err(|e| {
-            DataStoreError::InternalError(format!("Failed to create MmrPeaks: {:?}", e))
-        })?;
-        let chain_mmr =
-            ChainMmr::new(PartialMmr::from_peaks(peaks), vec![block_header]).map_err(|e| {
-                DataStoreError::InternalError(format!("Failed to create ChainMmr: {:?}", e))
-            })?;
-        let input_notes = InputNotes::new(Vec::new()).map_err(|e| {
-            DataStoreError::InternalError(format!("Failed to create InputNotes: {:?}", e))
-        })?;
-
-        TransactionInputs::new(
-            self.account.clone(),
-            None,         // No account seed
-            block_header, // Use a default BlockHeader
-            chain_mmr,    // Empty chain MMR
-            input_notes,  // Empty input notes
-        )
-        .map_err(|e| DataStoreError::InvalidTransactionInput(e))
-    }
-}
-
 /// Encode ASCII string to u64
 pub fn encode_ascii_to_u64(s: &str) -> u64 {
     let mut result: u64 = 0;
