@@ -19,7 +19,7 @@ pub struct ReadDataCmd {
 #[maybe_async]
 pub trait OracleDataReader {
     async fn read_oracle_data(
-        &self,
+        &mut self,
         account_id: &AccountId,
         asset_pair: String,
     ) -> Result<Vec<u64>, Box<dyn std::error::Error>>;
@@ -28,7 +28,7 @@ pub trait OracleDataReader {
 impl ReadDataCmd {
     pub async fn execute<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator>(
         &self,
-        client: &Client<N, R, S, A>,
+        client: &mut Client<N, R, S, A>,
     ) -> Result<(), String>
     where
         Client<N, R, S, A>: OracleDataReader,
@@ -51,12 +51,12 @@ impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> Oracle
     for Client<N, R, S, A>
 {
     async fn read_oracle_data(
-        &self,
+        &mut self,
         account_id: &AccountId,
         asset_pair: String,
     ) -> Result<Vec<u64>, Box<dyn std::error::Error>> {
         let (mut account, _) = self.get_account(*account_id)?;
-        let oracle_data = read_data_from_oracle_account(self, &mut account, asset_pair)?;
+        let oracle_data = read_data_from_oracle_account(self, account, asset_pair).await?;
         Ok(oracle_data.to_vector())
     }
 }

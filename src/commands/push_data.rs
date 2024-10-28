@@ -4,11 +4,15 @@ use clap::Parser;
 use miden_client::{rpc::NodeRpcClient, store::Store, Client, ClientError};
 use miden_objects::{
     accounts::{Account, AccountId},
-    crypto::rand::FeltRng,
+    crypto::{
+        dsa::rpo_falcon512::{SecretKey},
+        rand::FeltRng,
+    },
     Word,
 };
 use miden_tx::auth::TransactionAuthenticator;
 use winter_maybe_async::{maybe_async, maybe_await};
+use crate::commands::get_oracle_private_key;
 
 #[derive(Debug, Clone, Parser)]
 #[clap(about = "Push data to a pragma oracle account on Miden")]
@@ -73,12 +77,15 @@ impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> Oracle
         account_id: &AccountId,
         data: OracleData,
     ) -> Result<(), ClientError> {
-        let (mut account, _) = self.get_account(*account_id)?;
-        push_data_to_oracle_account(self, &mut account, data, ).map_err(|e| {
-            ClientError::AccountError(miden_objects::AccountError::AccountCodeAssemblyError(
-                e.to_string(),
-            ))
-        })?;
+        let (account, _) = self.get_account(*account_id)?;
+        // TODO: hardcode the pragma data provider private key
+        push_data_to_oracle_account(self, account, data, &get_oracle_private_key())
+            .await
+            .map_err(|e| {
+                ClientError::AccountError(miden_objects::AccountError::AccountCodeAssemblyError(
+                    e.to_string(),
+                ))
+            })?;
         Ok(())
     }
 }

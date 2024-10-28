@@ -72,7 +72,7 @@ pub fn get_oracle_account(
 
 pub async fn push_data_to_oracle_account<N, R, S, A>(
     client: &mut Client<N, R, S, A>,
-    account: &mut Account,
+    account: Account,
     data: OracleData,
     private_key: &SecretKey,
 ) -> Result<(), Box<dyn std::error::Error>> 
@@ -164,7 +164,7 @@ where
 /// Read data from oracle account
 pub async fn read_data_from_oracle_account<N, R, S, A>(
     client: &mut Client<N, R, S, A>,
-    account: &Account,
+    account: Account,
     asset_pair: String,
 ) -> Result<OracleData, Box<dyn std::error::Error>>
 where

@@ -12,6 +12,7 @@ use miden_objects::{
 };
 use miden_tx::auth::TransactionAuthenticator;
 use winter_maybe_async::{maybe_async, maybe_await};
+use crate::commands::{parse_public_key};
 
 #[derive(Debug, Clone, Parser)]
 #[clap(about = "Create a new pragma oracle account on Miden")]
@@ -83,19 +84,4 @@ impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> Oracle
         self.insert_account(&account, Some(seed), &AuthSecretKey::RpoFalcon512(key_pair))?;
         Ok((account, seed))
     }
-}
-
-fn parse_public_key(s: &str) -> Result<PublicKey, String> {
-    let word = word_from_hex(s).map_err(|e| e.to_string())?;
-    Ok(PublicKey::new(word))
-}
-
-fn word_from_hex(hex_string: &str) -> Result<Word, String> {
-    let bytes = hex_to_bytes::<32>(hex_string).map_err(|e| e.to_string())?;
-    Ok([
-        Felt::new(u64::from_be_bytes(bytes[0..8].try_into().unwrap())),
-        Felt::new(u64::from_be_bytes(bytes[8..16].try_into().unwrap())),
-        Felt::new(u64::from_be_bytes(bytes[16..24].try_into().unwrap())),
-        Felt::new(u64::from_be_bytes(bytes[24..32].try_into().unwrap())),
-    ])
 }

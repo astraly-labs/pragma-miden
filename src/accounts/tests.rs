@@ -97,7 +97,7 @@ fn test_falcon_private_key_to_felts() {
 
     // Verify each element is a valid Felt
     for felt in private_key_felts.iter() {
-        assert!(felt.as_int() <= u64::MAX as u128);
+        assert!(felt.as_int() <= u64::MAX);
     }
 
     // Verify the values match the original basis coefficients
