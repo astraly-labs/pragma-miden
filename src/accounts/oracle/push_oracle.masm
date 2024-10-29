@@ -1,0 +1,53 @@
+#! Add imports
+use.std::account
+use.std::contracts::auth::basic
+use.std::crypto::dsa::rpo_falcon512
+
+# Slot in account storage at which the data prover's public key is stored.
+const.DATA_PROVIDER_PUBLIC_KEY_SLOT=1
+
+#! Verify the signature of the data provider
+#! Stack: [WORD_1, WORD_2, WORD_3, WORD_4]
+#! Output: []
+#!
+export.verify_data_provider_signature
+    # Compute the hash of the data to be signed
+    hmerge hmerge hmerge
+    # => [DATA_HASH]
+
+    # Get data provider's public key from account storage at slot 1
+    push.DATA_PROVIDER_PUBLIC_KEY_SLOT exec.account::get_item
+    # => [PUB_KEY, DATA_HASH]
+
+    # Verify the signature against the public key and the message hash.
+    # The signature is provided via the advice stack.
+    exec.rpo_falcon512::verify
+    # => []
+end
+
+#! Pushes new price data into the oracle's data slots. 
+#!
+#! Inputs:  [WORD_1, WORD_2, WORD_3, WORD_4]
+#! Outputs: [ ]
+#!
+#! - WORD_X is the tuple (base asset/quote asset, price, decimals, publisher Id)
+#!
+#! Here 16 elements from the stack will be read, so we can start with 4 price updates
+#! This is just to start; in the future, the inputs to this function should be (how_many_words_to_set, WORD1, WORD2, ...) 
+export.push_oracle_data
+
+   push.2 dup movdn.5
+   # => [2, WORD_1, 2, WORD_2, ...]
+   
+   repeat.4
+        exec.account::set_item
+        dropw dropw
+        # => [index, WORD_index+1, ...]
+        
+        add.1 dup movdn.5
+        # => [index+1, WORD_index+1, index+1, ...]
+    end
+end
+
+#! basic auth
+export.basic::auth_tx_rpo_falcon512

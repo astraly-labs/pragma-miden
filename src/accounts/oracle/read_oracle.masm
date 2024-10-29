@@ -1,0 +1,33 @@
+use.kernel::prologue
+use.miden::tx
+use.miden::account
+use.miden::kernel_proc_offsets
+
+#! Read price data from the oracle's data slots. 
+#!
+#! Inputs:  [base asset/quote asset]
+#! Outputs: [WORD]
+#!
+#! - WORD is the tuple (base asset/code asset, price, decimals, publisher Id)
+#!
+export.read_oracle_data
+    exec.prologue::prepare_transaction
+
+    # pad the stack for the `execute_foreign_procedure`execution
+    padw padw push.0.0.0
+    # => [pad(11)]
+
+    # push the index of desired storage item
+    push.0
+
+    # push the foreign account id - which is the oracle account
+    push.{account_id}
+
+    # get the hash of the `get_item_foreign` account procedure
+    procref.account::get_item_foreign
+    # => [FOREIGN_PROC_ROOT, foreign_account_id, storage_item_index, pad(11)]
+
+    exec.tx::execute_foreign_procedure
+    # => [STORAGE_VALUE_1]
+end
+
