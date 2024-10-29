@@ -1,9 +1,11 @@
 mod accounts;
+#[cfg(feature = "testing")]
 mod tests;
 
 use miden_crypto::{
     merkle::{MmrPeaks, PartialMmr},
     Felt, EMPTY_WORD,
+    dsa::rpo_falcon512::SecretKey,
 };
 use miden_objects::{
     accounts::{Account, AccountId},
@@ -88,4 +90,15 @@ pub fn word_to_data(word: &Word) -> OracleData {
         decimals: word[2].as_int(),
         publisher_id: word[3].as_int(),
     }
+}
+
+/// Convert SecretKey to array of Felts representing the polynomials
+pub fn secret_key_to_felts(private_key: &SecretKey) -> [Felt; 4] {
+    let basis = private_key.short_lattice_basis();
+    [
+        Felt::new(basis[0].lc() as u64), // g polynomial
+        Felt::new(basis[1].lc() as u64), // f polynomial
+        Felt::new(basis[2].lc() as u64), // G polynomial
+        Felt::new(basis[3].lc() as u64), // F polynomial
+    ]
 }

@@ -3,6 +3,9 @@ name = "pragma-miden"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+testing = ["miden-client/testing"]
+
 [dependencies]
 miden-client = { version = "0.5", features = ["concurrent", "testing", "sqlite", "tonic"] }
 miden-crypto = { version = "0.10", default-features = false }
@@ -10,7 +13,7 @@ miden-lib = { version = "0.5", default-features = false }
 miden-objects = { version = "0.5", default-features = false }
 miden-tx = { version = "0.5" }
 miden-cli = { version = "0.5" }
-assembly = { package = "miden-assembly", version = "0.10", default-features = false }
+assembly = { package = "miden-assembly", version = "0.10.5", default-features = false }
 
 rusqlite = { version = "0.31", features = ["vtab", "array", "bundled"]}
 rand = "0.8"
@@ -27,3 +30,8 @@ winter-maybe-async = "0.10"
 hex = "0.4.3"
 rand_chacha = "0.3"
 once_cell = "1.18"
+
+[[test]]
+name = "integration"
+path = "src/accounts/tests.rs"
+required-features = ["testing"]

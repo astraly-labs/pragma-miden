@@ -1,21 +1,21 @@
 // use crate::accounts::{
 //     data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, get_oracle_account,
 //     push_data_to_oracle_account, read_data_from_oracle_account, word_to_data, word_to_masm,
-//     OracleData,
+//     OracleData, PUSH_ORACLE_SOURCE, PUSH_ORACLE_SOURCE_PATH,
 // };
 // use miden_crypto::{
 //     Felt, ZERO,
-//     dsa::rpo_falcon512::{KeyPair, SecretKey},
+//     dsa::rpo_falcon512::{SecretKey, PublicKey},
 //     rand::RpoRandomCoin,
 // };
 // use miden_lib::AuthScheme;
 // use miden_objects::accounts::{Account, AccountStorageType};
 // use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
+// use miden_tx::testing::tx_context::builder::TransactionContextBuilder;
 
 // #[test]
 // fn oracle_account_creation_and_pushing_data_to_read() {
-//     let pub_key = rpo_falcon512::PublicKey::new([ONE; 4]);
-//     let auth_scheme: AuthScheme = AuthScheme::RpoFalcon512 { pub_key };
+//     let auth_scheme: AuthScheme = AuthScheme::RpoFalcon512 { pub_key: PublicKey::new([ONE; 4]) };
 
 //     let init_seed: [u8; 32] = [
 //         90, 110, 209, 94, 84, 105, 250, 242, 223, 203, 216, 124, 22, 159, 14, 132, 215, 85, 183,
@@ -24,7 +24,7 @@
 
 //     let account_type = miden_objects::accounts::AccountType::RegularAccountImmutableCode;
 //     let storage_type = AccountStorageType::OnChain;
-//     let data_provider_public_key = rpo_falcon512::PublicKey::new([ONE; 4]);
+//     let data_provider_public_key = PublicKey::new([ONE; 4]);
 
 //     let (mut oracle_account, _) = get_oracle_account(
 //         init_seed,
@@ -42,9 +42,15 @@
 //         publisher_id: 1,
 //     };
 
-//     push_data_to_oracle_account(&mut oracle_account, oracle_data.clone()).unwrap();
+//     let tx_context = TransactionContextBuilder::new(oracle_account.clone()).build();
 
-//     let read_data = read_data_from_oracle_account(&oracle_account, oracle_data.asset_pair.clone()).unwrap();
+//     let tx_script = create_transaction_script(
+//         tx_script_code,
+//         vec![(private_key_felts, Vec::new())],
+//         PUSH_ORACLE_SOURCE,
+//         PUSH_ORACLE_SOURCE_PATH,
+//     )?;
+
 //     assert_eq!(oracle_data, read_data);
 // }
 
@@ -77,9 +83,7 @@
 // #[test]
 // fn test_falcon_private_key_to_felts() {
 //     // Create a random key pair
-//     let mut rng = RpoRandomCoin::new([1u8; 32]);
-//     let key_pair = KeyPair::new(&mut rng).unwrap();
-//     let private_key = key_pair.secret_key();
+//     let private_key = SecretKey::new();
     
 //     // Get the short lattice basis
 //     let basis = private_key.short_lattice_basis();

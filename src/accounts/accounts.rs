@@ -24,9 +24,48 @@ use std::{
 };
 // Include the oracle module source code
 pub const PUSH_ORACLE_SOURCE: &str = include_str!("oracle/push_oracle.masm");
+pub const PUSH_ORACLE_SOURCE_PATH: LibraryPath = LibraryPath::new("oracle::push_oracle").unwrap();
 pub const READ_ORACLE_SOURCE: &str = include_str!("oracle/read_oracle.masm");
+pub const READ_ORACLE_SOURCE_PATH: LibraryPath = LibraryPath::new("oracle::read_oracle").unwrap();
 const ASM_DIR: &str = "asm";
 const ASSETS_DIR: &str = "assets";
+
+/// Transaction script template for pushing data to oracle
+pub const PUSH_DATA_TX_SCRIPT: &str = r#"
+use.oracle::push_oracle
+
+begin
+    push.{} 
+    push.{}  
+    push.{}  
+    push.{}  
+    
+    call.push_oracle::verify_data_provider_signature
+    
+    call.push_oracle::push_oracle_data
+    
+    dropw dropw dropw dropw 
+    
+    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+    dropw dropw dropw  
+end
+"#;
+
+/// Transaction script template for reading data from oracle
+pub const READ_DATA_TX_SCRIPT: &str = r#"
+use.oracle::read_oracle
+
+begin
+    push.{} 
+    
+    call.read_oracle::read_oracle_data
+    
+    dropw dropw dropw dropw 
+    
+    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+    dropw dropw dropw  
+end
+"#;
 
 pub fn get_oracle_account(
     init_seed: [u8; 32],
@@ -70,6 +109,63 @@ pub fn get_oracle_account(
     ))
 }
 
+/// Helper function to create a transaction script
+fn create_transaction_script(
+    tx_script_code: String,
+    private_key_inputs: Vec<(Word, Vec<Felt>)>,
+    masm_source: &str,
+    masm_path: LibraryPath,
+) -> Result<TransactionScript, Box<dyn std::error::Error>> {
+    let assembler = TransactionKernel::assembler();
+    let source_manager = Arc::new(assembly::DefaultSourceManager::default());
+
+    // Parse the external MASM library
+    let module = Module::parser(assembly::ast::ModuleKind::Library)
+        .parse_str(
+            masm_path,
+            masm_source,
+            &source_manager,
+        )
+        .unwrap();
+
+    let library = assembler.clone().assemble_library(&[*module]).unwrap();
+    let assembler = assembler.clone().with_library(library).unwrap();
+
+    // Compile the transaction script
+    let tx_script = TransactionScript::compile(
+        tx_script_code,
+        private_key_inputs,
+        assembler,
+    )
+    .unwrap();
+
+    Ok(tx_script)
+}
+
+/// Helper function to execute a transaction
+async fn execute_transaction<N, R, S, A>(
+    client: &mut Client<N, R, S, A>,
+    account_id: AccountId,
+    tx_script: TransactionScript,
+) -> Result<String, Box<dyn std::error::Error>>
+where
+    N: NodeRpcClient,
+    R: FeltRng,
+    S: Store,
+    A: TransactionAuthenticator,
+{
+    let tx_request = TransactionRequest::new();
+    let request = TransactionRequest::with_custom_script(tx_request, tx_script)
+        .map_err(|err| err.to_string())?;
+    let transaction_execution_result = client.new_transaction(account_id, request)?;
+    let transaction_id = transaction_execution_result.executed_transaction().id();
+    client
+        .submit_transaction(transaction_execution_result)
+        .await?;
+    
+    Ok(transaction_id.to_string())
+}
+
 pub async fn push_data_to_oracle_account<N, R, S, A>(
     client: &mut Client<N, R, S, A>,
     account: Account,
@@ -83,83 +179,29 @@ where
     A: TransactionAuthenticator,
 {
     let word = data_to_word(&data);
-
-    let basis = private_key.short_lattice_basis();
-    let private_key_felts = [
-        Felt::new(basis[0].lc() as u64), // g polynomial
-        Felt::new(basis[1].lc() as u64), // f polynomial
-        Felt::new(basis[2].lc() as u64), // G polynomial
-        Felt::new(basis[3].lc() as u64), // F polynomial
-    ];
+    let private_key_felts = super::secret_key_to_felts(private_key);
 
     let tx_script_code = format!(
-        "
-        use.oracle::push_oracle
-
-        begin
-                # Load data to the stack
-                push.{}
-                push.{}
-                push.{}
-                push.{}
-
-                # Verify the signature of the data provider
-                call.push_oracle::verify_data_provider_signature
-
-                # Call the oracle contract procedure
-                call.push_oracle::push_oracle_data
-
-                # Clear the stack
-                dropw dropw dropw dropw
-
-                call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
-                dropw dropw dropw
-        end
-        ",
+        PUSH_DATA_TX_SCRIPT,
         word_to_masm(&word),
         word_to_masm(&word),
         word_to_masm(&word),
         word_to_masm(&word)
     );
 
-    let assembler = TransactionKernel::assembler();
-    let source_manager = Arc::new(assembly::DefaultSourceManager::default());
-
-    // Parse the external MASM library
-    let module = Module::parser(assembly::ast::ModuleKind::Library)
-        .parse_str(
-            LibraryPath::new("oracle::push_oracle").unwrap(),
-            PUSH_ORACLE_SOURCE,
-            &source_manager,
-        )
-        .unwrap();
-
-    let library = assembler.clone().assemble_library(&[*module]).unwrap();
-    assembler.clone().with_library(library).unwrap();
-
-    // Compile the transaction script
-    let tx_script = TransactionScript::compile(
+    let tx_script = create_transaction_script(
         tx_script_code,
         vec![(private_key_felts, Vec::new())],
-        assembler,
-    )
-    .unwrap();
+        PUSH_ORACLE_SOURCE,
+        PUSH_ORACLE_SOURCE_PATH,
+    )?;
 
-    let tx_request = TransactionRequest::new();
-    let request = TransactionRequest::with_custom_script(tx_request, tx_script)
-        .map_err(|err| err.to_string())?;
-    let transaction_execution_result = client.new_transaction(account.id(), request)?;
-    let transaction_id = transaction_execution_result.executed_transaction().id();
-    client
-        .submit_transaction(transaction_execution_result)
-        .await?;
-    
+    let transaction_id = execute_transaction(client, account.id(), tx_script).await?;
     println!("Data successfully pushed to oracle account! Transaction ID: {}", transaction_id);
 
     Ok(())
 }
 
-/// Read data from oracle account
 pub async fn read_data_from_oracle_account<N, R, S, A>(
     client: &mut Client<N, R, S, A>,
     account: Account,
@@ -179,59 +221,19 @@ where
     };
 
     let asset_pair_word = data_to_word(&oracle_data);
-
-    // Create the transaction script code
     let tx_script_code = format!(
-        "
-        use.oracle::read_oracle
-
-        begin
-            # Load asset pair to the stack
-            push.{}
-
-            # Call the oracle contract procedure
-            call.read_oracle::read_oracle_data
-
-            # Clear the stack
-            dropw dropw dropw dropw
-
-            call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
-            dropw dropw dropw
-        end
-        ",
+        READ_DATA_TX_SCRIPT,
         word_to_masm(&asset_pair_word)
     );
 
-    let assembler = TransactionKernel::assembler();
-    let source_manager = Arc::new(assembly::DefaultSourceManager::default());
-
-    // Parse the external MASM library
-    let module = Module::parser(assembly::ast::ModuleKind::Library)
-        .parse_str(
-            LibraryPath::new("oracle::read_oracle").unwrap(),
-            READ_ORACLE_SOURCE,
-            &source_manager,
-        )
-        .unwrap();
-
-    let library = assembler.clone().assemble_library(&[*module]).unwrap();
-    assembler.clone().with_library(library).unwrap();
-
-    // Compile the transaction script
-    let tx_script = TransactionScript::compile(
+    let tx_script = create_transaction_script(
         tx_script_code,
         vec![],
-        assembler,
-    )
-    .unwrap();
+        READ_ORACLE_SOURCE,
+        READ_ORACLE_SOURCE_PATH,
+    )?;
 
-    let tx_request = TransactionRequest::new();
-    let request = TransactionRequest::with_custom_script(tx_request, tx_script)
-        .map_err(|err| err.to_string())?;
-    let transaction_execution_result = client.new_transaction(account.id(), request)?;
-    let transaction_id = transaction_execution_result.executed_transaction().id();
-    let oracle_data = client
-        .submit_transaction(transaction_execution_result).await?;
+    let _transaction_id = execute_transaction(client, account.id(), tx_script).await?;
 
     // TODO: fix this
     let oracle_data = OracleData {
