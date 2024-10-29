@@ -20,7 +20,7 @@ export.verify_data_provider_signature
     # => [PUB_KEY, DATA_HASH]
 
     # Verify the signature against the public key and the message hash.
-    # The signature is provided via the advice stack.
+    # The signature is provided using the private key via the advice stack.
     exec.rpo_falcon512::verify
     # => []
 end

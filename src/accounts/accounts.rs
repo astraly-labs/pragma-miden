@@ -82,8 +82,6 @@ where
     S: Store,
     A: TransactionAuthenticator,
 {
-    let (source_dir, target_dir) = get_build_directories()?;
-    
     let word = data_to_word(&data);
 
     let basis = private_key.short_lattice_basis();
@@ -172,9 +170,7 @@ where
     R: FeltRng,
     S: Store,
     A: TransactionAuthenticator,
-{
-    let (source_dir, target_dir) = get_build_directories()?;
-    
+{   
     let oracle_data = OracleData {
         asset_pair,
         price: 0,
@@ -237,18 +233,12 @@ where
     let oracle_data = client
         .submit_transaction(transaction_execution_result).await?;
 
+    // TODO: fix this
+    let oracle_data = OracleData {
+        asset_pair: "BTC/USD".to_string(),
+        price: 0,
+        decimals: 0,
+        publisher_id: 0,
+    };
     Ok(oracle_data)
-}
-
-fn get_build_directories() -> io::Result<(PathBuf, PathBuf)> {
-    let build_dir = env::var("OUT_DIR").map_err(|e| io::Error::new(io::ErrorKind::NotFound, e))?;
-    let dst = Path::new(&build_dir).to_path_buf();
-
-    // set source directory to {OUT_DIR}/asm
-    let source_dir = dst.join(ASM_DIR);
-
-    // set target directory to {OUT_DIR}/assets 
-    let target_dir = dst.join(ASSETS_DIR);
-
-    Ok((source_dir, target_dir))
 }

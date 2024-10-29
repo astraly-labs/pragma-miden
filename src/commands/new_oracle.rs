@@ -1,4 +1,4 @@
-use crate::accounts::get_oracle_account;
+use crate::{accounts::get_oracle_account, commands::get_oracle_public_key};
 use clap::{Parser, ValueEnum};
 use miden_client::{rpc::NodeRpcClient, store::Store, Client, ClientError, Felt};
 use miden_lib::{utils::hex_to_bytes, AuthScheme};
@@ -41,7 +41,7 @@ impl AccountCmd {
         let (account, seed) = client
             .new_oracle_account(
                 AccountStorageType::OnChain,
-                self.data_provider_public_key.clone(),
+                get_oracle_public_key(), // TODO: hardcode the pragma data provider public key
             )
             .await
             .map_err(|e| e.to_string())?;
