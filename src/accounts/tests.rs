@@ -1,7 +1,7 @@
 use crate::accounts::{
     data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, get_oracle_account,
     push_data_to_oracle_account, read_data_from_oracle_account, word_to_data, word_to_masm,
-    OracleData, PUSH_ORACLE_SOURCE,
+    OracleData, PUSH_ORACLE_SOURCE, PUSH_DATA_TX_SCRIPT, READ_ORACLE_SOURCE, READ_DATA_TX_SCRIPT, accounts::secret_key_to_felts
 };
 use miden_crypto::{
     Felt, ZERO,
@@ -11,8 +11,8 @@ use miden_crypto::{
 use miden_lib::AuthScheme;
 use miden_objects::accounts::{Account, AccountStorageType};
 use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
-use miden_tx::testing::tx_context::builder::TransactionContextBuilder;
-use miden_tx::get_new_pk_and_authenticator;
+use miden_tx::{testing::TransactionContextBuilder, TransactionExecutor};
+use miden_tx::{get_new_pk_and_authenticator, prove_and_verify_transaction};
 
 #[test]
 fn oracle_account_creation_and_pushing_data_to_read() {
@@ -26,7 +26,8 @@ fn oracle_account_creation_and_pushing_data_to_read() {
 
     let account_type = miden_objects::accounts::AccountType::RegularAccountImmutableCode;
     let storage_type = AccountStorageType::OnChain;
-    let data_provider_public_key = PublicKey::new([ONE; 4]);
+    let data_provider_private_key = SecretKey::new();
+    let data_provider_public_key = data_provider_private_key.public_key();
 
     let (mut oracle_account, _) = get_oracle_account(
         init_seed,
@@ -44,21 +45,44 @@ fn oracle_account_creation_and_pushing_data_to_read() {
         publisher_id: 1,
     };
 
+    let word = data_to_word(&oracle_data);
+
     let tx_context = TransactionContextBuilder::new(oracle_account.clone()).build();
     let executor = TransactionExecutor::new(tx_context.clone(), Some(oracle_auth.clone()));
 
-    let tx_script = create_transaction_script(
-        tx_script_code,
+    let push_tx_script_code = format!(
+        PUSH_DATA_TX_SCRIPT,
+        word_to_masm(&word),
+        word_to_masm(&word),
+        word_to_masm(&word),
+        word_to_masm(&word)
+    );
+
+    let push_tx_script = create_transaction_script(
+        push_tx_script_code,
         vec![(private_key_felts, Vec::new())],
         PUSH_ORACLE_SOURCE,
     )?;
 
-    let txn_args = TransactionArgs::from_tx_script(tx_script);
+    let txn_args = TransactionArgs::from_tx_script(push_tx_script);
     let executed_transaction = executor
         .execute_transaction(oracle_account.id(), None, &[], txn_args)
         .unwrap();
 
     assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
+
+    // let read_tx_script = create_transaction_script(
+    //     read_tx_script_code,
+    //     vec![],
+    //     READ_ORACLE_SOURCE,
+    // )?;
+
+    // let txn_args = TransactionArgs::from_tx_script(read_tx_script);
+    // let executed_transaction = executor
+    //     .execute_transaction(oracle_account.id(), None, &[], txn_args)
+    //     .unwrap();
+
+    // assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
 }
 
 #[test]
