@@ -1,111 +1,118 @@
-// use crate::accounts::{
-//     data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, get_oracle_account,
-//     push_data_to_oracle_account, read_data_from_oracle_account, word_to_data, word_to_masm,
-//     OracleData, PUSH_ORACLE_SOURCE, PUSH_ORACLE_SOURCE_PATH,
-// };
-// use miden_crypto::{
-//     Felt, ZERO,
-//     dsa::rpo_falcon512::{SecretKey, PublicKey},
-//     rand::RpoRandomCoin,
-// };
-// use miden_lib::AuthScheme;
-// use miden_objects::accounts::{Account, AccountStorageType};
-// use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
-// use miden_tx::testing::tx_context::builder::TransactionContextBuilder;
+use crate::accounts::{
+    data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, get_oracle_account,
+    push_data_to_oracle_account, read_data_from_oracle_account, word_to_data, word_to_masm,
+    OracleData, PUSH_ORACLE_SOURCE,
+};
+use miden_crypto::{
+    Felt, ZERO,
+    dsa::rpo_falcon512::{SecretKey, PublicKey},
+    rand::RpoRandomCoin,
+};
+use miden_lib::AuthScheme;
+use miden_objects::accounts::{Account, AccountStorageType};
+use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
+use miden_tx::testing::tx_context::builder::TransactionContextBuilder;
+use miden_tx::get_new_pk_and_authenticator;
 
-// #[test]
-// fn oracle_account_creation_and_pushing_data_to_read() {
-//     let auth_scheme: AuthScheme = AuthScheme::RpoFalcon512 { pub_key: PublicKey::new([ONE; 4]) };
+#[test]
+fn oracle_account_creation_and_pushing_data_to_read() {
+    let (oracle_pub_key, oracle_auth) = get_new_pk_and_authenticator();
+    let auth_scheme: AuthScheme = AuthScheme::RpoFalcon512 { pub_key: oracle_pub_key };
 
-//     let init_seed: [u8; 32] = [
-//         90, 110, 209, 94, 84, 105, 250, 242, 223, 203, 216, 124, 22, 159, 14, 132, 215, 85, 183,
-//         204, 149, 90, 166, 68, 100, 73, 106, 168, 125, 237, 138, 16,
-//     ];
+    let init_seed: [u8; 32] = [
+        90, 110, 209, 94, 84, 105, 250, 242, 223, 203, 216, 124, 22, 159, 14, 132, 215, 85, 183,
+        204, 149, 90, 166, 68, 100, 73, 106, 168, 125, 237, 138, 16,
+    ];
 
-//     let account_type = miden_objects::accounts::AccountType::RegularAccountImmutableCode;
-//     let storage_type = AccountStorageType::OnChain;
-//     let data_provider_public_key = PublicKey::new([ONE; 4]);
+    let account_type = miden_objects::accounts::AccountType::RegularAccountImmutableCode;
+    let storage_type = AccountStorageType::OnChain;
+    let data_provider_public_key = PublicKey::new([ONE; 4]);
 
-//     let (mut oracle_account, _) = get_oracle_account(
-//         init_seed,
-//         auth_scheme,
-//         account_type,
-//         storage_type,
-//         data_provider_public_key,
-//     )
-//     .unwrap();
+    let (mut oracle_account, _) = get_oracle_account(
+        init_seed,
+        auth_scheme,
+        account_type,
+        storage_type,
+        data_provider_public_key,
+    )
+    .unwrap();
 
-//     let oracle_data = OracleData {
-//         asset_pair: "BTC/USD".to_string(),
-//         price: 50000,
-//         decimals: 2,
-//         publisher_id: 1,
-//     };
+    let oracle_data = OracleData {
+        asset_pair: "BTC/USD".to_string(),
+        price: 50000,
+        decimals: 2,
+        publisher_id: 1,
+    };
 
-//     let tx_context = TransactionContextBuilder::new(oracle_account.clone()).build();
+    let tx_context = TransactionContextBuilder::new(oracle_account.clone()).build();
+    let executor = TransactionExecutor::new(tx_context.clone(), Some(oracle_auth.clone()));
 
-//     let tx_script = create_transaction_script(
-//         tx_script_code,
-//         vec![(private_key_felts, Vec::new())],
-//         PUSH_ORACLE_SOURCE,
-//         PUSH_ORACLE_SOURCE_PATH,
-//     )?;
+    let tx_script = create_transaction_script(
+        tx_script_code,
+        vec![(private_key_felts, Vec::new())],
+        PUSH_ORACLE_SOURCE,
+    )?;
 
-//     assert_eq!(oracle_data, read_data);
-// }
+    let txn_args = TransactionArgs::from_tx_script(tx_script);
+    let executed_transaction = executor
+        .execute_transaction(oracle_account.id(), None, &[], txn_args)
+        .unwrap();
 
-// #[test]
-// fn test_ascii_encoding_decoding() {
-//     let original = "BTC/USD";
-//     let encoded = encode_ascii_to_u64(original);
-//     let decoded = decode_u64_to_ascii(encoded);
-//     assert_eq!(original, decoded);
-// }
+    assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
+}
 
-// #[test]
-// fn test_oracle_data_conversion() {
-//     let original_data = OracleData {
-//         asset_pair: "BTC/USD".to_string(),
-//         price: 50000,
-//         decimals: 2,
-//         publisher_id: 1,
-//     };
+#[test]
+fn test_ascii_encoding_decoding() {
+    let original = "BTC/USD";
+    let encoded = encode_ascii_to_u64(original);
+    let decoded = decode_u64_to_ascii(encoded);
+    assert_eq!(original, decoded);
+}
 
-//     let word = data_to_word(&original_data);
-//     let converted_data = word_to_data(&word);
+#[test]
+fn test_oracle_data_conversion() {
+    let original_data = OracleData {
+        asset_pair: "BTC/USD".to_string(),
+        price: 50000,
+        decimals: 2,
+        publisher_id: 1,
+    };
 
-//     assert_eq!(original_data.asset_pair, converted_data.asset_pair);
-//     assert_eq!(original_data.price, converted_data.price);
-//     assert_eq!(original_data.decimals, converted_data.decimals);
-//     assert_eq!(original_data.publisher_id, converted_data.publisher_id);
-// }
+    let word = data_to_word(&original_data);
+    let converted_data = word_to_data(&word);
 
-// #[test]
-// fn test_falcon_private_key_to_felts() {
-//     // Create a random key pair
-//     let private_key = SecretKey::new();
+    assert_eq!(original_data.asset_pair, converted_data.asset_pair);
+    assert_eq!(original_data.price, converted_data.price);
+    assert_eq!(original_data.decimals, converted_data.decimals);
+    assert_eq!(original_data.publisher_id, converted_data.publisher_id);
+}
+
+#[test]
+fn test_falcon_private_key_to_felts() {
+    // Create a random key pair
+    let private_key = SecretKey::new();
     
-//     // Get the short lattice basis
-//     let basis = private_key.short_lattice_basis();
+    // Get the short lattice basis
+    let basis = private_key.short_lattice_basis();
     
-//     // Convert to Felts
-//     let private_key_felts = [
-//         Felt::new(basis[0].lc() as u64), // g polynomial
-//         Felt::new(basis[1].lc() as u64), // f polynomial
-//         Felt::new(basis[2].lc() as u64), // G polynomial
-//         Felt::new(basis[3].lc() as u64), // F polynomial
-//     ];
+    // Convert to Felts
+    let private_key_felts = [
+        Felt::new(basis[0].lc() as u64), // g polynomial
+        Felt::new(basis[1].lc() as u64), // f polynomial
+        Felt::new(basis[2].lc() as u64), // G polynomial
+        Felt::new(basis[3].lc() as u64), // F polynomial
+    ];
 
-//     // Verify we have 4 elements
-//     assert_eq!(private_key_felts.len(), 4);
+    // Verify we have 4 elements
+    assert_eq!(private_key_felts.len(), 4);
 
-//     // Verify each element is a valid Felt
-//     for felt in private_key_felts.iter() {
-//         assert!(felt.as_int() <= u64::MAX);
-//     }
+    // Verify each element is a valid Felt
+    for felt in private_key_felts.iter() {
+        assert!(felt.as_int() <= u64::MAX);
+    }
 
-//     // Verify the values match the original basis coefficients
-//     for (i, felt) in private_key_felts.iter().enumerate() {
-//         assert_eq!(felt.as_int() as u64, basis[i].lc() as u64);
-//     }
-// }
+    // Verify the values match the original basis coefficients
+    for (i, felt) in private_key_felts.iter().enumerate() {
+        assert_eq!(felt.as_int() as u64, basis[i].lc() as u64);
+    }
+}
