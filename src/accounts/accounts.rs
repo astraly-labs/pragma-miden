@@ -1,5 +1,4 @@
 use super::{data_to_word, word_to_data, word_to_masm, OracleData};
-use assembly::{ast::Module, Assembler, Library, LibraryPath};
 use miden_client::{rpc::NodeRpcClient, store::Store, transactions::request::TransactionRequest, Client};
 use miden_crypto::{
     dsa::rpo_falcon512::{PublicKey, SecretKey}, rand::FeltRng, Felt
@@ -12,6 +11,7 @@ use miden_objects::{
     },
     transaction::{TransactionArgs, TransactionScript},
     AccountError, Word,
+    assembly::{Assembler, Library, LibraryPath}
 };
 use miden_tx::{auth::{BasicAuthenticator, TransactionAuthenticator}, TransactionExecutor};
 use rand::rngs::OsRng;
@@ -22,11 +22,10 @@ use std::{
     path::{Path, PathBuf},
     io,
 };
+
 // Include the oracle module source code
 pub const PUSH_ORACLE_SOURCE: &str = include_str!("oracle/push_oracle.masm");
-pub const PUSH_ORACLE_SOURCE_PATH: LibraryPath = LibraryPath::new("oracle::push_oracle").unwrap();
 pub const READ_ORACLE_SOURCE: &str = include_str!("oracle/read_oracle.masm");
-pub const READ_ORACLE_SOURCE_PATH: LibraryPath = LibraryPath::new("oracle::read_oracle").unwrap();
 const ASM_DIR: &str = "asm";
 const ASSETS_DIR: &str = "assets";
 
@@ -113,22 +112,11 @@ pub fn get_oracle_account(
 fn create_transaction_script(
     tx_script_code: String,
     private_key_inputs: Vec<(Word, Vec<Felt>)>,
-    masm_source: &str,
     masm_path: LibraryPath,
 ) -> Result<TransactionScript, Box<dyn std::error::Error>> {
     let assembler = TransactionKernel::assembler();
     let source_manager = Arc::new(assembly::DefaultSourceManager::default());
-
-    // Parse the external MASM library
-    let module = Module::parser(assembly::ast::ModuleKind::Library)
-        .parse_str(
-            masm_path,
-            masm_source,
-            &source_manager,
-        )
-        .unwrap();
-
-    let library = assembler.clone().assemble_library(&[*module]).unwrap();
+    let library = Library::from_dir(masm_path, LibraryNamespace::new("oracle").unwrap(), assembler)?;
     let assembler = assembler.clone().with_library(library).unwrap();
 
     // Compile the transaction script
@@ -193,7 +181,6 @@ where
         tx_script_code,
         vec![(private_key_felts, Vec::new())],
         PUSH_ORACLE_SOURCE,
-        PUSH_ORACLE_SOURCE_PATH,
     )?;
 
     let transaction_id = execute_transaction(client, account.id(), tx_script).await?;
@@ -230,7 +217,6 @@ where
         tx_script_code,
         vec![],
         READ_ORACLE_SOURCE,
-        READ_ORACLE_SOURCE_PATH,
     )?;
 
     let _transaction_id = execute_transaction(client, account.id(), tx_script).await?;
