@@ -1,23 +1,31 @@
 use crate::accounts::{
     data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, get_oracle_account,
     push_data_to_oracle_account, read_data_from_oracle_account, word_to_data, word_to_masm,
-    OracleData, PUSH_ORACLE_SOURCE, PUSH_DATA_TX_SCRIPT, READ_ORACLE_SOURCE, READ_DATA_TX_SCRIPT, accounts::secret_key_to_felts
+    OracleData, secret_key_to_felts
+};
+use crate::accounts::accounts::{
+    PUSH_ORACLE_PATH as PUSH_ORACLE_SOURCE,
+    READ_ORACLE_PATH as READ_ORACLE_SOURCE,
+    PUSH_DATA_TX_SCRIPT,
+    READ_DATA_TX_SCRIPT,
+    create_transaction_script
 };
 use miden_crypto::{
-    Felt, ZERO,
+    Felt, ZERO, Word,
     dsa::rpo_falcon512::{SecretKey, PublicKey},
     rand::RpoRandomCoin,
 };
 use miden_lib::AuthScheme;
-use miden_objects::accounts::{Account, AccountStorageType};
+use miden_objects::{transaction::{TransactionArgs, ExecutedTransaction, ProvenTransaction}, accounts::{Account, AccountStorageType}, crypto::utils::Serializable};
 use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
-use miden_tx::{testing::TransactionContextBuilder, TransactionExecutor};
-use miden_tx::{get_new_pk_and_authenticator, prove_and_verify_transaction};
+use miden_tx::{testing::TransactionContextBuilder, TransactionExecutor, TransactionProver, TransactionVerifier, TransactionVerifierError, ProvingOptions};
+use miden_client::utils::Deserializable;
+use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 
 #[test]
 fn oracle_account_creation_and_pushing_data_to_read() {
     let (oracle_pub_key, oracle_auth) = get_new_pk_and_authenticator();
-    let auth_scheme: AuthScheme = AuthScheme::RpoFalcon512 { pub_key: oracle_pub_key };
+    let auth_scheme: AuthScheme = AuthScheme::RpoFalcon512 { pub_key: PublicKey::new(oracle_pub_key) };
 
     let init_seed: [u8; 32] = [
         90, 110, 209, 94, 84, 105, 250, 242, 223, 203, 216, 124, 22, 159, 14, 132, 215, 85, 183,
@@ -51,22 +59,19 @@ fn oracle_account_creation_and_pushing_data_to_read() {
     let executor = TransactionExecutor::new(tx_context.clone(), Some(oracle_auth.clone()));
 
     let push_tx_script_code = format!(
-        PUSH_DATA_TX_SCRIPT,
-        word_to_masm(&word),
-        word_to_masm(&word),
-        word_to_masm(&word),
-        word_to_masm(&word)
+        "{}",
+        PUSH_DATA_TX_SCRIPT.replace("{}", &word_to_masm(&word))
     );
 
     let push_tx_script = create_transaction_script(
         push_tx_script_code,
-        vec![(private_key_felts, Vec::new())],
+        vec![(secret_key_to_felts(&data_provider_private_key), Vec::new())],
         PUSH_ORACLE_SOURCE,
-    )?;
+    ).unwrap();
 
-    let txn_args = TransactionArgs::from_tx_script(push_tx_script);
+    let txn_args = TransactionArgs::with_tx_script(push_tx_script);
     let executed_transaction = executor
-        .execute_transaction(oracle_account.id(), None, &[], txn_args)
+        .execute_transaction(oracle_account.id(), 0, &[], txn_args)
         .unwrap();
 
     assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
@@ -113,30 +118,57 @@ fn test_oracle_data_conversion() {
 
 #[test]
 fn test_falcon_private_key_to_felts() {
-    // Create a random key pair
     let private_key = SecretKey::new();
+    let felts = secret_key_to_felts(&private_key);
     
-    // Get the short lattice basis
+    // Get the original basis coefficients
     let basis = private_key.short_lattice_basis();
     
-    // Convert to Felts
-    let private_key_felts = [
-        Felt::new(basis[0].lc() as u64), // g polynomial
-        Felt::new(basis[1].lc() as u64), // f polynomial
-        Felt::new(basis[2].lc() as u64), // G polynomial
-        Felt::new(basis[3].lc() as u64), // F polynomial
-    ];
-
-    // Verify we have 4 elements
-    assert_eq!(private_key_felts.len(), 4);
-
-    // Verify each element is a valid Felt
-    for felt in private_key_felts.iter() {
-        assert!(felt.as_int() <= u64::MAX);
+    // Verify each coefficient matches
+    for (i, felt) in felts.iter().enumerate() {
+        let expected = basis[i].lc() as u64;
+        assert_eq!(felt.as_int(), expected as u64);
     }
+}
 
-    // Verify the values match the original basis coefficients
-    for (i, felt) in private_key_felts.iter().enumerate() {
-        assert_eq!(felt.as_int() as u64, basis[i].lc() as u64);
-    }
+fn get_new_pk_and_authenticator(
+) -> (Word, std::rc::Rc<miden_tx::auth::BasicAuthenticator<rand::rngs::StdRng>>) {
+    use std::rc::Rc;
+
+    use miden_objects::accounts::AuthSecretKey;
+    use miden_tx::auth::BasicAuthenticator;
+    use rand::rngs::StdRng;
+
+    let seed = [0_u8; 32];
+    let mut rng = ChaCha20Rng::from_seed(seed);
+
+    let sec_key = SecretKey::with_rng(&mut rng);
+    let pub_key: Word = sec_key.public_key().into();
+
+    let authenticator =
+        BasicAuthenticator::<StdRng>::new(&[(pub_key, AuthSecretKey::RpoFalcon512(sec_key))]);
+
+    (pub_key, Rc::new(authenticator))
+}
+
+fn prove_and_verify_transaction(
+    executed_transaction: ExecutedTransaction,
+) -> Result<(), TransactionVerifierError> {
+    let executed_transaction_id = executed_transaction.id();
+    // Prove the transaction
+
+    let proof_options = ProvingOptions::default();
+    let prover = TransactionProver::new(proof_options);
+    let proven_transaction = prover.prove_transaction(executed_transaction).unwrap();
+
+    assert_eq!(proven_transaction.id(), executed_transaction_id);
+
+    // Serialize & deserialize the ProvenTransaction
+    let serialised_transaction = proven_transaction.to_bytes();
+    let proven_transaction = ProvenTransaction::read_from_bytes(&serialised_transaction).unwrap();
+
+    // Verify that the generated proof is valid
+    let verifier = TransactionVerifier::new(miden_objects::MIN_PROOF_SECURITY_LEVEL);
+
+    verifier.verify(proven_transaction)
 }

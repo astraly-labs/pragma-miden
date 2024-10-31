@@ -108,7 +108,7 @@ pub fn get_oracle_account(
 }
 
 /// Helper function to create a transaction script
-fn create_transaction_script(
+pub fn create_transaction_script(
     tx_script_code: String,
     private_key_inputs: Vec<(Word, Vec<Felt>)>,
     masm_path: &str,

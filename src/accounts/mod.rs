@@ -1,5 +1,4 @@
 mod accounts;
-#[cfg(feature = "testing")]
 mod tests;
 
 use miden_crypto::{
