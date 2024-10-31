@@ -11,7 +11,7 @@ use miden_objects::{
     },
     transaction::{TransactionArgs, TransactionScript},
     AccountError, Word,
-    assembly::{Assembler, Library, LibraryPath}
+    assembly::{Assembler, Library, LibraryPath, LibraryNamespace}
 };
 use miden_tx::{auth::{BasicAuthenticator, TransactionAuthenticator}, TransactionExecutor};
 use rand::rngs::OsRng;
@@ -22,12 +22,11 @@ use std::{
     path::{Path, PathBuf},
     io,
 };
+use std::str::FromStr;
 
 // Include the oracle module source code
-pub const PUSH_ORACLE_SOURCE: &str = include_str!("oracle/push_oracle.masm");
-pub const READ_ORACLE_SOURCE: &str = include_str!("oracle/read_oracle.masm");
-const ASM_DIR: &str = "asm";
-const ASSETS_DIR: &str = "assets";
+pub const PUSH_ORACLE_PATH: &str = "src/accounts/oracle/push_oracle.masm";
+pub const READ_ORACLE_PATH: &str = "src/accounts/oracle/read_oracle.masm";
 
 /// Transaction script template for pushing data to oracle
 pub const PUSH_DATA_TX_SCRIPT: &str = r#"
@@ -112,12 +111,21 @@ pub fn get_oracle_account(
 fn create_transaction_script(
     tx_script_code: String,
     private_key_inputs: Vec<(Word, Vec<Felt>)>,
-    masm_path: LibraryPath,
+    masm_path: &str,
 ) -> Result<TransactionScript, Box<dyn std::error::Error>> {
     let assembler = TransactionKernel::assembler();
-    let source_manager = Arc::new(assembly::DefaultSourceManager::default());
-    let library = Library::from_dir(masm_path, LibraryNamespace::new("oracle").unwrap(), assembler)?;
-    let assembler = assembler.clone().with_library(library).unwrap();
+    
+    // Get the directory containing the MASM file
+    let masm_dir = Path::new(masm_path).parent().unwrap();
+    
+    // Clone the assembler before passing it to from_dir
+    let library = Library::from_dir(
+        masm_dir,
+        LibraryNamespace::new("oracle")?,
+        assembler.clone()
+    )?;
+    
+    let assembler = assembler.with_library(library).unwrap();
 
     // Compile the transaction script
     let tx_script = TransactionScript::compile(
@@ -170,17 +178,14 @@ where
     let private_key_felts = super::secret_key_to_felts(private_key);
 
     let tx_script_code = format!(
-        PUSH_DATA_TX_SCRIPT,
-        word_to_masm(&word),
-        word_to_masm(&word),
-        word_to_masm(&word),
-        word_to_masm(&word)
+        "{}",
+        PUSH_DATA_TX_SCRIPT.replace("{}", &word_to_masm(&word))
     );
 
     let tx_script = create_transaction_script(
         tx_script_code,
         vec![(private_key_felts, Vec::new())],
-        PUSH_ORACLE_SOURCE,
+        PUSH_ORACLE_PATH,
     )?;
 
     let transaction_id = execute_transaction(client, account.id(), tx_script).await?;
@@ -209,14 +214,14 @@ where
 
     let asset_pair_word = data_to_word(&oracle_data);
     let tx_script_code = format!(
-        READ_DATA_TX_SCRIPT,
-        word_to_masm(&asset_pair_word)
+        "{}",
+        READ_DATA_TX_SCRIPT.replace("{}", &word_to_masm(&asset_pair_word))
     );
 
     let tx_script = create_transaction_script(
         tx_script_code,
         vec![],
-        READ_ORACLE_SOURCE,
+        READ_ORACLE_PATH,
     )?;
 
     let _transaction_id = execute_transaction(client, account.id(), tx_script).await?;
