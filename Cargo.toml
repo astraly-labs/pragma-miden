@@ -3,9 +3,6 @@ name = "pragma-miden"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-testing = ["miden-client/testing"]
-
 [dependencies]
 miden-client = { version = "0.5", features = ["concurrent", "testing", "sqlite", "tonic"] }
 miden-crypto = { version = "0.10", default-features = false }
