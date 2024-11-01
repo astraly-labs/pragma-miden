@@ -1,40 +1,34 @@
-use crate::accounts::{
-    data_to_word, decode_u64_to_ascii, encode_ascii_to_u64,
-    push_data_to_oracle_account, read_data_from_oracle_account, word_to_data, word_to_masm,
-    OracleData, secret_key_to_felts
-};
 use crate::accounts::accounts::{
-    PUSH_ORACLE_PATH as PUSH_ORACLE_SOURCE,
-    READ_ORACLE_PATH as READ_ORACLE_SOURCE,
-    PUSH_DATA_TX_SCRIPT,
-    READ_DATA_TX_SCRIPT,
-    create_transaction_script
+    create_transaction_script, PUSH_DATA_TX_SCRIPT, PUSH_ORACLE_PATH as PUSH_ORACLE_SOURCE,
+    READ_DATA_TX_SCRIPT, READ_ORACLE_PATH as READ_ORACLE_SOURCE,
 };
-use miden_crypto::{
-    Felt, ZERO, Word,
-    dsa::rpo_falcon512::{SecretKey, PublicKey},
-    rand::RpoRandomCoin,
+use crate::accounts::{
+    data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, push_data_to_oracle_account,
+    read_data_from_oracle_account, secret_key_to_felts, word_to_data, word_to_masm, OracleData,
 };
-use miden_lib::{AuthScheme, transaction::TransactionKernel};
-use miden_objects::{
-    transaction::{TransactionArgs, ExecutedTransaction, ProvenTransaction},
-    accounts::{
-        Account,
-        AccountStorageType,
-        AccountId,
-        AccountCode,
-        AccountStorage,
-        SlotItem,
-        account_id::testing::ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN
-    },
-    crypto::utils::Serializable,
-    assets::AssetVault,
-};
-use std::collections::BTreeMap;
-use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
-use miden_tx::{testing::TransactionContextBuilder, TransactionExecutor, TransactionProver, TransactionVerifier, TransactionVerifierError, ProvingOptions};
 use miden_client::utils::Deserializable;
+use miden_crypto::{
+    dsa::rpo_falcon512::{PublicKey, SecretKey},
+    rand::RpoRandomCoin,
+    Felt, Word, ZERO,
+};
+use miden_lib::{transaction::TransactionKernel, AuthScheme};
+use miden_objects::{
+    accounts::{
+        account_id::testing::ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN, Account,
+        AccountCode, AccountId, AccountStorage, AccountStorageType, SlotItem,
+    },
+    assets::AssetVault,
+    crypto::utils::Serializable,
+    transaction::{ExecutedTransaction, ProvenTransaction, TransactionArgs},
+};
+use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
+use miden_tx::{
+    testing::TransactionContextBuilder, ProvingOptions, TransactionExecutor, TransactionProver,
+    TransactionVerifier, TransactionVerifierError,
+};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+use std::collections::BTreeMap;
 
 #[test]
 fn oracle_account_creation_and_pushing_data_to_read() {
@@ -65,7 +59,8 @@ fn oracle_account_creation_and_pushing_data_to_read() {
         push_tx_script_code,
         vec![(secret_key_to_felts(&data_provider_private_key), Vec::new())],
         PUSH_ORACLE_SOURCE,
-    ).unwrap();
+    )
+    .unwrap();
 
     let txn_args = TransactionArgs::with_tx_script(push_tx_script);
     let executed_transaction = executor
@@ -118,10 +113,10 @@ fn test_oracle_data_conversion() {
 fn test_falcon_private_key_to_felts() {
     let private_key = SecretKey::new();
     let felts = secret_key_to_felts(&private_key);
-    
+
     // Get the original basis coefficients
     let basis = private_key.short_lattice_basis();
-    
+
     // Verify each coefficient matches
     for (i, felt) in felts.iter().enumerate() {
         let expected = basis[i].lc() as u64;
@@ -129,8 +124,10 @@ fn test_falcon_private_key_to_felts() {
     }
 }
 
-fn get_new_pk_and_authenticator(
-) -> (Word, std::rc::Rc<miden_tx::auth::BasicAuthenticator<rand::rngs::StdRng>>) {
+fn get_new_pk_and_authenticator() -> (
+    Word,
+    std::rc::Rc<miden_tx::auth::BasicAuthenticator<rand::rngs::StdRng>>,
+) {
     use std::rc::Rc;
 
     use miden_objects::accounts::AuthSecretKey;
@@ -173,7 +170,8 @@ fn prove_and_verify_transaction(
 
 fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Word) -> Account {
     let account_owner_public_key = PublicKey::new(oracle_public_key);
-    let oracle_account_id = AccountId::try_from(ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN).unwrap();
+    let oracle_account_id =
+        AccountId::try_from(ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN).unwrap();
     let assembler = TransactionKernel::assembler();
     let source_code = format!(
         "
@@ -188,7 +186,8 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
             SlotItem::new_value(1, 0, data_provider_public_key.into()),
         ],
         BTreeMap::new(),
-    ).unwrap();
+    )
+    .unwrap();
 
     Account::from_parts(
         oracle_account_id,

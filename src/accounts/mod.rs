@@ -2,9 +2,9 @@ mod accounts;
 mod tests;
 
 use miden_crypto::{
+    dsa::rpo_falcon512::SecretKey,
     merkle::{MmrPeaks, PartialMmr},
     Felt, EMPTY_WORD,
-    dsa::rpo_falcon512::SecretKey,
 };
 use miden_objects::{
     accounts::{Account, AccountId},

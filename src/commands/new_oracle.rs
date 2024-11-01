@@ -1,3 +1,4 @@
+use crate::commands::parse_public_key;
 use crate::{accounts::get_oracle_account, commands::get_oracle_public_key};
 use clap::{Parser, ValueEnum};
 use miden_client::{rpc::NodeRpcClient, store::Store, Client, ClientError, Felt};
@@ -12,7 +13,6 @@ use miden_objects::{
 };
 use miden_tx::auth::TransactionAuthenticator;
 use winter_maybe_async::{maybe_async, maybe_await};
-use crate::commands::{parse_public_key};
 
 #[derive(Debug, Clone, Parser)]
 #[clap(about = "Create a new pragma oracle account on Miden")]

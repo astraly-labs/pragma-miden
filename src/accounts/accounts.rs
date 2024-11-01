@@ -1,7 +1,11 @@
 use super::{data_to_word, word_to_data, word_to_masm, OracleData};
-use miden_client::{rpc::NodeRpcClient, store::Store, transactions::request::TransactionRequest, Client};
+use miden_client::{
+    rpc::NodeRpcClient, store::Store, transactions::request::TransactionRequest, Client,
+};
 use miden_crypto::{
-    dsa::rpo_falcon512::{PublicKey, SecretKey}, rand::FeltRng, Felt
+    dsa::rpo_falcon512::{PublicKey, SecretKey},
+    rand::FeltRng,
+    Felt,
 };
 use miden_lib::{transaction::TransactionKernel, AuthScheme};
 use miden_objects::{
@@ -9,20 +13,22 @@ use miden_objects::{
         Account, AccountCode, AccountId, AccountStorage, AccountStorageType, AccountType,
         AuthSecretKey, SlotItem,
     },
+    assembly::{Assembler, Library, LibraryNamespace, LibraryPath},
     transaction::{TransactionArgs, TransactionScript},
     AccountError, Word,
-    assembly::{Assembler, Library, LibraryPath, LibraryNamespace}
 };
-use miden_tx::{auth::{BasicAuthenticator, TransactionAuthenticator}, TransactionExecutor};
+use miden_tx::{
+    auth::{BasicAuthenticator, TransactionAuthenticator},
+    TransactionExecutor,
+};
 use rand::rngs::OsRng;
 use std::collections::BTreeMap;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::{
-    env,
+    env, io,
     path::{Path, PathBuf},
-    io,
 };
-use std::str::FromStr;
 
 // Include the oracle module source code
 pub const PUSH_ORACLE_PATH: &str = "src/accounts/oracle/push_oracle.masm";
@@ -114,26 +120,22 @@ pub fn create_transaction_script(
     masm_path: &str,
 ) -> Result<TransactionScript, Box<dyn std::error::Error>> {
     let assembler = TransactionKernel::assembler();
-    
+
     // Get the directory containing the MASM file
     let masm_dir = Path::new(masm_path).parent().unwrap();
-    
+
     // Clone the assembler before passing it to from_dir
     let library = Library::from_dir(
         masm_dir,
         LibraryNamespace::new("oracle")?,
-        assembler.clone()
+        assembler.clone(),
     )?;
-    
+
     let assembler = assembler.with_library(library).unwrap();
 
     // Compile the transaction script
-    let tx_script = TransactionScript::compile(
-        tx_script_code,
-        private_key_inputs,
-        assembler,
-    )
-    .unwrap();
+    let tx_script =
+        TransactionScript::compile(tx_script_code, private_key_inputs, assembler).unwrap();
 
     Ok(tx_script)
 }
@@ -158,7 +160,7 @@ where
     client
         .submit_transaction(transaction_execution_result)
         .await?;
-    
+
     Ok(transaction_id.to_string())
 }
 
@@ -167,7 +169,7 @@ pub async fn push_data_to_oracle_account<N, R, S, A>(
     account: Account,
     data: OracleData,
     private_key: &SecretKey,
-) -> Result<(), Box<dyn std::error::Error>> 
+) -> Result<(), Box<dyn std::error::Error>>
 where
     N: NodeRpcClient,
     R: FeltRng,
@@ -189,7 +191,10 @@ where
     )?;
 
     let transaction_id = execute_transaction(client, account.id(), tx_script).await?;
-    println!("Data successfully pushed to oracle account! Transaction ID: {}", transaction_id);
+    println!(
+        "Data successfully pushed to oracle account! Transaction ID: {}",
+        transaction_id
+    );
 
     Ok(())
 }
@@ -204,7 +209,7 @@ where
     R: FeltRng,
     S: Store,
     A: TransactionAuthenticator,
-{   
+{
     let oracle_data = OracleData {
         asset_pair,
         price: 0,
@@ -218,11 +223,7 @@ where
         READ_DATA_TX_SCRIPT.replace("{}", &word_to_masm(&asset_pair_word))
     );
 
-    let tx_script = create_transaction_script(
-        tx_script_code,
-        vec![],
-        READ_ORACLE_PATH,
-    )?;
+    let tx_script = create_transaction_script(tx_script_code, vec![], READ_ORACLE_PATH)?;
 
     let _transaction_id = execute_transaction(client, account.id(), tx_script).await?;
 

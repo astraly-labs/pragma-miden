@@ -1,11 +1,9 @@
-use miden_objects::{
-    accounts::AccountId,
-};
 use miden_crypto::{
     dsa::rpo_falcon512::{PublicKey, SecretKey},
-    Word, Felt,
     utils::hex_to_bytes,
+    Felt, Word,
 };
+use miden_objects::accounts::AccountId;
 use once_cell::sync::Lazy;
 
 pub mod init;
