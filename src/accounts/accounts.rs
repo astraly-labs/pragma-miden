@@ -60,14 +60,12 @@ pub const READ_DATA_TX_SCRIPT: &str = r#"
 use.oracle::read_oracle
 
 begin
-    push.{} 
-    
-    call.read_oracle::read_oracle_data
-    
-    dropw dropw dropw dropw 
-    
     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
-    dropw dropw dropw  
+
+    push.{account_id}
+    push.{storage_item_index} 
+    
+    call.read_oracle::read_oracle_data 
 end
 "#;
 
@@ -217,10 +215,12 @@ where
         publisher_id: 0,
     };
 
-    let asset_pair_word = data_to_word(&oracle_data);
+    // let asset_pair_word = data_to_word(&oracle_data);
     let tx_script_code = format!(
         "{}",
-        READ_DATA_TX_SCRIPT.replace("{}", &word_to_masm(&asset_pair_word))
+        READ_DATA_TX_SCRIPT
+            .replace("{storage_item_index}", "2")
+            .replace("{account_id}", &account.id().to_string())
     );
 
     let tx_script = create_transaction_script(tx_script_code, vec![], READ_ORACLE_PATH)?;

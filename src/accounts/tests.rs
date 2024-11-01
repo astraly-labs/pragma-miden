@@ -175,7 +175,7 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
     let assembler = TransactionKernel::assembler();
     let source_code = format!(
         "
-        export.::miden::contracts::auth::basic::falcon512
+        export.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
     "
     );
     let oracle_account_code = AccountCode::compile(source_code, assembler).unwrap();

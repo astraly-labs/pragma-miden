@@ -1,7 +1,7 @@
 #! Add imports
 use.miden::account
 use.miden::contracts::auth::basic
-use.miden::crypto::dsa::rpo_falcon512
+use.std::crypto::dsa::rpo_falcon512
 
 # Slot in account storage at which the data prover's public key is stored.
 const.DATA_PROVIDER_PUBLIC_KEY_SLOT=1
