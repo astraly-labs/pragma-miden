@@ -1,5 +1,5 @@
 use crate::accounts::{
-    data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, get_oracle_account,
+    data_to_word, decode_u64_to_ascii, encode_ascii_to_u64,
     push_data_to_oracle_account, read_data_from_oracle_account, word_to_data, word_to_masm,
     OracleData, secret_key_to_felts
 };
@@ -15,8 +15,22 @@ use miden_crypto::{
     dsa::rpo_falcon512::{SecretKey, PublicKey},
     rand::RpoRandomCoin,
 };
-use miden_lib::AuthScheme;
-use miden_objects::{transaction::{TransactionArgs, ExecutedTransaction, ProvenTransaction}, accounts::{Account, AccountStorageType}, crypto::utils::Serializable};
+use miden_lib::{AuthScheme, transaction::TransactionKernel};
+use miden_objects::{
+    transaction::{TransactionArgs, ExecutedTransaction, ProvenTransaction},
+    accounts::{
+        Account,
+        AccountStorageType,
+        AccountId,
+        AccountCode,
+        AccountStorage,
+        SlotItem,
+        account_id::testing::ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN
+    },
+    crypto::utils::Serializable,
+    assets::AssetVault,
+};
+use std::collections::BTreeMap;
 use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
 use miden_tx::{testing::TransactionContextBuilder, TransactionExecutor, TransactionProver, TransactionVerifier, TransactionVerifierError, ProvingOptions};
 use miden_client::utils::Deserializable;
@@ -25,26 +39,10 @@ use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 #[test]
 fn oracle_account_creation_and_pushing_data_to_read() {
     let (oracle_pub_key, oracle_auth) = get_new_pk_and_authenticator();
-    let auth_scheme: AuthScheme = AuthScheme::RpoFalcon512 { pub_key: PublicKey::new(oracle_pub_key) };
-
-    let init_seed: [u8; 32] = [
-        90, 110, 209, 94, 84, 105, 250, 242, 223, 203, 216, 124, 22, 159, 14, 132, 215, 85, 183,
-        204, 149, 90, 166, 68, 100, 73, 106, 168, 125, 237, 138, 16,
-    ];
-
-    let account_type = miden_objects::accounts::AccountType::RegularAccountImmutableCode;
-    let storage_type = AccountStorageType::OnChain;
     let data_provider_private_key = SecretKey::new();
     let data_provider_public_key = data_provider_private_key.public_key();
 
-    let (mut oracle_account, _) = get_oracle_account(
-        init_seed,
-        auth_scheme,
-        account_type,
-        storage_type,
-        data_provider_public_key,
-    )
-    .unwrap();
+    let oracle_account = get_oracle_account(data_provider_public_key, oracle_pub_key);
 
     let oracle_data = OracleData {
         asset_pair: "BTC/USD".to_string(),
@@ -127,7 +125,7 @@ fn test_falcon_private_key_to_felts() {
     // Verify each coefficient matches
     for (i, felt) in felts.iter().enumerate() {
         let expected = basis[i].lc() as u64;
-        assert_eq!(felt.as_int(), expected as u64);
+        assert_eq!(felt.as_int(), expected);
     }
 }
 
@@ -171,4 +169,32 @@ fn prove_and_verify_transaction(
     let verifier = TransactionVerifier::new(miden_objects::MIN_PROOF_SECURITY_LEVEL);
 
     verifier.verify(proven_transaction)
+}
+
+fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Word) -> Account {
+    let account_owner_public_key = PublicKey::new(oracle_public_key);
+    let oracle_account_id = AccountId::try_from(ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN).unwrap();
+    let assembler = TransactionKernel::assembler();
+    let source_code = format!(
+        "
+        export.::miden::contracts::auth::basic::falcon512
+    "
+    );
+    let oracle_account_code = AccountCode::compile(source_code, assembler).unwrap();
+
+    let account_storage = AccountStorage::new(
+        vec![
+            SlotItem::new_value(0, 0, account_owner_public_key.into()),
+            SlotItem::new_value(1, 0, data_provider_public_key.into()),
+        ],
+        BTreeMap::new(),
+    ).unwrap();
+
+    Account::from_parts(
+        oracle_account_id,
+        AssetVault::new(&[]).unwrap(),
+        account_storage.clone(),
+        oracle_account_code.clone(),
+        Felt::new(1),
+    )
 }
