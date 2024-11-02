@@ -32,7 +32,7 @@ use std::{
 
 // Include the oracle module source code
 pub const PUSH_ORACLE_PATH: &str = "src/accounts/oracle/push_oracle.masm";
-pub const READ_ORACLE_PATH: &str = "src/accounts/oracle/read_oracle.masm";
+// pub const READ_ORACLE_PATH: &str = "src/accounts/oracle/read_oracle.masm";
 
 /// Transaction script template for pushing data to oracle
 pub const PUSH_DATA_TX_SCRIPT: &str = r#"
@@ -197,42 +197,42 @@ where
     Ok(())
 }
 
-pub async fn read_data_from_oracle_account<N, R, S, A>(
-    client: &mut Client<N, R, S, A>,
-    account: Account,
-    asset_pair: String,
-) -> Result<OracleData, Box<dyn std::error::Error>>
-where
-    N: NodeRpcClient,
-    R: FeltRng,
-    S: Store,
-    A: TransactionAuthenticator,
-{
-    let oracle_data = OracleData {
-        asset_pair,
-        price: 0,
-        decimals: 0,
-        publisher_id: 0,
-    };
+// pub async fn read_data_from_oracle_account<N, R, S, A>(
+//     client: &mut Client<N, R, S, A>,
+//     account: Account,
+//     asset_pair: String,
+// ) -> Result<OracleData, Box<dyn std::error::Error>>
+// where
+//     N: NodeRpcClient,
+//     R: FeltRng,
+//     S: Store,
+//     A: TransactionAuthenticator,
+// {
+//     let oracle_data = OracleData {
+//         asset_pair,
+//         price: 0,
+//         decimals: 0,
+//         publisher_id: 0,
+//     };
 
-    // let asset_pair_word = data_to_word(&oracle_data);
-    let tx_script_code = format!(
-        "{}",
-        READ_DATA_TX_SCRIPT
-            .replace("{storage_item_index}", "2")
-            .replace("{account_id}", &account.id().to_string())
-    );
+//     // let asset_pair_word = data_to_word(&oracle_data);
+//     let tx_script_code = format!(
+//         "{}",
+//         READ_DATA_TX_SCRIPT
+//             .replace("{storage_item_index}", "2")
+//             .replace("{account_id}", &account.id().to_string())
+//     );
 
-    let tx_script = create_transaction_script(tx_script_code, vec![], READ_ORACLE_PATH)?;
+//     let tx_script = create_transaction_script(tx_script_code, vec![], READ_ORACLE_PATH)?;
 
-    let _transaction_id = execute_transaction(client, account.id(), tx_script).await?;
+//     let _transaction_id = execute_transaction(client, account.id(), tx_script).await?;
 
-    // TODO: fix this
-    let oracle_data = OracleData {
-        asset_pair: "BTC/USD".to_string(),
-        price: 0,
-        decimals: 0,
-        publisher_id: 0,
-    };
-    Ok(oracle_data)
-}
+//     // TODO: fix this
+//     let oracle_data = OracleData {
+//         asset_pair: "BTC/USD".to_string(),
+//         price: 0,
+//         decimals: 0,
+//         publisher_id: 0,
+//     };
+//     Ok(oracle_data)
+// }

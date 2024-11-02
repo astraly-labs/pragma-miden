@@ -1,10 +1,10 @@
 use crate::accounts::accounts::{
     create_transaction_script, PUSH_DATA_TX_SCRIPT, PUSH_ORACLE_PATH as PUSH_ORACLE_SOURCE,
-    READ_DATA_TX_SCRIPT, READ_ORACLE_PATH as READ_ORACLE_SOURCE,
+    READ_DATA_TX_SCRIPT,
 };
 use crate::accounts::{
     data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, push_data_to_oracle_account,
-    read_data_from_oracle_account, secret_key_to_felts, word_to_data, word_to_masm, OracleData,
+    secret_key_to_felts, word_to_data, word_to_masm, OracleData,
 };
 use miden_client::utils::Deserializable;
 use miden_crypto::{
@@ -72,7 +72,7 @@ fn oracle_account_creation_and_pushing_data_to_read() {
     // let read_tx_script = create_transaction_script(
     //     read_tx_script_code,
     //     vec![],
-    //     READ_ORACLE_SOURCE,
+    //     READ_ORACLE_PATH,
     // )?;
 
     // let txn_args = TransactionArgs::from_tx_script(read_tx_script);

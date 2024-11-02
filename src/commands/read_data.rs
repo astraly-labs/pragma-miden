@@ -1,4 +1,4 @@
-use crate::accounts::{read_data_from_oracle_account, OracleData};
+use crate::accounts::{OracleData};
 use crate::commands::account_id_parser;
 use clap::Parser;
 use miden_client::{rpc::NodeRpcClient, store::Store, Client, ClientError};
@@ -56,7 +56,8 @@ impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> Oracle
         asset_pair: String,
     ) -> Result<Vec<u64>, Box<dyn std::error::Error>> {
         let (mut account, _) = self.get_account(*account_id)?;
-        let oracle_data = read_data_from_oracle_account(self, account, asset_pair).await?;
-        Ok(oracle_data.to_vector())
+        // let oracle_data = read_data_from_oracle_account(self, account, asset_pair).await?;
+        // Ok(oracle_data.to_vector())
+        Ok(vec![0, 0, 0, 0])
     }
 }

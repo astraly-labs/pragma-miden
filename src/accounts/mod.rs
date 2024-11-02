@@ -15,7 +15,7 @@ use miden_objects::{
 use miden_tx::{DataStore, DataStoreError, TransactionInputs};
 
 pub use accounts::{
-    get_oracle_account, push_data_to_oracle_account, read_data_from_oracle_account,
+    get_oracle_account, push_data_to_oracle_account,
 };
 
 #[derive(Debug, Clone, PartialEq)]
