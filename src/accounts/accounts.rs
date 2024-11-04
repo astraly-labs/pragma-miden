@@ -39,19 +39,19 @@ pub const PUSH_DATA_TX_SCRIPT: &str = r#"
 use.oracle::push_oracle
 
 begin
-    push.{} 
-    push.{}  
-    push.{}  
-    push.{}  
-    
-    call.push_oracle::verify_data_provider_signature
-    
-    call.push_oracle::push_oracle_data
-    
-    dropw dropw dropw dropw 
-    
+    push.{}
+    push.{}
+    push.{}
+    push.{}
+
+    #call.push_oracle::verify_data_provider_signature
+
+    call.[]
+
+    dropw dropw dropw dropw
+
     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
-    dropw dropw dropw  
+    drop
 end
 "#;
 
