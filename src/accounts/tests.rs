@@ -1,6 +1,5 @@
 use crate::accounts::accounts::{
     create_transaction_script,
-    PUSH_ORACLE_PATH, // READ_DATA_TX_SCRIPT,
 };
 use crate::accounts::{
     data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, push_data_to_oracle_account,
@@ -96,7 +95,6 @@ fn oracle_account_creation_and_pushing_data_to_read() {
     let push_tx_script = create_transaction_script(
         push_tx_script_code,
         vec![(secret_key_to_felts(&data_provider_private_key), Vec::new())],
-        PUSH_ORACLE_PATH,
     )
     .unwrap();
 
