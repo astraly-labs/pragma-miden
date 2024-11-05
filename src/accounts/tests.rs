@@ -264,6 +264,8 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
             push.1 exec.account::incr_nonce
             # => []
 
+            push.100 mem_loadw add.1 mem_storew dropw
+
             # Verify the signature against the public key and the message hash.
             exec.rpo_falcon512::verify
             # => []
