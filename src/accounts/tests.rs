@@ -1,6 +1,6 @@
 use crate::accounts::accounts::{
-    create_transaction_script, PUSH_DATA_TX_SCRIPT, PUSH_ORACLE_PATH as PUSH_ORACLE_SOURCE,
-    READ_DATA_TX_SCRIPT,
+    create_transaction_script,
+    PUSH_ORACLE_PATH, // READ_DATA_TX_SCRIPT,
 };
 use crate::accounts::{
     data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, push_data_to_oracle_account,
@@ -13,6 +13,7 @@ use miden_crypto::{
     Felt, Word, ZERO,
 };
 use miden_lib::{transaction::TransactionKernel, AuthScheme};
+use miden_objects::assembly::{Library, LibraryNamespace};
 use miden_objects::{
     accounts::{
         account_id::testing::ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN, Account,
@@ -28,7 +29,26 @@ use miden_tx::{
     TransactionVerifier, TransactionVerifierError,
 };
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::Path};
+
+pub const PUSH_DATA_TX_SCRIPT: &str = r#"
+use.oracle::push_oracle
+
+begin
+    push.{}
+    push.{}
+    push.{}
+    push.{}
+
+    call.[1]
+    #call.[2]
+
+    dropw dropw dropw dropw
+
+    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+    drop
+end
+"#;
 
 #[test]
 fn oracle_account_creation_and_pushing_data_to_read() {
@@ -38,8 +58,6 @@ fn oracle_account_creation_and_pushing_data_to_read() {
 
     let oracle_account = get_oracle_account(data_provider_public_key, oracle_pub_key);
 
-    // This here is just to check that the account was created correctly. It's not necessary for the test that the account exposes all the procedures necessary.
-    // Now we only need two procedures: signing and pushing data.
     println!("Oracle account: {:?}", oracle_account.code().procedures());
 
     let oracle_data = OracleData {
@@ -51,9 +69,8 @@ fn oracle_account_creation_and_pushing_data_to_read() {
 
     let mut word = data_to_word(&oracle_data);
 
-    // The first element of the word is too big, so I just override it for now. This is a temporary solution
+    // The first element of the word is too big, so I just override it for the test!
     word[0] = Felt::new(1);
-
 
     let tx_context = TransactionContextBuilder::new(oracle_account.clone()).build();
     let executor = TransactionExecutor::new(tx_context.clone(), Some(oracle_auth.clone()));
@@ -62,7 +79,16 @@ fn oracle_account_creation_and_pushing_data_to_read() {
     // Sorry for the confusion. I should have been more clear about this.
     let push_tx_script_code = format!(
         "{}",
-        PUSH_DATA_TX_SCRIPT.replace("{}", &word_to_masm(&word)).replace("[]", &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string())
+        PUSH_DATA_TX_SCRIPT
+            .replace("{}", &word_to_masm(&word))
+            .replace(
+                "[1]",
+                &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string()
+            )
+            // .replace(
+            //     "[2]",
+            //     &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
+            // )
     );
 
     println!("Push tx script code: {}", push_tx_script_code);
@@ -70,7 +96,7 @@ fn oracle_account_creation_and_pushing_data_to_read() {
     let push_tx_script = create_transaction_script(
         push_tx_script_code,
         vec![(secret_key_to_felts(&data_provider_private_key), Vec::new())],
-        PUSH_ORACLE_SOURCE,
+        PUSH_ORACLE_PATH,
     )
     .unwrap();
 
@@ -79,10 +105,10 @@ fn oracle_account_creation_and_pushing_data_to_read() {
         .execute_transaction(oracle_account.id(), 4, &[], txn_args)
         .unwrap();
 
-    // here you can check that now the account has the data stored in its storage at slot 2
+    // check that now the account has the data stored in its storage at slot 2
     println!("Account Delta: {:?}", executed_transaction.account_delta());
 
-    //assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
+    // assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
 
     // let read_tx_script = create_transaction_script(
     //     read_tx_script_code,
@@ -191,16 +217,51 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
     let source_code = format!(
         "
         use.miden::account
+        use.std::crypto::dsa::rpo_falcon512
         export.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
 
+        # Slot in account storage at which the data prover's public key is stored.
+        const.DATA_PROVIDER_PUBLIC_KEY_SLOT=1
+
+        #! Pushes new price data into the oracle's data slots. 
+        #!
+        #! Inputs:  [WORD_1, WORD_2, WORD_3, WORD_4]
+        #! Outputs: []
+        #!
         export.push_oracle_data
-            push.2
-            # => [2, WORD, ...]
+            push.2 dup movdn.5
+            # => [2, WORD_1, 2, WORD_2, ...]
+            repeat.4
+                exec.account::set_item
+                dropw dropw
+                # => [index, WORD_index+1, ...]
+                
+                add.1 dup movdn.5
+                # => [index+1, WORD_index+1, index+1, ...]
+            end
+        end
 
-            exec.account::set_item
-            # => [R' = new root, V = previous value, ...]
+        #! Verify the signature of the data provider
+        #! Stack: [WORD_1, WORD_2, WORD_3, WORD_4]
+        #! Output: []
+        #!
+        export.verify_data_provider_signature
+            push.2 exec.account::get_item 
+            push.3 exec.account::get_item 
+            push.4 exec.account::get_item
+            push.5 exec.account::get_item     
+            
+            # Compute the hash of the retrieved data
+            hmerge hmerge hmerge
+            # => [DATA_HASH]
 
-            dropw dropw
+            # Get data provider's public key from account storage at slot 1
+            push.DATA_PROVIDER_PUBLIC_KEY_SLOT exec.account::get_item
+            # => [PUB_KEY, DATA_HASH]
+
+            # Verify the signature against the public key and the message hash.
+            exec.rpo_falcon512::verify
+            # => []
         end
         "
     );

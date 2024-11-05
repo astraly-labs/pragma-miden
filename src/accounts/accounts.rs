@@ -44,9 +44,8 @@ begin
     push.{}
     push.{}
 
-    #call.push_oracle::verify_data_provider_signature
-
-    call.[]
+    call.[1]
+    #call.[2]
 
     dropw dropw dropw dropw
 
