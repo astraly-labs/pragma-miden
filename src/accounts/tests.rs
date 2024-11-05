@@ -259,6 +259,10 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
             # Get data provider's public key from account storage at slot 1
             push.DATA_PROVIDER_PUBLIC_KEY_SLOT exec.account::get_item
             # => [PUB_KEY, DATA_HASH]
+            
+            # Update the nonce
+            push.1 exec.account::incr_nonce
+            # => []
 
             # Verify the signature against the public key and the message hash.
             exec.rpo_falcon512::verify

@@ -64,7 +64,7 @@ begin
     push.{account_id}
     push.{storage_item_index} 
     
-    call.read_oracle::read_oracle_data 
+    call.[]
 end
 "#;
 
