@@ -41,7 +41,7 @@ begin
     push.{}
 
     call.[1]
-    #call.[2]
+    call.[2]
 
     dropw dropw dropw dropw
 
@@ -85,10 +85,10 @@ fn oracle_account_creation_and_pushing_data_to_read() {
                 "[1]",
                 &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string()
             )
-            // .replace(
-            //     "[2]",
-            //     &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
-            // )
+            .replace(
+                "[2]",
+                &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
+            )
     );
 
     println!("Push tx script code: {}", push_tx_script_code);
@@ -239,6 +239,7 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
                 add.1 dup movdn.5
                 # => [index+1, WORD_index+1, index+1, ...]
             end
+            drop
         end
 
         #! Verify the signature of the data provider
