@@ -14,9 +14,7 @@ use miden_objects::{
 };
 use miden_tx::{DataStore, DataStoreError, TransactionInputs};
 
-pub use accounts::{
-    get_oracle_account, push_data_to_oracle_account,
-};
+pub use accounts::{get_oracle_account, push_data_to_oracle_account};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OracleData {
@@ -72,20 +70,21 @@ pub fn encode_asset_pair_to_u32(s: &str) -> Option<u32> {
 /// Decode u32 to asset pair string
 pub fn decode_u32_to_asset_pair(encoded: u32) -> String {
     let mut result = String::with_capacity(8);
-    
+
     // Decode first part (XXX)
     for shift in 0..3 {
         let value = (encoded >> (shift * 5)) & 0x1F;
         result.push((('A' as u32) + value) as u8 as char);
     }
-    
+
     // Add separator
     result.push('/');
-    
+
     // Decode second part (YYY[Y])
     for shift in 3..7 {
         let value = (encoded >> (shift * 5)) & 0x1F;
-        if value > 0 || shift < 6 { // Only add non-zero chars or if within minimum length
+        if value > 0 || shift < 6 {
+            // Only add non-zero chars or if within minimum length
             result.push((('A' as u32) + value) as u8 as char);
         }
     }
@@ -106,8 +105,8 @@ pub fn data_to_word(data: &OracleData) -> Word {
     let mut word = EMPTY_WORD;
 
     // Asset pair
-    let asset_pair_u32 = encode_asset_pair_to_u32(&data.asset_pair)
-        .expect("Invalid asset pair format");
+    let asset_pair_u32 =
+        encode_asset_pair_to_u32(&data.asset_pair).expect("Invalid asset pair format");
     word[0] = Felt::new(asset_pair_u32 as u64);
 
     // Price

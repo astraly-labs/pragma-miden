@@ -1,6 +1,4 @@
-use crate::accounts::accounts::{
-    create_transaction_script,
-};
+use crate::accounts::accounts::create_transaction_script;
 use crate::accounts::{
     data_to_word, decode_u32_to_asset_pair, encode_asset_pair_to_u32, push_data_to_oracle_account,
     secret_key_to_felts, word_to_data, word_to_masm, OracleData,
@@ -78,11 +76,10 @@ fn oracle_account_creation_and_pushing_data_to_read() {
             .replace(
                 "[1]",
                 &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string()
-            )
-            // .replace(
-            //     "[2]",
-            //     &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
-            // )
+            ) // .replace(
+              //     "[2]",
+              //     &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
+              // )
     );
 
     println!("Push tx script code: {}", push_tx_script_code);
@@ -228,17 +225,25 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
         #! Outputs: []
         #!
         export.push_oracle_data
-            push.2 dup movdn.5
-            # => [2, WORD_1, 2, WORD_2, ...]
-            repeat.4
-                exec.account::set_item
-                dropw dropw
-                # => [index, WORD_index+1, ...]
-                
-                add.1 dup movdn.5
-                # => [index+1, WORD_index+1, index+1, ...]
-            end
-            drop
+            push.2
+            exec.account::set_item
+            dropw
+            # => [WORD_2, WORD_3, WORD_4]
+
+            push.3
+            exec.account::set_item
+            dropw
+            # => [WORD_3, WORD_4]
+
+            push.4
+            exec.account::set_item
+            dropw
+            # => [WORD_4]
+
+            push.5
+            exec.account::set_item
+            dropw
+            # => []
         end
 
         #! Verify the signature of the data provider

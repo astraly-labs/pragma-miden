@@ -1,4 +1,4 @@
-use crate::accounts::{OracleData};
+use crate::accounts::OracleData;
 use crate::commands::account_id_parser;
 use clap::Parser;
 use miden_client::{rpc::NodeRpcClient, store::Store, Client, ClientError};
