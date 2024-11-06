@@ -10,7 +10,7 @@ testing = ["miden-tx/testing"]
 miden-client = { version = "0.5", features = ["concurrent", "testing", "sqlite", "tonic"] }
 miden-crypto = { version = "0.10", default-features = false }
 miden-lib = { version = "0.5", default-features = false }
-miden-objects = { version = "0.5", default-features = false }
+miden-objects = { version = "0.5.1", default-features = false }
 miden-tx = { version = "0.5", features = ["testing"] }
 miden-cli = { version = "0.5" }
 

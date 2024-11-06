@@ -230,18 +230,27 @@ where
     let word = data_to_word(&data);
     let private_key_felts = super::secret_key_to_felts(private_key);
 
-    let tx_script_code = format!(
+    let push_tx_script_code = format!(
         "{}",
-        PUSH_DATA_TX_SCRIPT.replace("{}", &word_to_masm(&word))
+        PUSH_DATA_TX_SCRIPT
+            .replace("{}", &word_to_masm(&word))
+            .replace(
+                "[1]",
+                &format!("{}", account.code().procedures()[1].mast_root()).to_string()
+            )
+            .replace(
+                "[2]",
+                &format!("{}", account.code().procedures()[2].mast_root()).to_string()
+            )
     );
 
-    let tx_script = create_transaction_script(
-        tx_script_code,
+    let push_tx_script = create_transaction_script(
+        push_tx_script_code,
         vec![(private_key_felts, Vec::new())],
         // PUSH_ORACLE_PATH,
     )?;
 
-    let transaction_id = execute_transaction(client, account.id(), tx_script).await?;
+    let transaction_id = execute_transaction(client, account.id(), push_tx_script).await?;
     println!(
         "Data successfully pushed to oracle account! Transaction ID: {}",
         transaction_id

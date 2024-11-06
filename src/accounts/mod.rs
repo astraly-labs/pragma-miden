@@ -32,24 +32,64 @@ impl OracleData {
     }
 }
 
-/// Encode ASCII string to u64
-pub fn encode_ascii_to_u64(s: &str) -> u64 {
-    let mut result: u64 = 0;
-    for (i, &byte) in s.as_bytes().iter().enumerate().take(8) {
-        result |= (byte as u64) << (i * 8);
+/// Encode asset pair string to u32
+/// Only need to handle uppercase A-Z and '/' for asset pairs
+pub fn encode_asset_pair_to_u32(s: &str) -> Option<u32> {
+    // Validate input format
+    if s.len() < 7 || s.len() > 8 || s.chars().nth(3) != Some('/') {
+        return None;
     }
-    result
+
+    let mut result: u32 = 0;
+    let mut pos = 0;
+
+    // First part (XXX) - 3 chars, 5 bits each = 15 bits
+    for c in s[..3].chars() {
+        let value = match c {
+            'A'..='Z' => (c as u32) - ('A' as u32),
+            _ => return None,
+        };
+        result |= value << (pos * 5);
+        pos += 1;
+    }
+
+    // Skip the '/' separator - we know it's position
+    pos = 3;
+
+    // Second part (YYY[Y]) - 3-4 chars, 5 bits each = 15-20 bits
+    for c in s[4..].chars() {
+        let value = match c {
+            'A'..='Z' => (c as u32) - ('A' as u32),
+            _ => return None,
+        };
+        result |= value << (pos * 5);
+        pos += 1;
+    }
+
+    Some(result)
 }
 
-/// Decode u64 to ASCII string
-pub fn decode_u64_to_ascii(encoded: u64) -> String {
+/// Decode u32 to asset pair string
+pub fn decode_u32_to_asset_pair(encoded: u32) -> String {
     let mut result = String::with_capacity(8);
-    for i in 0..8 {
-        let byte = ((encoded >> (i * 8)) & 0xFF) as u8;
-        if byte != 0 {
-            result.push(byte as char);
+    
+    // Decode first part (XXX)
+    for shift in 0..3 {
+        let value = (encoded >> (shift * 5)) & 0x1F;
+        result.push((('A' as u32) + value) as u8 as char);
+    }
+    
+    // Add separator
+    result.push('/');
+    
+    // Decode second part (YYY[Y])
+    for shift in 3..7 {
+        let value = (encoded >> (shift * 5)) & 0x1F;
+        if value > 0 || shift < 6 { // Only add non-zero chars or if within minimum length
+            result.push((('A' as u32) + value) as u8 as char);
         }
     }
+
     result
 }
 
@@ -66,8 +106,9 @@ pub fn data_to_word(data: &OracleData) -> Word {
     let mut word = EMPTY_WORD;
 
     // Asset pair
-    let asset_pair_u64 = encode_ascii_to_u64(&data.asset_pair);
-    word[0] = Felt::new(asset_pair_u64);
+    let asset_pair_u32 = encode_asset_pair_to_u32(&data.asset_pair)
+        .expect("Invalid asset pair format");
+    word[0] = Felt::new(asset_pair_u32 as u64);
 
     // Price
     word[1] = Felt::new(data.price);
@@ -84,7 +125,7 @@ pub fn data_to_word(data: &OracleData) -> Word {
 /// Word to Data
 pub fn word_to_data(word: &Word) -> OracleData {
     OracleData {
-        asset_pair: decode_u64_to_ascii(word[0].as_int()),
+        asset_pair: decode_u32_to_asset_pair(word[0].as_int() as u32),
         price: word[1].as_int(),
         decimals: word[2].as_int(),
         publisher_id: word[3].as_int(),

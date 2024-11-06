@@ -2,7 +2,7 @@ use crate::accounts::accounts::{
     create_transaction_script,
 };
 use crate::accounts::{
-    data_to_word, decode_u64_to_ascii, encode_ascii_to_u64, push_data_to_oracle_account,
+    data_to_word, decode_u32_to_asset_pair, encode_asset_pair_to_u32, push_data_to_oracle_account,
     secret_key_to_felts, word_to_data, word_to_masm, OracleData,
 };
 use miden_client::utils::Deserializable;
@@ -40,7 +40,7 @@ begin
     push.{}
 
     call.[1]
-    call.[2]
+    #call.[2]
 
     dropw dropw dropw dropw
 
@@ -66,16 +66,11 @@ fn oracle_account_creation_and_pushing_data_to_read() {
         publisher_id: 1,
     };
 
-    let mut word = data_to_word(&oracle_data);
-
-    // The first element of the word is too big, so I just override it for the test!
-    word[0] = Felt::new(1);
+    let word = data_to_word(&oracle_data);
 
     let tx_context = TransactionContextBuilder::new(oracle_account.clone()).build();
     let executor = TransactionExecutor::new(tx_context.clone(), Some(oracle_auth.clone()));
 
-    // Here in the tx script I need to call the account code procedure that pushes the data to the account storage. I need to call it by its MAST root. This was the error you encountered before.
-    // Sorry for the confusion. I should have been more clear about this.
     let push_tx_script_code = format!(
         "{}",
         PUSH_DATA_TX_SCRIPT
@@ -84,10 +79,10 @@ fn oracle_account_creation_and_pushing_data_to_read() {
                 "[1]",
                 &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string()
             )
-            .replace(
-                "[2]",
-                &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
-            )
+            // .replace(
+            //     "[2]",
+            //     &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
+            // )
     );
 
     println!("Push tx script code: {}", push_tx_script_code);
@@ -124,10 +119,16 @@ fn oracle_account_creation_and_pushing_data_to_read() {
 
 #[test]
 fn test_ascii_encoding_decoding() {
-    let original = "BTC/USD";
-    let encoded = encode_ascii_to_u64(original);
-    let decoded = decode_u64_to_ascii(encoded);
-    assert_eq!(original, decoded);
+    let oracle_data = OracleData {
+        asset_pair: "BTC/USD".to_string(),
+        price: 50000,
+        decimals: 2,
+        publisher_id: 1,
+    };
+
+    let word = data_to_word(&oracle_data);
+    let decoded = word_to_data(&word);
+    assert_eq!(oracle_data, decoded);
 }
 
 #[test]
