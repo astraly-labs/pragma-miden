@@ -1,5 +1,5 @@
-use crate::accounts::accounts::create_transaction_script;
 use crate::accounts::{
+    accounts::{create_transaction_script, PUSH_DATA_TX_SCRIPT, READ_DATA_TX_SCRIPT},
     data_to_word, decode_u32_to_asset_pair, encode_asset_pair_to_u32, push_data_to_oracle_account,
     secret_key_to_felts, word_to_data, word_to_masm, OracleData,
 };
@@ -28,25 +28,6 @@ use miden_tx::{
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use std::{collections::BTreeMap, path::Path};
 
-pub const PUSH_DATA_TX_SCRIPT: &str = r#"
-use.oracle::push_oracle
-
-begin
-    push.{}
-    push.{}
-    push.{}
-    push.{}
-
-    call.[1]
-    #call.[2]
-
-    dropw dropw dropw dropw
-
-    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
-    drop
-end
-"#;
-
 #[test]
 fn oracle_account_creation_and_pushing_data_to_read() {
     let (oracle_pub_key, oracle_auth) = get_new_pk_and_authenticator();
@@ -74,10 +55,10 @@ fn oracle_account_creation_and_pushing_data_to_read() {
         PUSH_DATA_TX_SCRIPT
             .replace("{}", &word_to_masm(&word))
             .replace(
-                "[1]",
+                "[push_oracle]",
                 &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string()
             ) // .replace(
-              //     "[2]",
+              //     "[verify_data_provider_signature]",
               //     &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
               // )
     );
@@ -98,20 +79,27 @@ fn oracle_account_creation_and_pushing_data_to_read() {
     // check that now the account has the data stored in its storage at slot 2
     println!("Account Delta: {:?}", executed_transaction.account_delta());
 
-    // assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
+    assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
 
-    // let read_tx_script = create_transaction_script(
-    //     read_tx_script_code,
-    //     vec![],
-    //     READ_ORACLE_PATH,
-    // )?;
+    let read_tx_script_code = format!(
+        "{}",
+        READ_DATA_TX_SCRIPT
+            .replace("{account_id}", &oracle_account.id().to_string())
+            .replace("{storage_item_index}", "2")
+            .replace(
+                "[read_oracle]",
+                &format!("{}", oracle_account.code().procedures()[3].mast_root()),
+            )
+    );
 
-    // let txn_args = TransactionArgs::from_tx_script(read_tx_script);
-    // let executed_transaction = executor
-    //     .execute_transaction(oracle_account.id(), None, &[], txn_args)
-    //     .unwrap();
+    let read_tx_script = create_transaction_script(read_tx_script_code, vec![]).unwrap();
 
-    // assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
+    let txn_args = TransactionArgs::with_tx_script(read_tx_script);
+    let executed_transaction = executor
+        .execute_transaction(oracle_account.id(), 4, &[], txn_args)
+        .unwrap();
+
+    assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
 }
 
 #[test]

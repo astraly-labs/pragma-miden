@@ -44,8 +44,8 @@ begin
     push.{}
     push.{}
 
-    call.[1]
-    #call.[2]
+    call.[push_oracle]
+    #call.[verify_data_provider_signature]
 
     dropw dropw dropw dropw
 
@@ -59,12 +59,12 @@ pub const READ_DATA_TX_SCRIPT: &str = r#"
 use.oracle::read_oracle
 
 begin
-    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
-
     push.{account_id}
     push.{storage_item_index} 
     
-    call.[]
+    call.[read_oracle]
+
+    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
 end
 "#;
 
@@ -243,11 +243,11 @@ where
         PUSH_DATA_TX_SCRIPT
             .replace("{}", &word_to_masm(&word))
             .replace(
-                "[1]",
+                "[push_oracle]",
                 &format!("{}", account.code().procedures()[1].mast_root()).to_string()
             )
             .replace(
-                "[2]",
+                "[verify_data_provider_signature]",
                 &format!("{}", account.code().procedures()[2].mast_root()).to_string()
             )
     );
@@ -269,7 +269,7 @@ where
 
 // pub async fn read_data_from_oracle_account<N, R, S, A>(
 //     client: &mut Client<N, R, S, A>,
-//     account: Account,
+//     oracle_account: Account,
 //     asset_pair: String,
 // ) -> Result<OracleData, Box<dyn std::error::Error>>
 // where
@@ -286,16 +286,20 @@ where
 //     };
 
 //     // let asset_pair_word = data_to_word(&oracle_data);
-//     let tx_script_code = format!(
+//     let read_tx_script_code = format!(
 //         "{}",
 //         READ_DATA_TX_SCRIPT
+//             .replace("{account_id}", &oracle_account.id().to_string())
 //             .replace("{storage_item_index}", "2")
-//             .replace("{account_id}", &account.id().to_string())
+//             .replace(
+//                 "[read_oracle]",
+//                 &format!("{}", oracle_account.code().procedures()[3].mast_root()),
+//             )
 //     );
 
-//     let tx_script = create_transaction_script(tx_script_code, vec![], READ_ORACLE_PATH)?;
+//     let read_tx_script = create_transaction_script(read_tx_script_code, vec![]).unwrap();
 
-//     let _transaction_id = execute_transaction(client, account.id(), tx_script).await?;
+//     let _transaction_id = execute_transaction(client, oracle_account.id(), read_tx_script).await?;
 
 //     // TODO: fix this
 //     let oracle_data = OracleData {
