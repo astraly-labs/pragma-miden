@@ -12,8 +12,6 @@ pub mod push_data;
 pub mod read_data;
 pub mod sync;
 
-static ORACLE_KEY: Lazy<SecretKey> = Lazy::new(|| SecretKey::new());
-
 pub fn account_id_parser(s: &str) -> Result<AccountId, String> {
     AccountId::from_hex(s).map_err(|e| format!("Invalid AccountId: {}", e))
 }
@@ -31,14 +29,4 @@ pub fn word_from_hex(hex_string: &str) -> Result<Word, String> {
         Felt::new(u64::from_be_bytes(bytes[16..24].try_into().unwrap())),
         Felt::new(u64::from_be_bytes(bytes[24..32].try_into().unwrap())),
     ])
-}
-
-/// Returns the oracle test public key
-pub fn get_oracle_public_key() -> PublicKey {
-    ORACLE_KEY.public_key()
-}
-
-/// Returns the oracle test private key
-pub fn get_oracle_private_key() -> SecretKey {
-    ORACLE_KEY.clone()
 }

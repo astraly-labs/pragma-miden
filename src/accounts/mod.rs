@@ -2,7 +2,7 @@ mod accounts;
 mod tests;
 
 use miden_crypto::{
-    dsa::rpo_falcon512::SecretKey,
+    dsa::rpo_falcon512::{PublicKey, SecretKey},
     merkle::{MmrPeaks, PartialMmr},
     Felt, EMPTY_WORD,
 };
@@ -131,13 +131,21 @@ pub fn word_to_data(word: &Word) -> OracleData {
     }
 }
 
-/// Convert SecretKey to array of Felts representing the polynomials
-pub fn secret_key_to_felts(private_key: &SecretKey) -> [Felt; 4] {
-    let basis = private_key.short_lattice_basis();
-    [
-        Felt::new(basis[0].lc() as u64), // g polynomial
-        Felt::new(basis[1].lc() as u64), // f polynomial
-        Felt::new(basis[2].lc() as u64), // G polynomial
-        Felt::new(basis[3].lc() as u64), // F polynomial
-    ]
+/// Convert PublicKey to array of Felts representing the polynomials
+pub fn public_key_to_felts(public_key: &PublicKey) -> [Felt; 4] {
+    let word: Word = (*public_key).into();
+    word.into()
+}
+
+/// Convert PublicKey felts to a string representation
+pub fn public_key_felts_to_string(felts: &[Felt; 4]) -> String {
+    felts.iter()
+        .map(|x| x.as_int().to_string())
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
+/// Convert PublicKey directly to string representation
+pub fn public_key_to_string(public_key: &PublicKey) -> String {
+    public_key_felts_to_string(&public_key_to_felts(public_key))
 }

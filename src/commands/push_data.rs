@@ -1,11 +1,10 @@
 use crate::accounts::{push_data_to_oracle_account, OracleData};
-use crate::commands::account_id_parser;
-use crate::commands::get_oracle_private_key;
+use crate::commands::{account_id_parser, parse_public_key};
 use clap::Parser;
 use miden_client::{rpc::NodeRpcClient, store::Store, Client, ClientError};
 use miden_objects::{
     accounts::{Account, AccountId},
-    crypto::{dsa::rpo_falcon512::SecretKey, rand::FeltRng},
+    crypto::{dsa::rpo_falcon512::PublicKey, rand::FeltRng},
     Word,
 };
 use miden_tx::auth::TransactionAuthenticator;
@@ -14,6 +13,9 @@ use winter_maybe_async::{maybe_async, maybe_await};
 #[derive(Debug, Clone, Parser)]
 #[clap(about = "Push data to a pragma oracle account on Miden")]
 pub struct PushDataCmd {
+    #[arg(long, required = true, value_parser = parse_public_key)]
+    data_provider_public_key: PublicKey,
+
     #[arg(long, required = true, value_parser = account_id_parser)]
     account_id: AccountId,
 
@@ -34,6 +36,7 @@ pub struct PushDataCmd {
 pub trait OracleDataPusher {
     async fn push_oracle_data(
         &mut self,
+        data_provider_public_key: &PublicKey,
         account_id: &AccountId,
         data: OracleData,
     ) -> Result<(), ClientError>;
@@ -55,7 +58,7 @@ impl PushDataCmd {
         };
 
         client
-            .push_oracle_data(&self.account_id, oracle_data)
+            .push_oracle_data(&self.data_provider_public_key, &self.account_id,  oracle_data)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -71,12 +74,12 @@ impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> Oracle
 {
     async fn push_oracle_data(
         &mut self,
+        data_provider_public_key: &PublicKey,
         account_id: &AccountId,
         data: OracleData,
     ) -> Result<(), ClientError> {
         let (account, _) = self.get_account(*account_id)?;
-        // TODO: hardcode the pragma data provider private key
-        push_data_to_oracle_account(self, account, data, &get_oracle_private_key())
+        push_data_to_oracle_account(self, account, data, data_provider_public_key)
             .await
             .map_err(|e| {
                 ClientError::AccountError(miden_objects::AccountError::AccountCodeAssemblyError(

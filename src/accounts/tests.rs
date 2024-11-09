@@ -1,8 +1,8 @@
-use crate::accounts::{
+use crate::{accounts::{
     accounts::{create_transaction_script, PUSH_DATA_TX_SCRIPT, READ_DATA_TX_SCRIPT},
-    data_to_word, decode_u32_to_asset_pair, encode_asset_pair_to_u32, push_data_to_oracle_account,
-    secret_key_to_felts, word_to_data, word_to_masm, OracleData,
-};
+    data_to_word, public_key_to_string, decode_u32_to_asset_pair, encode_asset_pair_to_u32, push_data_to_oracle_account,
+    word_to_data, word_to_masm, OracleData,
+}, commands::parse_public_key};
 use miden_client::utils::Deserializable;
 use miden_crypto::{
     dsa::rpo_falcon512::{PublicKey, SecretKey},
@@ -45,7 +45,8 @@ fn oracle_account_creation_and_pushing_data_to_read() {
         publisher_id: 1,
     };
 
-    let word = data_to_word(&oracle_data);
+    let mut word = data_to_word(&oracle_data);
+    word[0] = Felt::new(1);
 
     let tx_context = TransactionContextBuilder::new(oracle_account.clone()).build();
     let executor = TransactionExecutor::new(tx_context.clone(), Some(oracle_auth.clone()));
@@ -55,21 +56,21 @@ fn oracle_account_creation_and_pushing_data_to_read() {
         PUSH_DATA_TX_SCRIPT
             .replace("{}", &word_to_masm(&word))
             .replace(
+                "{data_provider_public_key}",
+                &public_key_to_string(&data_provider_public_key),
+            )
+            .replace(
                 "[push_oracle]",
                 &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string()
             ) // .replace(
-              //     "[verify_data_provider_signature]",
+              //     "[verify_data_provider]",
               //     &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
               // )
     );
 
     println!("Push tx script code: {}", push_tx_script_code);
 
-    let push_tx_script = create_transaction_script(
-        push_tx_script_code,
-        vec![(secret_key_to_felts(&data_provider_private_key), Vec::new())],
-    )
-    .unwrap();
+    let push_tx_script = create_transaction_script(push_tx_script_code).unwrap();
 
     let txn_args = TransactionArgs::with_tx_script(push_tx_script);
     let executed_transaction = executor
@@ -92,7 +93,7 @@ fn oracle_account_creation_and_pushing_data_to_read() {
             )
     );
 
-    let read_tx_script = create_transaction_script(read_tx_script_code, vec![]).unwrap();
+    let read_tx_script = create_transaction_script(read_tx_script_code).unwrap();
 
     let txn_args = TransactionArgs::with_tx_script(read_tx_script);
     let executed_transaction = executor
@@ -202,7 +203,6 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
     let source_code = format!(
         "
         use.miden::account
-        use.std::crypto::dsa::rpo_falcon512
         export.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
 
         # Slot in account storage at which the data prover's public key is stored.
@@ -235,23 +235,14 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
             # => []
         end
 
-        #! Verify the signature of the data provider
-        #! Stack: [WORD_1, WORD_2, WORD_3, WORD_4]
+        #! Verify that the data provider's public key is matching the one in the account storage
+        #! Stack: [DATA_PROVIDER_PUBLIC_KEY]
         #! Output: []
         #!
-        export.verify_data_provider_signature
-            push.2 exec.account::get_item 
-            push.3 exec.account::get_item 
-            push.4 exec.account::get_item
-            push.5 exec.account::get_item     
-            
-            # Compute the hash of the retrieved data
-            hmerge hmerge hmerge
-            # => [DATA_HASH]
-
+        export.verify_data_provider  
             # Get data provider's public key from account storage at slot 1
             push.DATA_PROVIDER_PUBLIC_KEY_SLOT exec.account::get_item
-            # => [PUB_KEY, DATA_HASH]
+            # => [PUB_KEY, DATA_PROVIDER_PUBLIC_KEY]
             
             # Update the nonce
             push.1 exec.account::incr_nonce
@@ -259,8 +250,9 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
 
             push.100 mem_loadw add.1 mem_storew dropw
 
-            # Verify the signature against the public key and the message hash.
-            exec.rpo_falcon512::verify
+            # Verify that the data provider's public key is matching the one in the account storage
+            
+
             # => []
         end
         "

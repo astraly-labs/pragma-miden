@@ -1,4 +1,4 @@
-use super::{data_to_word, word_to_data, word_to_masm, OracleData};
+use super::{data_to_word, word_to_data, word_to_masm, public_key_to_string, OracleData};
 use miden_client::{
     rpc::NodeRpcClient, store::Store, transactions::request::TransactionRequest, Client,
 };
@@ -45,7 +45,9 @@ begin
     push.{}
 
     call.[push_oracle]
-    #call.[verify_data_provider_signature]
+
+    #push.{data_provider_public_key}
+    #call.[verify_data_provider]
 
     dropw dropw dropw dropw
 
@@ -70,7 +72,6 @@ end
 
 pub const SOURCE_CODE: &str = r#"
     use.miden::account
-    use.std::crypto::dsa::rpo_falcon512
     export.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
 
     # Slot in account storage at which the data prover's public key is stored.
@@ -103,23 +104,14 @@ pub const SOURCE_CODE: &str = r#"
         # => []
     end
 
-    #! Verify the signature of the data provider
-    #! Stack: [WORD_1, WORD_2, WORD_3, WORD_4]
+    #! Verify that the data provider's public key is matching the one in the account storage
+    #! Stack: [DATA_PROVIDER_PUBLIC_KEY]
     #! Output: []
     #!
-    export.verify_data_provider_signature
-        push.2 exec.account::get_item 
-        push.3 exec.account::get_item 
-        push.4 exec.account::get_item
-        push.5 exec.account::get_item     
-        
-        # Compute the hash of the retrieved data
-        hmerge hmerge hmerge
-        # => [DATA_HASH]
-
+    export.verify_data_provider  
         # Get data provider's public key from account storage at slot 1
         push.DATA_PROVIDER_PUBLIC_KEY_SLOT exec.account::get_item
-        # => [PUB_KEY, DATA_HASH]
+        # => [PUB_KEY, DATA_PROVIDER_PUBLIC_KEY]
         
         # Update the nonce
         push.1 exec.account::incr_nonce
@@ -127,8 +119,9 @@ pub const SOURCE_CODE: &str = r#"
 
         push.100 mem_loadw add.1 mem_storew dropw
 
-        # Verify the signature against the public key and the message hash.
-        exec.rpo_falcon512::verify
+        # Verify that the data provider's public key is matching the one in the account storage
+
+
         # => []
     end
 "#;
@@ -173,7 +166,6 @@ pub fn get_oracle_account(
 /// Helper function to create a transaction script
 pub fn create_transaction_script(
     tx_script_code: String,
-    private_key_inputs: Vec<(Word, Vec<Felt>)>,
     // masm_path: &str,
 ) -> Result<TransactionScript, Box<dyn std::error::Error>> {
     let assembler = TransactionKernel::assembler();
@@ -193,8 +185,7 @@ pub fn create_transaction_script(
     // let assembler = assembler.with_library(library).unwrap();
 
     // Compile the transaction script
-    let tx_script =
-        TransactionScript::compile(tx_script_code, private_key_inputs, assembler).unwrap();
+    let tx_script = TransactionScript::compile(tx_script_code, vec![], assembler).unwrap();
 
     Ok(tx_script)
 }
@@ -227,7 +218,7 @@ pub async fn push_data_to_oracle_account<N, R, S, A>(
     client: &mut Client<N, R, S, A>,
     account: Account,
     data: OracleData,
-    private_key: &SecretKey,
+    data_provider_public_key: &PublicKey,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     N: NodeRpcClient,
@@ -236,27 +227,23 @@ where
     A: TransactionAuthenticator,
 {
     let word = data_to_word(&data);
-    let private_key_felts = super::secret_key_to_felts(private_key);
 
     let push_tx_script_code = format!(
         "{}",
         PUSH_DATA_TX_SCRIPT
             .replace("{}", &word_to_masm(&word))
+            .replace("{data_provider_public_key}", &public_key_to_string(&data_provider_public_key))
             .replace(
                 "[push_oracle]",
                 &format!("{}", account.code().procedures()[1].mast_root()).to_string()
             )
             .replace(
-                "[verify_data_provider_signature]",
+                "[verify_data_provider]",
                 &format!("{}", account.code().procedures()[2].mast_root()).to_string()
             )
     );
 
-    let push_tx_script = create_transaction_script(
-        push_tx_script_code,
-        vec![(private_key_felts, Vec::new())],
-        // PUSH_ORACLE_PATH,
-    )?;
+    let push_tx_script = create_transaction_script(push_tx_script_code)?;
 
     let transaction_id = execute_transaction(client, account.id(), push_tx_script).await?;
     println!(
