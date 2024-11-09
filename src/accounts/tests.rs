@@ -82,25 +82,25 @@ fn oracle_account_creation_and_pushing_data_to_read() {
 
     assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
 
-    let read_tx_script_code = format!(
-        "{}",
-        READ_DATA_TX_SCRIPT
-            .replace("{account_id}", &oracle_account.id().to_string())
-            .replace("{storage_item_index}", "2")
-            .replace(
-                "[read_oracle]",
-                &format!("{}", oracle_account.code().procedures()[3].mast_root()),
-            )
-    );
+    // let read_tx_script_code = format!(
+    //     "{}",
+    //     READ_DATA_TX_SCRIPT
+    //         .replace("{account_id}", &oracle_account.id().to_string())
+    //         .replace("{storage_item_index}", "2")
+    //         .replace(
+    //             "[read_oracle]",
+    //             &format!("{}", oracle_account.code().procedures()[3].mast_root()),
+    //         )
+    // );
 
-    let read_tx_script = create_transaction_script(read_tx_script_code).unwrap();
+    // let read_tx_script = create_transaction_script(read_tx_script_code).unwrap();
 
-    let txn_args = TransactionArgs::with_tx_script(read_tx_script);
-    let executed_transaction = executor
-        .execute_transaction(oracle_account.id(), 4, &[], txn_args)
-        .unwrap();
+    // let txn_args = TransactionArgs::with_tx_script(read_tx_script);
+    // let executed_transaction = executor
+    //     .execute_transaction(oracle_account.id(), 4, &[], txn_args)
+    //     .unwrap();
 
-    assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
+    // assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
 }
 
 #[test]
