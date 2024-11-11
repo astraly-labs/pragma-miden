@@ -35,5 +35,11 @@ jobs:
       - name: Build the CLI
         run: cargo install --path .
 
+      - name: Initialize Miden
+        run: pragma-miden init
+
+      - name: Sync Miden
+        run: pragma-miden sync
+
       - name: Run tests
         run: cargo test --verbose
