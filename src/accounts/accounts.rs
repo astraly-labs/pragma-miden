@@ -1,4 +1,4 @@
-use super::{data_to_word, word_to_data, word_to_masm, public_key_to_string, OracleData};
+use super::{data_to_word, public_key_to_string, word_to_data, word_to_masm, OracleData};
 use miden_client::{
     rpc::NodeRpcClient, store::Store, transactions::request::TransactionRequest, Client,
 };
@@ -232,7 +232,10 @@ where
         "{}",
         PUSH_DATA_TX_SCRIPT
             .replace("{}", &word_to_masm(&word))
-            .replace("{data_provider_public_key}", &public_key_to_string(&data_provider_public_key))
+            .replace(
+                "{data_provider_public_key}",
+                &public_key_to_string(&data_provider_public_key)
+            )
             .replace(
                 "[push_oracle]",
                 &format!("{}", account.code().procedures()[1].mast_root()).to_string()

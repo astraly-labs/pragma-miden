@@ -2,6 +2,7 @@
 name = "pragma-miden"
 version = "0.1.0"
 edition = "2021"
+authors = ["Harsh Pratap Singh <harsh@pragma.build>"]
 
 [features]
 testing = ["miden-tx/testing"]
@@ -29,8 +30,22 @@ winter-maybe-async = "0.10"
 hex = "0.4.3"
 rand_chacha = "0.3"
 once_cell = "1.18"
+pyo3 = { version = "0.22.6", features = ["auto-initialize"] }
+tokio-stream = "0.1.1"
+async-trait = "0.1.83"
+thiserror = "2.0.1"
+
+[build-dependencies]
+pyo3-build-config = { version = "0.22.6", features = ["resolve-config"] }
 
 [[test]]
 name = "integration"
 path = "src/accounts/tests.rs"
 required-features = ["testing"]
+
+[env]
+PYO3_PYTHON = "/opt/homebrew/bin/python3"
+
+[[bin]]
+name = "pragma-miden"
+path = "src/main.rs"

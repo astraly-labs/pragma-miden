@@ -1,5 +1,6 @@
 use crate::accounts::{push_data_to_oracle_account, OracleData};
 use crate::commands::{account_id_parser, parse_public_key};
+use crate::sdk::get_pragma_prices;
 use clap::Parser;
 use miden_client::{rpc::NodeRpcClient, store::Store, Client, ClientError};
 use miden_objects::{
@@ -8,6 +9,7 @@ use miden_objects::{
     Word,
 };
 use miden_tx::auth::TransactionAuthenticator;
+use std::time::Duration;
 use winter_maybe_async::{maybe_async, maybe_await};
 
 #[derive(Debug, Clone, Parser)]
@@ -18,18 +20,17 @@ pub struct PushDataCmd {
 
     #[arg(long, required = true, value_parser = account_id_parser)]
     account_id: AccountId,
+    // #[arg(long, required = true)]
+    // asset_pair: String,
 
-    #[arg(long, required = true)]
-    asset_pair: String,
+    // #[arg(long, required = true)]
+    // price: u64,
 
-    #[arg(long, required = true)]
-    price: u64,
+    // #[arg(long, required = true)]
+    // decimals: u64,
 
-    #[arg(long, required = true)]
-    decimals: u64,
-
-    #[arg(long, required = true)]
-    publisher_id: u64,
+    // #[arg(long, required = true)]
+    // publisher_id: u64,
 }
 
 #[maybe_async]
@@ -50,21 +51,40 @@ impl PushDataCmd {
     where
         Client<N, R, S, A>: OracleDataPusher,
     {
-        let oracle_data = OracleData {
-            asset_pair: self.asset_pair.clone(),
-            price: self.price,
-            decimals: self.decimals,
-            publisher_id: self.publisher_id,
-        };
+        let mut interval = tokio::time::interval(Duration::from_secs(10 * 60)); // 10 minutes
 
-        client
-            .push_oracle_data(&self.data_provider_public_key, &self.account_id,  oracle_data)
-            .await
-            .map_err(|e| e.to_string())?;
+        loop {
+            interval.tick().await;
 
-        println!("Data pushed to oracle account successfully!");
+            match get_pragma_prices(vec!["BTC/USD".to_string(), "ETH/USD".to_string()]).await {
+                Ok(prices) => {
+                    for price in prices {
+                        let oracle_data = OracleData {
+                            asset_pair: price.pair,
+                            price: price.price,
+                            decimals: 8,     // default decimals for pragma
+                            publisher_id: 1, // TODO: fix this
+                        };
 
-        Ok(())
+                        if let Err(e) = client
+                            .push_oracle_data(
+                                &self.data_provider_public_key,
+                                &self.account_id,
+                                oracle_data,
+                            )
+                            .await
+                        {
+                            eprintln!("Error pushing data to oracle: {}", e);
+                            continue;
+                        }
+                    }
+                    println!("Data pushed to oracle account successfully!");
+                }
+                Err(e) => {
+                    eprintln!("Error fetching prices: {}", e);
+                }
+            }
+        }
     }
 }
 

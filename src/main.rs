@@ -2,6 +2,7 @@ mod accounts;
 mod cli;
 mod commands;
 mod errors;
+mod sdk;
 mod setup;
 
 use clap::Parser;

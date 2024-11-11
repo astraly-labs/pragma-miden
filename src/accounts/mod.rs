@@ -139,7 +139,8 @@ pub fn public_key_to_felts(public_key: &PublicKey) -> [Felt; 4] {
 
 /// Convert PublicKey felts to a string representation
 pub fn public_key_felts_to_string(felts: &[Felt; 4]) -> String {
-    felts.iter()
+    felts
+        .iter()
         .map(|x| x.as_int().to_string())
         .collect::<Vec<_>>()
         .join(".")

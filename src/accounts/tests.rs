@@ -1,8 +1,11 @@
-use crate::{accounts::{
-    accounts::{create_transaction_script, PUSH_DATA_TX_SCRIPT, READ_DATA_TX_SCRIPT},
-    data_to_word, public_key_to_string, decode_u32_to_asset_pair, encode_asset_pair_to_u32, push_data_to_oracle_account,
-    word_to_data, word_to_masm, OracleData,
-}, commands::parse_public_key};
+use crate::{
+    accounts::{
+        accounts::{create_transaction_script, PUSH_DATA_TX_SCRIPT, READ_DATA_TX_SCRIPT},
+        data_to_word, decode_u32_to_asset_pair, encode_asset_pair_to_u32, public_key_to_string,
+        push_data_to_oracle_account, word_to_data, word_to_masm, OracleData,
+    },
+    commands::parse_public_key,
+};
 use miden_client::utils::Deserializable;
 use miden_crypto::{
     dsa::rpo_falcon512::{PublicKey, SecretKey},
