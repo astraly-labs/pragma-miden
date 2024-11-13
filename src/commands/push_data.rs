@@ -44,12 +44,9 @@ pub trait OracleDataPusher {
 }
 
 impl PushDataCmd {
-    pub async fn execute<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator>(
-        &self,
-        client: &mut Client<N, R, S, A>,
-    ) -> Result<(), String>
+    pub async fn execute<R: FeltRng>(&self, client: &mut Client<R>) -> Result<(), String>
     where
-        Client<N, R, S, A>: OracleDataPusher,
+        Client<R>: OracleDataPusher,
     {
         let mut interval = tokio::time::interval(Duration::from_secs(10 * 60)); // 10 minutes
 
@@ -89,16 +86,14 @@ impl PushDataCmd {
 }
 
 #[maybe_async]
-impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> OracleDataPusher
-    for Client<N, R, S, A>
-{
+impl<R: FeltRng> OracleDataPusher for Client<R> {
     async fn push_oracle_data(
         &mut self,
         data_provider_public_key: &PublicKey,
         account_id: &AccountId,
         data: OracleData,
     ) -> Result<(), ClientError> {
-        let (account, _) = self.get_account(*account_id)?;
+        let (account, _) = self.get_account(*account_id).await?;
         push_data_to_oracle_account(self, account, data, data_provider_public_key)
             .await
             .map_err(|e| {

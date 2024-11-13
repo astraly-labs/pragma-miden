@@ -1,7 +1,5 @@
 use super::{data_to_word, public_key_to_string, word_to_data, word_to_masm, OracleData};
-use miden_client::{
-    rpc::NodeRpcClient, store::Store, transactions::request::TransactionRequest, Client,
-};
+use miden_client::{rpc::NodeRpcClient, store::Store, transactions::TransactionRequest, Client};
 use miden_crypto::{
     dsa::rpo_falcon512::{PublicKey, SecretKey},
     rand::FeltRng,
@@ -10,8 +8,8 @@ use miden_crypto::{
 use miden_lib::{transaction::TransactionKernel, AuthScheme};
 use miden_objects::{
     accounts::{
-        Account, AccountCode, AccountId, AccountStorage, AccountStorageType, AccountType,
-        AuthSecretKey, SlotItem,
+        Account, AccountBuilder, AccountCode, AccountComponent, AccountId, AccountStorage,
+        AccountStorageMode, AccountType, AuthSecretKey, StorageSlot,
     },
     assembly::{Assembler, Library, LibraryNamespace, LibraryPath},
     transaction::{TransactionArgs, TransactionScript},
@@ -23,6 +21,8 @@ use miden_tx::{
 };
 use rand::rngs::OsRng;
 use std::collections::BTreeMap;
+use std::error::Error as StdError;
+use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{
@@ -130,7 +130,7 @@ pub fn get_oracle_account(
     init_seed: [u8; 32],
     auth_scheme: AuthScheme,
     account_type: AccountType,
-    account_storage_type: AccountStorageType,
+    account_storage_type: AccountStorageMode,
     data_provider_public_key: PublicKey,
 ) -> Result<(Account, Word), AccountError> {
     let (auth_scheme_procedure, storage_slot_0_data): (&str, Word) = match auth_scheme {
@@ -138,29 +138,24 @@ pub fn get_oracle_account(
     };
 
     let assembler = TransactionKernel::assembler();
+    let library = assembler.assemble_library([SOURCE_CODE]).unwrap();
 
-    let oracle_account_code = AccountCode::compile(SOURCE_CODE, assembler).unwrap();
-
-    let account_storage = AccountStorage::new(
+    let component = AccountComponent::new(
+        library,
         vec![
-            SlotItem::new_value(0, 0, storage_slot_0_data),
-            SlotItem::new_value(1, 0, data_provider_public_key.into()),
+            StorageSlot::Value(storage_slot_0_data),
+            StorageSlot::Value(data_provider_public_key.into()),
         ],
-        BTreeMap::new(),
     )?;
 
-    let account_seed = AccountId::get_account_seed(
-        init_seed,
-        account_type,
-        account_storage_type,
-        oracle_account_code.commitment(),
-        account_storage.root(),
-    )?;
+    let (account, seed) = AccountBuilder::new()
+        .init_seed(init_seed)
+        .account_type(account_type)
+        .storage_mode(account_storage_type)
+        .with_component(component)
+        .build()?;
 
-    Ok((
-        Account::new(account_seed, oracle_account_code, account_storage)?,
-        account_seed,
-    ))
+    Ok((account, seed))
 }
 
 /// Helper function to create a transaction script
@@ -191,41 +186,36 @@ pub fn create_transaction_script(
 }
 
 /// Helper function to execute a transaction
-async fn execute_transaction<N, R, S, A>(
-    client: &mut Client<N, R, S, A>,
+async fn execute_transaction<R: FeltRng>(
+    client: &mut Client<R>,
     account_id: AccountId,
     tx_script: TransactionScript,
-) -> Result<String, Box<dyn std::error::Error>>
-where
-    N: NodeRpcClient,
-    R: FeltRng,
-    S: Store,
-    A: TransactionAuthenticator,
-{
+) -> Result<String, Box<dyn StdError>> {
     let tx_request = TransactionRequest::new();
     let request = TransactionRequest::with_custom_script(tx_request, tx_script)
-        .map_err(|err| err.to_string())?;
-    let transaction_execution_result = client.new_transaction(account_id, request)?;
+        .map_err(|e| Box::new(e) as Box<dyn StdError>)?;
+
+    let transaction_execution_result = client
+        .new_transaction(account_id, request)
+        .await
+        .map_err(|e| format!("Transaction execution failed: {}", e))?;
+
     let transaction_id = transaction_execution_result.executed_transaction().id();
+
     client
         .submit_transaction(transaction_execution_result)
-        .await?;
+        .await
+        .map_err(|e| format!("Transaction submission failed: {}", e))?;
 
     Ok(transaction_id.to_string())
 }
 
-pub async fn push_data_to_oracle_account<N, R, S, A>(
-    client: &mut Client<N, R, S, A>,
+pub async fn push_data_to_oracle_account<R: FeltRng>(
+    client: &mut Client<R>,
     account: Account,
     data: OracleData,
     data_provider_public_key: &PublicKey,
-) -> Result<(), Box<dyn std::error::Error>>
-where
-    N: NodeRpcClient,
-    R: FeltRng,
-    S: Store,
-    A: TransactionAuthenticator,
-{
+) -> Result<(), Box<dyn StdError>> {
     let word = data_to_word(&data);
 
     let push_tx_script_code = format!(

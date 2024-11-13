@@ -1,9 +1,8 @@
 use crate::accounts::OracleData;
 use crate::commands::account_id_parser;
 use clap::Parser;
-use miden_client::{rpc::NodeRpcClient, store::Store, Client, ClientError};
+use miden_client::{Client, ClientError};
 use miden_objects::{accounts::AccountId, crypto::rand::FeltRng};
-use miden_tx::auth::TransactionAuthenticator;
 use winter_maybe_async::maybe_async;
 
 #[derive(Debug, Clone, Parser)]
@@ -22,16 +21,13 @@ pub trait OracleDataReader {
         &mut self,
         account_id: &AccountId,
         asset_pair: String,
-    ) -> Result<Vec<u64>, Box<dyn std::error::Error>>;
+    ) -> Result<Vec<u64>, ClientError>;
 }
 
 impl ReadDataCmd {
-    pub async fn execute<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator>(
-        &self,
-        client: &mut Client<N, R, S, A>,
-    ) -> Result<(), String>
+    pub async fn execute<R: FeltRng>(&self, client: &mut Client<R>) -> Result<(), String>
     where
-        Client<N, R, S, A>: OracleDataReader,
+        Client<R>: OracleDataReader,
     {
         let oracle_data_vector = client
             .read_oracle_data(&self.account_id, self.asset_pair.clone())
@@ -47,15 +43,14 @@ impl ReadDataCmd {
 }
 
 #[maybe_async]
-impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> OracleDataReader
-    for Client<N, R, S, A>
-{
+impl<R: FeltRng> OracleDataReader for Client<R> {
     async fn read_oracle_data(
         &mut self,
         account_id: &AccountId,
         asset_pair: String,
-    ) -> Result<Vec<u64>, Box<dyn std::error::Error>> {
-        let (mut account, _) = self.get_account(*account_id)?;
+    ) -> Result<Vec<u64>, ClientError> {
+        let (mut account, _) = self.get_account(*account_id).await?;
+        // TODO: Implement actual data reading logic
         // let oracle_data = read_data_from_oracle_account(self, account, asset_pair).await?;
         // Ok(oracle_data.to_vector())
         Ok(vec![0, 0, 0, 0])

@@ -33,7 +33,7 @@ pub struct Cli {
 
 impl Cli {
     pub async fn execute(&self) -> Result<(), String> {
-        let mut client = setup_client();
+        let mut client = setup_client().await;
 
         match &self.action {
             Command::Sync(sync) => sync.execute(&mut client).await,

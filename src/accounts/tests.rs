@@ -17,27 +17,31 @@ use miden_objects::assembly::{Library, LibraryNamespace};
 use miden_objects::{
     accounts::{
         account_id::testing::ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN, Account,
-        AccountCode, AccountId, AccountStorage, AccountStorageType, SlotItem,
+        AccountCode, AccountComponent, AccountId, AccountStorage, AccountStorageMode, AccountType,
+        AuthSecretKey, StorageSlot,
     },
     assets::AssetVault,
     crypto::utils::Serializable,
     transaction::{ExecutedTransaction, ProvenTransaction, TransactionArgs},
+    AccountError,
 };
 use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
+use miden_tx::auth::BasicAuthenticator;
 use miden_tx::{
-    testing::TransactionContextBuilder, ProvingOptions, TransactionExecutor, TransactionProver,
-    TransactionVerifier, TransactionVerifierError,
+    testing::TransactionContextBuilder, LocalTransactionProver, ProvingOptions,
+    TransactionExecutor, TransactionProver, TransactionVerifier, TransactionVerifierError,
 };
+use rand::rngs::StdRng;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
-#[test]
-fn oracle_account_creation_and_pushing_data_to_read() {
+#[tokio::test]
+async fn oracle_account_creation_and_pushing_data_to_read() {
     let (oracle_pub_key, oracle_auth) = get_new_pk_and_authenticator();
     let data_provider_private_key = SecretKey::new();
     let data_provider_public_key = data_provider_private_key.public_key();
 
-    let oracle_account = get_oracle_account(data_provider_public_key, oracle_pub_key);
+    let oracle_account = get_oracle_account(data_provider_public_key, oracle_pub_key).unwrap();
 
     println!("Oracle account: {:?}", oracle_account.code().procedures());
 
@@ -51,8 +55,8 @@ fn oracle_account_creation_and_pushing_data_to_read() {
     let mut word = data_to_word(&oracle_data);
     word[0] = Felt::new(1);
 
-    let tx_context = TransactionContextBuilder::new(oracle_account.clone()).build();
-    let executor = TransactionExecutor::new(tx_context.clone(), Some(oracle_auth.clone()));
+    let tx_context = Arc::new(TransactionContextBuilder::new(oracle_account.clone()).build());
+    let executor = TransactionExecutor::new(tx_context, Some(Arc::new(oracle_auth)));
 
     let push_tx_script_code = format!(
         "{}",
@@ -78,12 +82,15 @@ fn oracle_account_creation_and_pushing_data_to_read() {
     let txn_args = TransactionArgs::with_tx_script(push_tx_script);
     let executed_transaction = executor
         .execute_transaction(oracle_account.id(), 4, &[], txn_args)
+        .await
         .unwrap();
 
     // check that now the account has the data stored in its storage at slot 2
     println!("Account Delta: {:?}", executed_transaction.account_delta());
 
-    assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
+    assert!(prove_and_verify_transaction(executed_transaction.clone())
+        .await
+        .is_ok());
 
     // let read_tx_script_code = format!(
     //     "{}",
@@ -154,16 +161,7 @@ fn test_oracle_data_conversion() {
 //     }
 // }
 
-fn get_new_pk_and_authenticator() -> (
-    Word,
-    std::rc::Rc<miden_tx::auth::BasicAuthenticator<rand::rngs::StdRng>>,
-) {
-    use std::rc::Rc;
-
-    use miden_objects::accounts::AuthSecretKey;
-    use miden_tx::auth::BasicAuthenticator;
-    use rand::rngs::StdRng;
-
+fn get_new_pk_and_authenticator() -> (Word, BasicAuthenticator<StdRng>) {
     let seed = [0_u8; 32];
     let mut rng = ChaCha20Rng::from_seed(seed);
 
@@ -173,18 +171,17 @@ fn get_new_pk_and_authenticator() -> (
     let authenticator =
         BasicAuthenticator::<StdRng>::new(&[(pub_key, AuthSecretKey::RpoFalcon512(sec_key))]);
 
-    (pub_key, Rc::new(authenticator))
+    (pub_key, authenticator)
 }
 
-fn prove_and_verify_transaction(
+async fn prove_and_verify_transaction(
     executed_transaction: ExecutedTransaction,
 ) -> Result<(), TransactionVerifierError> {
     let executed_transaction_id = executed_transaction.id();
-    // Prove the transaction
 
     let proof_options = ProvingOptions::default();
-    let prover = TransactionProver::new(proof_options);
-    let proven_transaction = prover.prove_transaction(executed_transaction).unwrap();
+    let prover = LocalTransactionProver::new(proof_options);
+    let proven_transaction = prover.prove(executed_transaction.into()).await.unwrap();
 
     assert_eq!(proven_transaction.id(), executed_transaction_id);
 
@@ -198,7 +195,10 @@ fn prove_and_verify_transaction(
     verifier.verify(proven_transaction)
 }
 
-fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Word) -> Account {
+fn get_oracle_account(
+    data_provider_public_key: PublicKey,
+    oracle_public_key: Word,
+) -> Result<Account, AccountError> {
     let account_owner_public_key = PublicKey::new(oracle_public_key);
     let oracle_account_id =
         AccountId::try_from(ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN).unwrap();
@@ -260,22 +260,30 @@ fn get_oracle_account(data_provider_public_key: PublicKey, oracle_public_key: Wo
         end
         "
     );
-    let oracle_account_code = AccountCode::compile(source_code, assembler).unwrap();
 
-    let account_storage = AccountStorage::new(
+    let library = assembler.assemble_library([source_code]).unwrap();
+
+    let component = AccountComponent::new(
+        library,
         vec![
-            SlotItem::new_value(0, 0, account_owner_public_key.into()),
-            SlotItem::new_value(1, 0, data_provider_public_key.into()),
+            StorageSlot::Value(account_owner_public_key.into()),
+            StorageSlot::Value(data_provider_public_key.into()),
         ],
-        BTreeMap::new(),
-    )
-    .unwrap();
+    )?;
 
-    Account::from_parts(
+    let oracle_account_code =
+        AccountCode::from_components(&[component], AccountType::RegularAccountImmutableCode)?;
+
+    let account_storage = AccountStorage::new(vec![
+        StorageSlot::Value(account_owner_public_key.into()),
+        StorageSlot::Value(data_provider_public_key.into()),
+    ])?;
+
+    Ok(Account::from_parts(
         oracle_account_id,
         AssetVault::new(&[]).unwrap(),
-        account_storage.clone(),
-        oracle_account_code.clone(),
+        account_storage,
+        oracle_account_code,
         Felt::new(1),
-    )
+    ))
 }

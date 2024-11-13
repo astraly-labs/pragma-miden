@@ -4,7 +4,7 @@ use clap::{Parser, ValueEnum};
 use miden_client::{rpc::NodeRpcClient, store::Store, Client, ClientError, Felt};
 use miden_lib::{utils::hex_to_bytes, AuthScheme};
 use miden_objects::{
-    accounts::{Account, AccountId, AccountStorageType, AccountType, AuthSecretKey},
+    accounts::{Account, AccountId, AccountStorageMode, AccountType, AuthSecretKey},
     crypto::{
         dsa::rpo_falcon512::{PublicKey, SecretKey},
         rand::FeltRng,
@@ -25,21 +25,18 @@ pub struct AccountCmd {
 pub trait OracleAccountCreation {
     async fn new_oracle_account(
         &mut self,
-        account_storage_type: AccountStorageType,
+        account_storage_type: AccountStorageMode,
         data_provider_public_key: PublicKey,
     ) -> Result<(Account, Word), ClientError>;
 }
 
 impl AccountCmd {
-    pub async fn execute<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator>(
-        &self,
-        client: &mut Client<N, R, S, A>,
-    ) -> Result<(), String>
+    pub async fn execute<R: FeltRng>(&self, client: &mut Client<R>) -> Result<(), String>
     where
-        Client<N, R, S, A>: OracleAccountCreation,
+        Client<R>: OracleAccountCreation,
     {
         let (account, seed) = client
-            .new_oracle_account(AccountStorageType::OnChain, self.data_provider_public_key)
+            .new_oracle_account(AccountStorageMode::Public, self.data_provider_public_key)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -53,12 +50,10 @@ impl AccountCmd {
 }
 
 #[maybe_async]
-impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> OracleAccountCreation
-    for Client<N, R, S, A>
-{
+impl<R: FeltRng> OracleAccountCreation for Client<R> {
     async fn new_oracle_account(
         &mut self,
-        account_storage_type: AccountStorageType,
+        account_storage_type: AccountStorageMode,
         data_provider_public_key: PublicKey,
     ) -> Result<(Account, Word), ClientError> {
         let key_pair = SecretKey::with_rng(&mut self.rng());
@@ -78,7 +73,11 @@ impl<N: NodeRpcClient, R: FeltRng, S: Store, A: TransactionAuthenticator> Oracle
             data_provider_public_key,
         )?;
 
-        self.insert_account(&account, Some(seed), &AuthSecretKey::RpoFalcon512(key_pair))?;
+        maybe_await!(self.insert_account(
+            &account,
+            Some(seed),
+            &AuthSecretKey::RpoFalcon512(key_pair)
+        ))?;
         Ok((account, seed))
     }
 }
