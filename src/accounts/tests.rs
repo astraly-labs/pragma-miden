@@ -13,7 +13,10 @@ use miden_crypto::{
     Felt, Word, ZERO,
 };
 use miden_lib::{transaction::TransactionKernel, AuthScheme};
-use miden_objects::assembly::{Library, LibraryNamespace};
+use miden_objects::{
+    accounts::AccountBuilder,
+    assembly::{Library, LibraryNamespace},
+};
 use miden_objects::{
     accounts::{
         account_id::testing::ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN, Account,
@@ -269,24 +272,20 @@ fn get_oracle_account(
         vec![
             StorageSlot::Value(account_owner_public_key.into()),
             StorageSlot::Value(data_provider_public_key.into()),
+            StorageSlot::Value(Default::default()),
+            StorageSlot::Value(Default::default()),
+            StorageSlot::Value(Default::default()),
+            StorageSlot::Value(Default::default()),
         ],
-    )?;
+    )?
+    .with_supports_all_types();
 
-    let component = component.with_supported_types(BTreeSet::from([AccountType::RegularAccountImmutableCode]));
+    let (account, _account_seed) = AccountBuilder::new()
+        .init_seed(Default::default())
+        .with_component(component)
+        .nonce(Felt::new(1))
+        .build()
+        .unwrap();
 
-    let oracle_account_code =
-        AccountCode::from_components(&[component], AccountType::RegularAccountImmutableCode)?;
-
-    let account_storage = AccountStorage::new(vec![
-        StorageSlot::Value(account_owner_public_key.into()),
-        StorageSlot::Value(data_provider_public_key.into()),
-    ])?;
-
-    Ok(Account::from_parts(
-        oracle_account_id,
-        AssetVault::new(&[]).unwrap(),
-        account_storage,
-        oracle_account_code,
-        Felt::new(1),
-    ))
+    Ok(account)
 }
