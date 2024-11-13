@@ -145,6 +145,10 @@ pub fn get_oracle_account(
         vec![
             StorageSlot::Value(storage_slot_0_data),
             StorageSlot::Value(data_provider_public_key.into()),
+            StorageSlot::Value(Default::default()),
+            StorageSlot::Value(Default::default()),
+            StorageSlot::Value(Default::default()),
+            StorageSlot::Value(Default::default()),
         ],
     )?;
 
