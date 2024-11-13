@@ -204,8 +204,6 @@ fn get_oracle_account(
     oracle_public_key: Word,
 ) -> Result<Account, AccountError> {
     let account_owner_public_key = PublicKey::new(oracle_public_key);
-    let oracle_account_id =
-        AccountId::try_from(ACCOUNT_ID_REGULAR_ACCOUNT_IMMUTABLE_CODE_ON_CHAIN).unwrap();
     let assembler = TransactionKernel::assembler();
     let source_code = format!(
         "
