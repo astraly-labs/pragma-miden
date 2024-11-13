@@ -33,7 +33,8 @@ use miden_tx::{
 };
 use rand::rngs::StdRng;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::collections::BTreeSet;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn oracle_account_creation_and_pushing_data_to_read() {
@@ -270,6 +271,8 @@ fn get_oracle_account(
             StorageSlot::Value(data_provider_public_key.into()),
         ],
     )?;
+
+    let component = component.with_supported_types(BTreeSet::from([AccountType::RegularAccountImmutableCode]));
 
     let oracle_account_code =
         AccountCode::from_components(&[component], AccountType::RegularAccountImmutableCode)?;
