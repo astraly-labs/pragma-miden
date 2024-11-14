@@ -13,7 +13,6 @@ pub struct InitCmd {}
 impl InitCmd {
     pub async fn execute(&self) -> Result<(), String> {
         self.remove_file_if_exists(DB_FILE_PATH)?;
-        self.create_file(DB_FILE_PATH)?;
         setup_client().await;
         println!("Oracle successfully initialized.");
         Ok(())
