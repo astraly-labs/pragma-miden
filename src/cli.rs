@@ -37,7 +37,7 @@ impl Cli {
 
         match &self.action {
             Command::Sync(sync) => sync.execute(&mut client).await,
-            Command::Init(init) => init.execute(),
+            Command::Init(init) => init.execute().await,
             Command::NewOracle(new_oracle) => new_oracle.execute(&mut client).await,
             Command::PushData(push_data) => push_data.execute(&mut client).await,
             Command::ReadData(read_data) => read_data.execute(&mut client).await,
