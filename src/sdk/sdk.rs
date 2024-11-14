@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use pyo3::exceptions::PyModuleNotFoundError;
 use pyo3::types::{PyDict, PyList};
 use std::sync::Once;
 use thiserror::Error;
@@ -23,9 +24,12 @@ pub enum PragmaSDKError {
     FetchError(String),
 }
 
-// Initialize Python and pragma-sdk
 fn init_python() -> PyResult<()> {
     Python::with_gil(|py| {
+        if let Err(e) = py.import_bound("pragma_sdk") {
+            return Err(PyModuleNotFoundError::new_err(e));
+        }
+
         let setup_code = r#"
 import asyncio
 from pragma_sdk.common.fetchers.fetcher_client import FetcherClient
@@ -50,7 +54,6 @@ async def fetch_prices(pair_strings):
 }
 
 pub async fn get_pragma_prices(pairs: Vec<String>) -> Result<Vec<PragmaPrice>, PragmaSDKError> {
-    // Initialize Python code only once
     INIT.call_once(|| {
         init_python().expect("Failed to initialize Python runtime");
     });
@@ -60,14 +63,12 @@ pub async fn get_pragma_prices(pairs: Vec<String>) -> Result<Vec<PragmaPrice>, P
         let locals = PyDict::new_bound(py);
         locals.set_item("pairs", pairs_list)?;
 
-        // Run the async Python code
         py.run_bound(
             "result = asyncio.run(fetch_prices(pairs))",
             None,
             Some(&locals),
         )?;
 
-        // Extract results
         let result = locals
             .get_item("result")?
             .ok_or(PragmaSDKError::FetchError("No result returned".into()))?;
