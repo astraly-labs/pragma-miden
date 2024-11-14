@@ -150,7 +150,8 @@ pub fn get_oracle_account(
             StorageSlot::Value(Default::default()),
             StorageSlot::Value(Default::default()),
         ],
-    )?;
+    )?
+    .with_supports_all_types();
 
     let (account, seed) = AccountBuilder::new()
         .init_seed(init_seed)
