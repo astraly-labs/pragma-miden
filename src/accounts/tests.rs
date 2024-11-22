@@ -69,17 +69,18 @@ async fn oracle_account_creation_and_pushing_data_to_read() {
         "{}",
         PUSH_DATA_TX_SCRIPT
             .replace("{}", &word_to_masm(&word))
-            // .replace(
-            //     "{data_provider_public_key}",
-            //     &public_key_to_string(&data_provider_public_key),
-            // )
+            .replace(
+                "[data_provider_public_key]",
+                &public_key_to_string(&data_provider_public_key),
+            )
             .replace(
                 "[push_oracle]",
                 &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string()
-            ) // .replace(
-              //     "[verify_data_provider]",
-              //     &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
-              // )
+            )
+            .replace(
+                "[verify_data_provider]",
+                &format!("{}", oracle_account.code().procedures()[2].mast_root()).to_string()
+            )
     );
 
     println!("Push tx script code: {}", push_tx_script_code);
@@ -101,21 +102,21 @@ async fn oracle_account_creation_and_pushing_data_to_read() {
 
     // let read_data_tx_script_code = r#"
     // use.oracle::read_oracle
-    
+
     // begin
     //     padw padw padw push.0.0
     //     # => [pad(14)]
 
-    //     push.{storage_item_index} 
-    //     push.{get_item_foreign_hash} 
+    //     push.{storage_item_index}
+    //     push.{get_item_foreign_hash}
     //     push.{account_id}
     //     # => [foreign_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
-        
+
     //     call.[read_oracle]
-        
+
     //     # assert the correctness of the obtained value
     //     push.{oracle_data} assert_eqw
-        
+
     //     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
     // end
     // "#;

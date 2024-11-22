@@ -1,4 +1,5 @@
 use super::{data_to_word, public_key_to_string, word_to_data, word_to_masm, OracleData};
+use miden_assembly::ast::{Module, ModuleKind};
 use miden_client::{rpc::NodeRpcClient, store::Store, transactions::TransactionRequest, Client};
 use miden_crypto::{
     dsa::rpo_falcon512::{PublicKey, SecretKey},
@@ -11,11 +12,10 @@ use miden_objects::{
         Account, AccountBuilder, AccountCode, AccountComponent, AccountId, AccountStorage,
         AccountStorageMode, AccountType, AuthSecretKey, StorageSlot,
     },
-    assembly::{Assembler, Library, LibraryNamespace, LibraryPath, DefaultSourceManager},
+    assembly::{Assembler, DefaultSourceManager, Library, LibraryNamespace, LibraryPath},
     transaction::{TransactionArgs, TransactionScript},
     AccountError, Word,
 };
-use miden_assembly::ast::{Module, ModuleKind};
 use miden_tx::{
     auth::{BasicAuthenticator, TransactionAuthenticator},
     TransactionExecutor,
@@ -65,8 +65,10 @@ begin
 
     call.[push_oracle]
 
-    #push.{data_provider_public_key}
-    #call.[verify_data_provider]
+    dropw dropw dropw dropw
+
+    push.[data_provider_public_key]
+    call.[verify_data_provider]
 
     dropw dropw dropw dropw
 
@@ -141,16 +143,13 @@ pub const SOURCE_CODE: &str = r#"
         # Get data provider's public key from account storage at slot 1
         push.DATA_PROVIDER_PUBLIC_KEY_SLOT exec.account::get_item
         # => [PUB_KEY, DATA_PROVIDER_PUBLIC_KEY]
+
+        # Verify that the data provider's public key is matching the one in the account storage
+        assert_eqw
+        # => []
         
         # Update the nonce
         push.1 exec.account::incr_nonce
-        # => []
-
-        push.100 mem_loadw add.1 mem_storew dropw
-
-        # Verify that the data provider's public key is matching the one in the account storage
-
-
         # => []
     end
 
