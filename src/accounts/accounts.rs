@@ -11,10 +11,11 @@ use miden_objects::{
         Account, AccountBuilder, AccountCode, AccountComponent, AccountId, AccountStorage,
         AccountStorageMode, AccountType, AuthSecretKey, StorageSlot,
     },
-    assembly::{Assembler, Library, LibraryNamespace, LibraryPath},
+    assembly::{Assembler, Library, LibraryNamespace, LibraryPath, DefaultSourceManager},
     transaction::{TransactionArgs, TransactionScript},
     AccountError, Word,
 };
+use miden_assembly::ast::{Module, ModuleKind};
 use miden_tx::{
     auth::{BasicAuthenticator, TransactionAuthenticator},
     TransactionExecutor,
@@ -24,7 +25,7 @@ use std::collections::BTreeMap;
 use std::error::Error as StdError;
 use std::fmt;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::{
     env, io,
     path::{Path, PathBuf},
@@ -32,7 +33,25 @@ use std::{
 
 // Include the oracle module source code
 // pub const PUSH_ORACLE_PATH: &str = "src/accounts/oracle/push_oracle.masm";
-// pub const READ_ORACLE_PATH: &str = "src/accounts/oracle/read_oracle.masm";
+// pub const READ_ORACLE_PATH: &str = "src/accounts/oracle/read_oracle.masm"
+
+// TODO: use component library instead of directly calling procedures
+pub static ORACLE_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
+    let assembler = TransactionKernel::assembler().with_debug_mode(true);
+
+    let source_manager = Arc::new(DefaultSourceManager::default());
+    let oracle_component_module = Module::parser(ModuleKind::Library)
+        .parse_str(
+            LibraryPath::new("oracle_component::oracle_module").unwrap(),
+            SOURCE_CODE,
+            &source_manager,
+        )
+        .unwrap();
+
+    assembler
+        .assemble_library([oracle_component_module])
+        .expect("assembly should succeed")
+});
 
 /// Transaction script template for pushing data to oracle
 pub const PUSH_DATA_TX_SCRIPT: &str = r#"
