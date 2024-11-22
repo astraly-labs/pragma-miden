@@ -1,6 +1,8 @@
 use crate::{
     accounts::{
-        accounts::{create_transaction_script, PUSH_DATA_TX_SCRIPT, READ_DATA_TX_SCRIPT},
+        accounts::{
+            create_transaction_script, PUSH_DATA_TX_SCRIPT, READ_DATA_TX_SCRIPT, SOURCE_CODE,
+        },
         data_to_word, decode_u32_to_asset_pair, encode_asset_pair_to_u32, public_key_to_string,
         push_data_to_oracle_account, word_to_data, word_to_masm, OracleData,
     },
@@ -16,6 +18,7 @@ use miden_lib::{transaction::TransactionKernel, AuthScheme};
 use miden_objects::{
     accounts::AccountBuilder,
     assembly::{Library, LibraryNamespace},
+    testing::account_component::AccountMockComponent,
 };
 use miden_objects::{
     accounts::{
@@ -34,7 +37,7 @@ use miden_tx::{
     testing::TransactionContextBuilder, LocalTransactionProver, ProvingOptions,
     TransactionExecutor, TransactionProver, TransactionVerifier, TransactionVerifierError,
 };
-use rand::rngs::StdRng;
+use rand::{rngs::StdRng, Rng};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -66,10 +69,10 @@ async fn oracle_account_creation_and_pushing_data_to_read() {
         "{}",
         PUSH_DATA_TX_SCRIPT
             .replace("{}", &word_to_masm(&word))
-            .replace(
-                "{data_provider_public_key}",
-                &public_key_to_string(&data_provider_public_key),
-            )
+            // .replace(
+            //     "{data_provider_public_key}",
+            //     &public_key_to_string(&data_provider_public_key),
+            // )
             .replace(
                 "[push_oracle]",
                 &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string()
@@ -96,15 +99,45 @@ async fn oracle_account_creation_and_pushing_data_to_read() {
         .await
         .is_ok());
 
+    // let read_data_tx_script_code = r#"
+    // use.oracle::read_oracle
+    
+    // begin
+    //     padw padw padw push.0.0
+    //     # => [pad(14)]
+
+    //     push.{storage_item_index} 
+    //     push.{get_item_foreign_hash} 
+    //     push.{account_id}
+    //     # => [foreign_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
+        
+    //     call.[read_oracle]
+        
+    //     # assert the correctness of the obtained value
+    //     push.{oracle_data} assert_eqw
+        
+    //     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+    // end
+    // "#;
+
+    // let foreign_account = get_foreign_account().unwrap();
+
     // let read_tx_script_code = format!(
     //     "{}",
-    //     READ_DATA_TX_SCRIPT
-    //         .replace("{account_id}", &oracle_account.id().to_string())
+    //     read_data_tx_script_code
     //         .replace("{storage_item_index}", "2")
+    //         .replace(
+    //             "{get_item_foreign_hash}",
+    //             &oracle_account.code().procedures()[1]
+    //                 .mast_root()
+    //                 .to_string(),
+    //         )
+    //         .replace("{account_id}", &foreign_account.id().to_string())
     //         .replace(
     //             "[read_oracle]",
     //             &format!("{}", oracle_account.code().procedures()[3].mast_root()),
     //         )
+    //         .replace("{oracle_data}", &word_to_masm(&data_to_word(&oracle_data)))
     // );
 
     // let read_tx_script = create_transaction_script(read_tx_script_code).unwrap();
@@ -112,9 +145,12 @@ async fn oracle_account_creation_and_pushing_data_to_read() {
     // let txn_args = TransactionArgs::with_tx_script(read_tx_script);
     // let executed_transaction = executor
     //     .execute_transaction(oracle_account.id(), 4, &[], txn_args)
+    //     .await
     //     .unwrap();
 
-    // assert!(prove_and_verify_transaction(executed_transaction.clone()).is_ok());
+    // assert!(prove_and_verify_transaction(executed_transaction.clone())
+    //     .await
+    //     .is_ok());
 }
 
 #[test]
@@ -205,65 +241,27 @@ fn get_oracle_account(
 ) -> Result<Account, AccountError> {
     let account_owner_public_key = PublicKey::new(oracle_public_key);
     let assembler = TransactionKernel::assembler();
-    let source_code = format!(
-        "
-        use.miden::account
-        export.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
 
-        # Slot in account storage at which the data prover's public key is stored.
-        const.DATA_PROVIDER_PUBLIC_KEY_SLOT=1
+    /// Transaction script template for reading data from oracle
+    pub const READ_DATA_TX_SCRIPT: &str = r#"
+use.oracle::read_oracle
 
-        #! Pushes new price data into the oracle's data slots. 
-        #!
-        #! Inputs:  [WORD_1, WORD_2, WORD_3, WORD_4]
-        #! Outputs: []
-        #!
-        export.push_oracle_data
-            push.2
-            exec.account::set_item
-            dropw
-            # => [WORD_2, WORD_3, WORD_4]
+begin
+    padw padw padw push.0.0
+    # => [pad(14)]
 
-            push.3
-            exec.account::set_item
-            dropw
-            # => [WORD_3, WORD_4]
+    push.{storage_item_index} 
+    push.{get_item_foreign_hash}
+    push.{account_id}
+    # => [foreign_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
+    
+    call.[read_oracle]
 
-            push.4
-            exec.account::set_item
-            dropw
-            # => [WORD_4]
+    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+end
+"#;
 
-            push.5
-            exec.account::set_item
-            dropw
-            # => []
-        end
-
-        #! Verify that the data provider's public key is matching the one in the account storage
-        #! Stack: [DATA_PROVIDER_PUBLIC_KEY]
-        #! Output: []
-        #!
-        export.verify_data_provider  
-            # Get data provider's public key from account storage at slot 1
-            push.DATA_PROVIDER_PUBLIC_KEY_SLOT exec.account::get_item
-            # => [PUB_KEY, DATA_PROVIDER_PUBLIC_KEY]
-            
-            # Update the nonce
-            push.1 exec.account::incr_nonce
-            # => []
-
-            push.100 mem_loadw add.1 mem_storew dropw
-
-            # Verify that the data provider's public key is matching the one in the account storage
-            
-
-            # => []
-        end
-        "
-    );
-
-    let library = assembler.assemble_library([source_code]).unwrap();
+    let library = assembler.assemble_library([SOURCE_CODE]).unwrap();
 
     let component = AccountComponent::new(
         library,
@@ -286,4 +284,18 @@ fn get_oracle_account(
         .unwrap();
 
     Ok(account)
+}
+
+fn get_foreign_account() -> Result<Account, AccountError> {
+    let (native_account, _) = AccountBuilder::new()
+        .init_seed(ChaCha20Rng::from_entropy().gen())
+        .with_component(
+            AccountMockComponent::new_with_slots(TransactionKernel::testing_assembler(), vec![])
+                .unwrap(),
+        )
+        .nonce(ONE)
+        .build_testing()
+        .unwrap();
+
+    Ok(native_account)
 }

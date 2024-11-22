@@ -1,5 +1,5 @@
-use pyo3::prelude::*;
 use pyo3::exceptions::PyModuleNotFoundError;
+use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::sync::Once;
 use thiserror::Error;

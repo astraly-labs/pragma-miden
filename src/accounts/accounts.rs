@@ -61,16 +61,26 @@ pub const READ_DATA_TX_SCRIPT: &str = r#"
 use.oracle::read_oracle
 
 begin
-    push.{account_id}
+    padw padw padw push.0.0
+    # => [pad(14)]
+
     push.{storage_item_index} 
+    push.{get_item_foreign_hash}
+    push.{account_id}
+    # => [foreign_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
     
     call.[read_oracle]
+
+    # assert the correctness of the obtained value
+    push.{oracle_data} assert_eqw
 
     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
 end
 "#;
 
 pub const SOURCE_CODE: &str = r#"
+    use.std::sys
+    use.miden::tx
     use.miden::account
     export.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
 
@@ -123,6 +133,30 @@ pub const SOURCE_CODE: &str = r#"
 
 
         # => []
+    end
+
+    #! Gets new price data from the oracle's data slots.
+    #!
+    #! Inputs:  [storage_slot]
+    #! Outputs: [WORD]
+    #!
+    export.get_item_foreign
+        # make this foreign procedure unique to make sure that we invoke the procedure of the 
+        # foreign account, not the native one
+        push.1 drop
+        exec.account::get_item
+        # truncate the stack
+        movup.6 movup.6 movup.6 drop drop drop
+    end
+
+    #! Reads the price data from the oracle's data slots.
+    #!
+    #! Inputs:  []
+    #! Outputs: [WORD]
+    #!
+    export.read_oracle
+        exec.tx::execute_foreign_procedure
+            # => [STORAGE_VALUE]
     end
 "#;
 
