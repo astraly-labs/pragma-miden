@@ -19,6 +19,8 @@ use miden_objects::{
     accounts::AccountBuilder,
     assembly::{Library, LibraryNamespace},
     testing::account_component::AccountMockComponent,
+    transaction::TransactionScript,
+    Digest,
 };
 use miden_objects::{
     accounts::{
@@ -29,13 +31,15 @@ use miden_objects::{
     assets::AssetVault,
     crypto::utils::Serializable,
     transaction::{ExecutedTransaction, ProvenTransaction, TransactionArgs},
+    vm::AdviceInputs,
     AccountError,
 };
 use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
 use miden_tx::auth::BasicAuthenticator;
 use miden_tx::{
-    testing::TransactionContextBuilder, LocalTransactionProver, ProvingOptions,
-    TransactionExecutor, TransactionProver, TransactionVerifier, TransactionVerifierError,
+    testing::{mock_chain::MockChain, TransactionContextBuilder},
+    LocalTransactionProver, ProvingOptions, TransactionExecutor, TransactionProver,
+    TransactionVerifier, TransactionVerifierError,
 };
 use rand::{rngs::StdRng, Rng};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
@@ -123,6 +127,13 @@ async fn oracle_account_creation_and_pushing_data_to_read() {
 
     // let foreign_account = get_foreign_account().unwrap();
 
+    // let mut mock_chain =
+    //     MockChain::with_accounts(&[foreign_account.clone(), oracle_account.clone()]);
+
+    // mock_chain.seal_block(None);
+
+    // let advice_inputs = get_mock_fpi_adv_inputs(&oracle_account, &mock_chain);
+
     // let read_tx_script_code = format!(
     //     "{}",
     //     read_data_tx_script_code
@@ -141,11 +152,34 @@ async fn oracle_account_creation_and_pushing_data_to_read() {
     //         .replace("{oracle_data}", &word_to_masm(&data_to_word(&oracle_data)))
     // );
 
-    // let read_tx_script = create_transaction_script(read_tx_script_code).unwrap();
+    // let read_tx_script = TransactionScript::compile(read_tx_script_code, vec![], TransactionKernel::testing_assembler()).unwrap();
 
-    // let txn_args = TransactionArgs::with_tx_script(read_tx_script);
-    // let executed_transaction = executor
-    //     .execute_transaction(oracle_account.id(), 4, &[], txn_args)
+    // let tx_context = mock_chain
+    //     .build_tx_context(foreign_account.id(), &[], &[])
+    //     .advice_inputs(advice_inputs.clone())
+    //     .tx_script(read_tx_script)
+    //     .build();
+
+    // let block_ref = tx_context.tx_inputs().block_header().block_num();
+    // let note_ids = tx_context
+    //     .tx_inputs()
+    //     .input_notes()
+    //     .iter()
+    //     .map(|note| note.id())
+    //     .collect::<Vec<_>>();
+
+    // let mut executor: TransactionExecutor =
+    //     TransactionExecutor::new(Arc::new(tx_context.clone()), None).with_tracing();
+
+    // executor.load_account_code(oracle_account.code());
+
+    // executor
+    //     .execute_transaction(
+    //         foreign_account.id(),
+    //         block_ref,
+    //         &note_ids,
+    //         tx_context.tx_args().clone(),
+    //     )
     //     .await
     //     .unwrap();
 
@@ -299,4 +333,56 @@ fn get_foreign_account() -> Result<Account, AccountError> {
         .unwrap();
 
     Ok(native_account)
+}
+
+/// Mocks the required advice inputs for foreign procedure invocation.
+fn get_mock_fpi_adv_inputs(foreign_account: &Account, mock_chain: &MockChain) -> AdviceInputs {
+    let foreign_id_root = Digest::from([foreign_account.id().into(), ZERO, ZERO, ZERO]);
+    let foreign_id_and_nonce = [
+        foreign_account.id().into(),
+        ZERO,
+        ZERO,
+        foreign_account.nonce(),
+    ];
+    let foreign_vault_root = foreign_account.vault().commitment();
+    let foreign_storage_root = foreign_account.storage().commitment();
+    let foreign_code_root = foreign_account.code().commitment();
+
+    let mut inputs = AdviceInputs::default()
+        .with_map([
+            // ACCOUNT_ID |-> [ID_AND_NONCE, VAULT_ROOT, STORAGE_ROOT, CODE_ROOT]
+            (
+                foreign_id_root,
+                [
+                    &foreign_id_and_nonce,
+                    foreign_vault_root.as_elements(),
+                    foreign_storage_root.as_elements(),
+                    foreign_code_root.as_elements(),
+                ]
+                .concat(),
+            ),
+            // STORAGE_ROOT |-> [[STORAGE_SLOT_DATA]]
+            (
+                foreign_storage_root,
+                foreign_account.storage().as_elements(),
+            ),
+            // CODE_ROOT |-> [[ACCOUNT_PROCEDURE_DATA]]
+            (foreign_code_root, foreign_account.code().as_elements()),
+        ])
+        .with_merkle_store(mock_chain.accounts().into());
+
+    for slot in foreign_account.storage().slots() {
+        // if there are storage maps, we populate the merkle store and advice map
+        if let StorageSlot::Map(map) = slot {
+            // extend the merkle store and map with the storage maps
+            inputs.extend_merkle_store(map.inner_nodes());
+            // populate advice map with Sparse Merkle Tree leaf nodes
+            inputs.extend_map(
+                map.leaves()
+                    .map(|(_, leaf)| (leaf.hash(), leaf.to_elements())),
+            );
+        }
+    }
+
+    inputs
 }
