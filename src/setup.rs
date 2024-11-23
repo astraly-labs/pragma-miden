@@ -9,8 +9,7 @@ use miden_client::{
     Client, Felt,
 };
 use rand::Rng;
-use std::rc::Rc;
-use std::sync::Arc;
+use std::{sync::Arc, rc::Rc};
 
 // seting up Miden Client
 pub async fn setup_client() -> Client<RpoRandomCoin> {
@@ -26,7 +25,6 @@ pub async fn setup_client() -> Client<RpoRandomCoin> {
     };
     let in_debug_mode = true;
 
-    // Create a dummy TransactionProver for now - you'll need to replace this with your actual prover
     let tx_prover = Arc::new(LocalTransactionProver::new(ProvingOptions::default()));
 
     Client::new(
