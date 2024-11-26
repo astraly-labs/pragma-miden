@@ -144,21 +144,16 @@ async fn oracle_account_creation_and_pushing_data_to_read() {
             .replace("{oracle_data}", &word_to_masm(&data_to_word(&oracle_data)))
     );
 
-    let mut mock_chain = MockChainBuilder::default()
-        .accounts(vec![foreign_account.clone(), oracle_account.clone()])
-        .starting_block_num(1)
-        .build();
+    let mut mock_chain =
+        MockChain::with_accounts(&[foreign_account.clone(), oracle_account.clone()]);
 
-    println!("Mock chain: {:?}", mock_chain.accounts());
-
-    mock_chain.seal_block(Some(2));
+    mock_chain.seal_block(None);
 
     let advice_inputs = get_mock_fpi_adv_inputs(&oracle_account, &mock_chain);
 
-    let read_tx_script = create_transaction_script(read_tx_script_code).unwrap();
-
+    let read_tx_script = TransactionScript::compile(read_tx_script_code, vec![], TransactionKernel::testing_assembler()).unwrap();
     let read_tx_context = mock_chain
-        .build_tx_context(foreign_account.id())
+        .build_tx_context(foreign_account.id(), &[], &[])
         .advice_inputs(advice_inputs.clone())
         .tx_script(read_tx_script)
         .build();
