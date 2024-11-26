@@ -67,7 +67,7 @@ The project is organized as follows:
 |----------------------------|--------|
 | Oracle Account             | ✅     |
 | Publisher Registry Account | ❌     |
-| Python SDK                 | ❌     |
+| Python SDK                 | ✅     |
 
 ## Getting Started
 

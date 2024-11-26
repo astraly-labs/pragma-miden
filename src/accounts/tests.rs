@@ -37,7 +37,7 @@ use miden_objects::{
 use miden_objects::{crypto::dsa::rpo_falcon512, ONE};
 use miden_tx::auth::BasicAuthenticator;
 use miden_tx::{
-    testing::{mock_chain::MockChain, TransactionContextBuilder},
+    testing::{mock_chain::{MockChain, MockChainBuilder}, TransactionContextBuilder},
     LocalTransactionProver, ProvingOptions, TransactionExecutor, TransactionProver,
     TransactionVerifier, TransactionVerifierError,
 };
@@ -63,11 +63,10 @@ async fn oracle_account_creation_and_pushing_data_to_read() {
         publisher_id: 1,
     };
 
-    let mut word = data_to_word(&oracle_data);
-    word[0] = Felt::new(1);
+    let word = data_to_word(&oracle_data);
 
-    let tx_context = Arc::new(TransactionContextBuilder::new(oracle_account.clone()).build());
-    let executor = TransactionExecutor::new(tx_context, Some(Arc::new(oracle_auth)));
+    let push_tx_context = Arc::new(TransactionContextBuilder::new(oracle_account.clone()).build());
+    let push_executor = TransactionExecutor::new(push_tx_context, Some(Arc::new(oracle_auth.clone())));
 
     let push_tx_script_code = format!(
         "{}",
@@ -91,101 +90,105 @@ async fn oracle_account_creation_and_pushing_data_to_read() {
 
     let push_tx_script = create_transaction_script(push_tx_script_code).unwrap();
 
-    let txn_args = TransactionArgs::with_tx_script(push_tx_script);
-    let executed_transaction = executor
-        .execute_transaction(oracle_account.id(), 4, &[], txn_args)
+    let push_txn_args = TransactionArgs::with_tx_script(push_tx_script);
+    let push_executed_transaction = push_executor
+        .execute_transaction(oracle_account.id(), 4, &[], push_txn_args)
         .await
         .unwrap();
 
     // check that now the account has the data stored in its storage at slot 2
-    println!("Account Delta: {:?}", executed_transaction.account_delta());
+    println!("Account Delta: {:?}", push_executed_transaction.account_delta());
 
-    assert!(prove_and_verify_transaction(executed_transaction.clone())
+    assert!(prove_and_verify_transaction(push_executed_transaction.clone())
         .await
         .is_ok());
+    
+    let read_data_tx_script_code = r#"
+    use.oracle::read_oracle
 
-    // let read_data_tx_script_code = r#"
-    // use.oracle::read_oracle
+    begin
+        padw padw padw push.0.0
+        # => [pad(14)]
 
-    // begin
-    //     padw padw padw push.0.0
-    //     # => [pad(14)]
+        push.{storage_item_index}
+        push.{get_item_foreign_hash}
+        push.{account_id}
+        # => [foreign_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
 
-    //     push.{storage_item_index}
-    //     push.{get_item_foreign_hash}
-    //     push.{account_id}
-    //     # => [foreign_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
+        call.[read_oracle]
 
-    //     call.[read_oracle]
+        # assert the correctness of the obtained value
+        push.{oracle_data} assert_eqw
 
-    //     # assert the correctness of the obtained value
-    //     push.{oracle_data} assert_eqw
+        call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+    end
+    "#;
 
-    //     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
-    // end
-    // "#;
+    let foreign_account = get_foreign_account().unwrap();
 
-    // let foreign_account = get_foreign_account().unwrap();
+    let read_tx_script_code = format!(
+        "{}",
+        read_data_tx_script_code
+            .replace("{storage_item_index}", "2")
+            .replace(
+                "{get_item_foreign_hash}",
+                &oracle_account.code().procedures()[1]
+                    .mast_root()
+                    .to_string(),
+            )
+            .replace("{account_id}", &foreign_account.id().to_string())
+            .replace(
+                "[read_oracle]",
+                &format!("{}", oracle_account.code().procedures()[3].mast_root()),
+            )
+            .replace("{oracle_data}", &word_to_masm(&data_to_word(&oracle_data)))
+    );
 
-    // let mut mock_chain =
-    //     MockChain::with_accounts(&[foreign_account.clone(), oracle_account.clone()]);
+    let mut mock_chain = MockChainBuilder::default()
+        .accounts(vec![foreign_account.clone(), oracle_account.clone()])
+        .starting_block_num(1)
+        .build();
 
-    // mock_chain.seal_block(None);
+    println!("Mock chain: {:?}", mock_chain.accounts());
 
-    // let advice_inputs = get_mock_fpi_adv_inputs(&oracle_account, &mock_chain);
+    mock_chain.seal_block(Some(2));
 
-    // let read_tx_script_code = format!(
-    //     "{}",
-    //     read_data_tx_script_code
-    //         .replace("{storage_item_index}", "2")
-    //         .replace(
-    //             "{get_item_foreign_hash}",
-    //             &oracle_account.code().procedures()[1]
-    //                 .mast_root()
-    //                 .to_string(),
-    //         )
-    //         .replace("{account_id}", &foreign_account.id().to_string())
-    //         .replace(
-    //             "[read_oracle]",
-    //             &format!("{}", oracle_account.code().procedures()[3].mast_root()),
-    //         )
-    //         .replace("{oracle_data}", &word_to_masm(&data_to_word(&oracle_data)))
-    // );
+    let advice_inputs = get_mock_fpi_adv_inputs(&oracle_account, &mock_chain);
 
-    // let read_tx_script = TransactionScript::compile(read_tx_script_code, vec![], TransactionKernel::testing_assembler()).unwrap();
+    let read_tx_script = create_transaction_script(read_tx_script_code).unwrap();
 
-    // let tx_context = mock_chain
-    //     .build_tx_context(foreign_account.id(), &[], &[])
-    //     .advice_inputs(advice_inputs.clone())
-    //     .tx_script(read_tx_script)
-    //     .build();
+    let read_tx_context = mock_chain
+        .build_tx_context(foreign_account.id())
+        .advice_inputs(advice_inputs.clone())
+        .tx_script(read_tx_script)
+        .build();
 
-    // let block_ref = tx_context.tx_inputs().block_header().block_num();
-    // let note_ids = tx_context
-    //     .tx_inputs()
-    //     .input_notes()
-    //     .iter()
-    //     .map(|note| note.id())
-    //     .collect::<Vec<_>>();
+    let block_ref = read_tx_context.tx_inputs().block_header().block_num();
+    let note_ids = read_tx_context
+        .tx_inputs()
+        .input_notes()
+        .iter()
+        .map(|note| note.id())
+        .collect::<Vec<_>>();
+    let read_txn_args = read_tx_context.tx_args().clone();
 
-    // let mut executor: TransactionExecutor =
-    //     TransactionExecutor::new(Arc::new(tx_context.clone()), None).with_tracing();
+    let mut read_executor = TransactionExecutor::new(Arc::new(read_tx_context.clone()), Some(Arc::new(oracle_auth.clone())));
 
-    // executor.load_account_code(oracle_account.code());
+    read_executor.load_account_code(oracle_account.code());
 
-    // executor
-    //     .execute_transaction(
-    //         foreign_account.id(),
-    //         block_ref,
-    //         &note_ids,
-    //         tx_context.tx_args().clone(),
-    //     )
-    //     .await
-    //     .unwrap();
+    let read_executed_transaction = read_executor
+        .execute_transaction(
+            foreign_account.id(),
+            block_ref,
+            &note_ids,
+            read_txn_args,
+        )
+        .await
+        .unwrap();
 
-    // assert!(prove_and_verify_transaction(executed_transaction.clone())
-    //     .await
-    //     .is_ok());
+    assert!(prove_and_verify_transaction(read_executed_transaction.clone())
+        .await
+        .is_ok());
 }
 
 #[test]
