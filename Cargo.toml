@@ -6,19 +6,20 @@ authors = ["Harsh Pratap Singh <harsh@pragma.build>"]
 
 [features]
 testing = ["miden-tx/testing"]
+default = ["rand_chacha"]
 
 [dependencies]
 miden-client = { version = "0.6", features = ["concurrent", "testing", "sqlite", "tonic"] }
 miden-crypto = { version = "0.12", default-features = false }
 miden-lib = { git = "https://github.com/0xPolygonMiden/miden-base", branch = "next", default-features = false, features = ["concurrent", "testing"] }
-miden-objects = { version = "0.6.0", default-features = false }
-miden-tx = { version = "0.6", features = ["testing"] }
+miden-objects = { git = "https://github.com/0xPolygonMiden/miden-base", branch = "next", default-features = false, features = ["concurrent", "testing"] }
+miden-tx = { git = "https://github.com/0xPolygonMiden/miden-base", branch = "next", features = ["concurrent", "testing"] }
 miden-air = { version = "0.11", default-features = false }
 miden-cli = { version = "0.6" }
 miden-assembly = { version = "0.11", default-features = false, features = ["testing"] }
 
 rusqlite = { version = "0.32", features = ["vtab", "array", "bundled"]}
-rand = "0.8"
+rand = { version = "0.8", default-features = false }
 tonic = { version = "0.12.3" }
 tokio = { version = "1.40.0", features = ["rt-multi-thread", "net", "macros"] }
 clap = { version = "4.5.20", features = ["derive"] }
@@ -30,7 +31,7 @@ tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3" }
 winter-maybe-async = "0.10"
 hex = "0.4.3"
-rand_chacha = "0.3"
+rand_chacha = { version = "0.3", default-features = false, optional = true }
 once_cell = "1.18"
 pyo3 = { version = "0.22.6", features = ["auto-initialize"] }
 tokio-stream = "0.1.1"
