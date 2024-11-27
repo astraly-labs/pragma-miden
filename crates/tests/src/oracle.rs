@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use miden_crypto::{Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
@@ -7,19 +9,17 @@ use miden_objects::{
     vm::AdviceInputs,
     Digest,
 };
-
-use miden_oracle::{
-    constants::{ORACLE_COMPONENT_LIBRARY, WRITE_DATA_TX_SCRIPT},
-    data::OracleData,
-    utils::{get_new_pk_and_authenticator, get_oracle_account, word_to_masm},
-};
 use miden_tx::{
     testing::{MockChain, TransactionContextBuilder},
     TransactionExecutor,
 };
+use pm_accounts::{
+    constants::{ORACLE_COMPONENT_LIBRARY, WRITE_DATA_TX_SCRIPT},
+    utils::{get_new_pk_and_authenticator, get_oracle_account, word_to_masm},
+};
+use pm_types::{currency::Currency, entry::Entry, pair::Pair};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
-use std::sync::Arc;
 
 #[test]
 fn test_oracle_write() {
@@ -33,14 +33,14 @@ fn test_oracle_write() {
     let mut oracle_account =
         get_oracle_account(oracle_pub_key, oracle_account_id, oracle_storage_slots);
 
-    // create oracle data (price feeds)
-    let [oracle_data_1, oracle_data_2, oracle_data_3, oracle_data_4] = mock_oracle_data();
+    // create entry (price feeds)
+    let [entry_1, entry_2, entry_3, entry_4] = mock_entries();
 
-    // transform OracleData into field elements for VM processing
-    let oracle_data_word_1 = oracle_data_1.to_word();
-    let oracle_data_word_2 = oracle_data_2.to_word();
-    let oracle_data_word_3 = oracle_data_3.to_word();
-    let oracle_data_word_4 = oracle_data_4.to_word();
+    // transform Entry into field elements for VM processing
+    let entry_word_1: Word = entry_1.try_into().unwrap();
+    let entry_word_2: Word = entry_2.try_into().unwrap();
+    let entry_word_3: Word = entry_3.try_into().unwrap();
+    let entry_word_4: Word = entry_4.try_into().unwrap();
 
     // CONSTRUCT AND EXECUTE TX
     // --------------------------------------------------------------------------------------------
@@ -51,10 +51,10 @@ fn test_oracle_write() {
 
     // Create transaction script to write the data to the oracle account
     let tx_script_code = WRITE_DATA_TX_SCRIPT
-        .replace("{1}", &word_to_masm(oracle_data_word_1))
-        .replace("{2}", &word_to_masm(oracle_data_word_2))
-        .replace("{3}", &word_to_masm(oracle_data_word_3))
-        .replace("{4}", &word_to_masm(oracle_data_word_4))
+        .replace("{1}", &word_to_masm(entry_word_1))
+        .replace("{2}", &word_to_masm(entry_word_2))
+        .replace("{3}", &word_to_masm(entry_word_3))
+        .replace("{4}", &word_to_masm(entry_word_4))
         .replace(
             "[1]",
             &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string(),
@@ -85,22 +85,10 @@ fn test_oracle_write() {
 
     // check that the oracle account has successfully been updated with the correct values (price
     // feeds)
-    assert_eq!(
-        oracle_account.storage().slots()[1].value(),
-        oracle_data_word_1
-    );
-    assert_eq!(
-        oracle_account.storage().slots()[2].value(),
-        oracle_data_word_2
-    );
-    assert_eq!(
-        oracle_account.storage().slots()[3].value(),
-        oracle_data_word_3
-    );
-    assert_eq!(
-        oracle_account.storage().slots()[4].value(),
-        oracle_data_word_4
-    );
+    assert_eq!(oracle_account.storage().slots()[1].value(), entry_word_1);
+    assert_eq!(oracle_account.storage().slots()[2].value(), entry_word_2);
+    assert_eq!(oracle_account.storage().slots()[3].value(), entry_word_3);
+    assert_eq!(oracle_account.storage().slots()[4].value(), entry_word_4);
 }
 
 #[test]
@@ -110,19 +98,19 @@ fn test_oracle_read() {
     let (oracle_pub_key, _) = get_new_pk_and_authenticator();
     let oracle_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
 
-    // create oracle data (price feeds)
-    let [oracle_data_1, oracle_data_2, oracle_data_3, oracle_data_4] = mock_oracle_data();
+    // create entry (price feeds)
+    let [entry_1, entry_2, entry_3, entry_4] = mock_entries();
 
-    let oracle_data_word_1 = oracle_data_1.to_word();
-    let oracle_data_word_2 = oracle_data_2.to_word();
-    let oracle_data_word_3 = oracle_data_3.to_word();
-    let oracle_data_word_4 = oracle_data_4.to_word();
+    let entry_word_1: Word = entry_1.try_into().unwrap();
+    let entry_word_2: Word = entry_2.try_into().unwrap();
+    let entry_word_3: Word = entry_3.try_into().unwrap();
+    let entry_word_4: Word = entry_4.try_into().unwrap();
 
     let oracle_storage_slots = vec![
-        StorageSlot::Value(oracle_data_word_1),
-        StorageSlot::Value(oracle_data_word_2),
-        StorageSlot::Value(oracle_data_word_3),
-        StorageSlot::Value(oracle_data_word_4),
+        StorageSlot::Value(entry_word_1),
+        StorageSlot::Value(entry_word_2),
+        StorageSlot::Value(entry_word_3),
+        StorageSlot::Value(entry_word_4),
     ];
 
     // In this test we have 2 accounts:
@@ -158,7 +146,7 @@ fn test_oracle_read() {
         use.miden::tx
 
         begin
-            ### get oracle data 1 ###
+            ### get entry 1 ###
 
             # pad the stack for the `execute_foreign_procedure`execution
             # making sure to keep the stack 16 elements
@@ -179,10 +167,10 @@ fn test_oracle_read() {
             # => [STORAGE_VALUE]
 
             # assert the correctness of the obtained value
-            push.{oracle_data_1} assert_eqw
+            push.{entry_1} assert_eqw
             # => []
 
-            ### get oracle data 2 ###
+            ### get entry 2 ###
 
             # pad the stack for the `execute_foreign_procedure`execution
             # making sure to keep the stack 16 elements
@@ -203,10 +191,10 @@ fn test_oracle_read() {
             # => [STORAGE_VALUE]
 
             # assert the correctness of the obtained value
-            push.{oracle_data_2} assert_eqw
+            push.{entry_2} assert_eqw
             # => []
 
-            ### get oracle data 3 ###
+            ### get entry 3 ###
 
             # pad the stack for the `execute_foreign_procedure`execution
             # making sure to keep the stack 16 elements
@@ -227,10 +215,10 @@ fn test_oracle_read() {
             # => [STORAGE_VALUE]
 
             # assert the correctness of the obtained value
-            push.{oracle_data_3} assert_eqw
+            push.{entry_3} assert_eqw
             # => []
 
-            ### get oracle data 4 ###
+            ### get entry 4 ###
 
             # pad the stack for the `execute_foreign_procedure`execution
             # making sure to keep the stack 16 elements
@@ -251,7 +239,7 @@ fn test_oracle_read() {
             # => [STORAGE_VALUE]
 
             # assert the correctness of the obtained value
-            push.{oracle_data_4} assert_eqw
+            push.{entry_4} assert_eqw
             # => []
 
             # truncate the stack
@@ -260,10 +248,10 @@ fn test_oracle_read() {
         ",
         foreign_account_id = oracle_account.id(),
         get_item_foreign_hash = oracle_account.code().procedures()[1].mast_root(),
-        oracle_data_1 = &word_to_masm(oracle_data_word_1),
-        oracle_data_2 = &word_to_masm(oracle_data_word_2),
-        oracle_data_3 = &word_to_masm(oracle_data_word_3),
-        oracle_data_4 = &word_to_masm(oracle_data_word_4)
+        entry_1 = &word_to_masm(entry_word_1),
+        entry_2 = &word_to_masm(entry_word_2),
+        entry_3 = &word_to_masm(entry_word_3),
+        entry_4 = &word_to_masm(entry_word_4)
     );
 
     let tx_script =
@@ -303,32 +291,32 @@ fn test_oracle_read() {
 // HELPER FUNCTIONS
 // ================================================================================================
 
-/// Mocks [OracleData] representing price feeds for use in tests.
-fn mock_oracle_data() -> [OracleData; 4] {
+/// Mocks [Entry] representing price feeds for use in tests.
+fn mock_entries() -> [Entry; 4] {
     [
-        OracleData {
-            asset_pair: "BTC/USD".to_string(),
+        Entry {
+            pair: Pair::new(Currency::new("BTC").unwrap(), Currency::new("USD").unwrap()),
             price: 50000,
             decimals: 2,
-            publisher_id: 1,
+            timestamp: 1732710094,
         },
-        OracleData {
-            asset_pair: "ETH/USD".to_string(),
+        Entry {
+            pair: Pair::new(Currency::new("ETH").unwrap(), Currency::new("USD").unwrap()),
             price: 10000,
             decimals: 2,
-            publisher_id: 1,
+            timestamp: 1732710094,
         },
-        OracleData {
-            asset_pair: "SOL/USD".to_string(),
+        Entry {
+            pair: Pair::new(Currency::new("SOL").unwrap(), Currency::new("USD").unwrap()),
             price: 2000,
             decimals: 2,
-            publisher_id: 1,
+            timestamp: 1732710094,
         },
-        OracleData {
-            asset_pair: "POL/USD".to_string(),
+        Entry {
+            pair: Pair::new(Currency::new("POL").unwrap(), Currency::new("USD").unwrap()),
             price: 50,
             decimals: 2,
-            publisher_id: 1,
+            timestamp: 1732710094,
         },
     ]
 }

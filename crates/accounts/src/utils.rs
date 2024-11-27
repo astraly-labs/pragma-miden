@@ -40,43 +40,6 @@ pub fn word_to_masm(word: Word) -> String {
         .join(".")
 }
 
-/// Encode asset pair string to u32
-/// Only need to handle uppercase A-Z and '/' for asset pairs
-pub fn encode_asset_pair_to_u32(s: &str) -> Option<u32> {
-    // Validate input format
-    if s.len() < 7 || s.len() > 8 || s.chars().nth(3) != Some('/') {
-        return None;
-    }
-
-    let mut result: u32 = 0;
-    let mut pos = 0;
-
-    // First part (XXX) - 3 chars, 5 bits each = 15 bits
-    for c in s[..3].chars() {
-        let value = match c {
-            'A'..='Z' => (c as u32) - ('A' as u32),
-            _ => return None,
-        };
-        result |= value << (pos * 5);
-        pos += 1;
-    }
-
-    // Skip the '/' separator - we know it's position
-    pos = 3;
-
-    // Second part (YYY[Y]) - 3-4 chars, 5 bits each = 15-20 bits
-    for c in s[4..].chars() {
-        let value = match c {
-            'A'..='Z' => (c as u32) - ('A' as u32),
-            _ => return None,
-        };
-        result |= value << (pos * 5);
-        pos += 1;
-    }
-
-    Some(result)
-}
-
 /// Returns an instantiated Oracle account
 pub fn get_oracle_account(
     oracle_public_key: Word,

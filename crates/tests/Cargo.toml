@@ -1,0 +1,24 @@
+[package]
+name = "pm-tests"
+description = "Tests for Pragma Miden"
+authors.workspace = true
+homepage.workspace = true
+edition.workspace = true
+repository.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rand.workspace = true
+rand_chacha.workspace = true
+
+miden-crypto.workspace = true
+miden-lib.workspace = true
+miden-objects.workspace = true
+miden-tx.workspace = true
+
+pm-types.workspace = true
+pm-accounts.workspace = true

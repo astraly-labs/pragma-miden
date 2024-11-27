@@ -1,0 +1,22 @@
+[package]
+name = "pm-accounts"
+description = "Pragma-Miden oracle accounts"
+authors.workspace = true
+homepage.workspace = true
+edition.workspace = true
+repository.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+miden-assembly.workspace = true
+miden-lib.workspace = true
+miden-objects.workspace = true
+miden-crypto.workspace = true
+miden-tx.workspace = true
+
+rand.workspace = true
+rand_chacha.workspace = true

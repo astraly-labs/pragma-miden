@@ -27,6 +27,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.93"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c95c10ba0b00a02636238b814946408b1322d5ac4760326e6fb8ec956d85775"
+
+[[package]]
 name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -111,9 +117,9 @@ checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 
 [[package]]
 name = "blake3"
-version = "1.5.4"
+version = "1.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d82033247fd8e890df8f740e407ad4d038debb9eb1f40533fffb32e7d17dc6f7"
+checksum = "b8ee0c1824c4dea5b5f81736aff91bae041d2c07ee1192bec91054e10e3e601e"
 dependencies = [
  "arrayref",
  "arrayvec",
@@ -504,9 +510,9 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "libc"
-version = "0.2.165"
+version = "0.2.166"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcb4d3d38eab6c5239a362fa8bae48c03baf980a6e7079f063942d563ef3533e"
+checksum = "c2ccc108bbc0b1331bd061864e7cd823c0cab660bbe6970e66e2c0614decde36"
 
 [[package]]
 name = "libm"
@@ -656,7 +662,7 @@ dependencies = [
 [[package]]
 name = "miden-lib"
 version = "0.7.0"
-source = "git+https://github.com/0xPolygonMiden/miden-base?branch=next#d94e917d32eec63a2d83fdbfd3e7f4dc39f7901d"
+source = "git+https://github.com/0xPolygonMiden/miden-base?branch=next#19d9398e50710f33157e4ae791f2bc4480386583"
 dependencies = [
  "miden-assembly",
  "miden-objects",
@@ -710,7 +716,7 @@ dependencies = [
 [[package]]
 name = "miden-objects"
 version = "0.7.0"
-source = "git+https://github.com/0xPolygonMiden/miden-base?branch=next#d94e917d32eec63a2d83fdbfd3e7f4dc39f7901d"
+source = "git+https://github.com/0xPolygonMiden/miden-base?branch=next#19d9398e50710f33157e4ae791f2bc4480386583"
 dependencies = [
  "getrandom",
  "miden-assembly",
@@ -780,7 +786,7 @@ dependencies = [
 [[package]]
 name = "miden-tx"
 version = "0.7.0"
-source = "git+https://github.com/0xPolygonMiden/miden-base?branch=next#d94e917d32eec63a2d83fdbfd3e7f4dc39f7901d"
+source = "git+https://github.com/0xPolygonMiden/miden-base?branch=next#19d9398e50710f33157e4ae791f2bc4480386583"
 dependencies = [
  "async-trait",
  "miden-lib",
@@ -803,19 +809,6 @@ dependencies = [
  "miden-core",
  "tracing",
  "winter-verifier",
-]
-
-[[package]]
-name = "miden_oracle"
-version = "0.1.0"
-dependencies = [
- "miden-assembly",
- "miden-crypto",
- "miden-lib",
- "miden-objects",
- "miden-tx",
- "rand",
- "rand_chacha",
 ]
 
 [[package]]
@@ -1008,6 +1001,41 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "pm-accounts"
+version = "0.1.0"
+dependencies = [
+ "miden-assembly",
+ "miden-crypto",
+ "miden-lib",
+ "miden-objects",
+ "miden-tx",
+ "rand",
+ "rand_chacha",
+]
+
+[[package]]
+name = "pm-tests"
+version = "0.1.0"
+dependencies = [
+ "miden-crypto",
+ "miden-lib",
+ "miden-objects",
+ "miden-tx",
+ "pm-accounts",
+ "pm-types",
+ "rand",
+ "rand_chacha",
+]
+
+[[package]]
+name = "pm-types"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "miden-crypto",
+]
 
 [[package]]
 name = "ppv-lite86"
@@ -1544,9 +1572,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.27"
+version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34704c8d6ebcbc939824180af020566b01a7c01f80641264eba0999f6c2b6be7"
+checksum = "395ae124c09f9e6918a2310af6038fba074bcf474ac352496d5910dd59a2226d"
 dependencies = [
  "proc-macro2",
  "quote",

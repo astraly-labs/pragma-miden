@@ -1,27 +1,48 @@
-[package]
-name = "miden_oracle"
+[workspace]
+members = ["crates/types", "crates/accounts", "crates/tests"]
+resolver = "1"
+default-members = ["crates/types", "crates/accounts", "crates/tests"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+print_stdout = "warn"
+print_stderr = "warn"
+# unwrap_used = "warn"
+# missing_docs = "warn"
+
+[workspace.package]
 version = "0.1.0"
+authors = ["Pragma <https://github.com/astraly-labs>"]
+homepage = "https://www.pragma.build/"
 edition = "2021"
+repository = "https://github.com/astraly-labs/pragma-miden"
+license = "MIT"
 
-[features]
-default = ["rand_chacha"]
+[workspace.dependencies]
+pm-types = { path = "crates/types", default-features = false }
+pm-accounts = { path = "crates/accounts", default-features = false }
+pm-tests = { path = "crates/tests", default-features = false }
 
-[dependencies]
+anyhow = "1.0.93"
+rand = { version = "0.8", default-features = false }
+rand_chacha = { version = "0.3", default-features = false }
+lazy_static = "1.5.0"
+
+miden-assembly = { version = "0.11", default-features = false, features = [
+  "testing",
+] }
 miden-crypto = { version = "0.12", default-features = false }
 miden-lib = { git = "https://github.com/0xPolygonMiden/miden-base", branch = "next", default-features = false, features = [
-    "concurrent",
-    "testing",
+  "concurrent",
+  "testing",
 ] }
 miden-objects = { git = "https://github.com/0xPolygonMiden/miden-base", branch = "next", default-features = false, features = [
-    "concurrent",
-    "testing",
+  "concurrent",
+  "testing",
 ] }
 miden-tx = { git = "https://github.com/0xPolygonMiden/miden-base", branch = "next", features = [
-    "concurrent",
-    "testing",
+  "concurrent",
+  "testing",
 ] }
-miden-assembly = { version = "0.11", default-features = false, features = [
-    "testing",
-] }
-rand = { version = "0.8", default-features = false }
-rand_chacha = { version = "0.3", default-features = false, optional = true }

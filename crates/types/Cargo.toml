@@ -1,0 +1,16 @@
+[package]
+name = "pm-types"
+description = "Pragma-Miden oracle types"
+authors.workspace = true
+homepage.workspace = true
+edition.workspace = true
+repository.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+miden-crypto.workspace = true
