@@ -1,0 +1,15 @@
+use.oracle_component::oracle_module
+
+begin
+    push.{4}
+    push.{3}
+    push.{2}
+    push.{1}
+
+    call.oracle_module::publish_entry
+
+    dropw dropw dropw dropw
+
+    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+    drop
+end

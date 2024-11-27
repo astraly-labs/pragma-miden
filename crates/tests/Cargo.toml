@@ -20,5 +20,5 @@ miden-lib.workspace = true
 miden-objects.workspace = true
 miden-tx.workspace = true
 
-pm-types.workspace = true
 pm-accounts.workspace = true
+pm-types.workspace = true

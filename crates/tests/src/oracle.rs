@@ -13,13 +13,15 @@ use miden_tx::{
     testing::{MockChain, TransactionContextBuilder},
     TransactionExecutor,
 };
-use pm_accounts::{
-    constants::{ORACLE_COMPONENT_LIBRARY, WRITE_DATA_TX_SCRIPT},
-    utils::{get_new_pk_and_authenticator, get_oracle_account, word_to_masm},
-};
-use pm_types::{currency::Currency, entry::Entry, pair::Pair};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
+
+use pm_accounts::{
+    oracle::{get_oracle_account, ORACLE_COMPONENT_LIBRARY},
+    publisher::PUBLISH_CALL_MASM,
+    utils::{get_new_pk_and_authenticator, word_to_masm},
+};
+use pm_types::{Currency, Entry, Pair};
 
 #[test]
 fn test_oracle_write() {
@@ -50,7 +52,7 @@ fn test_oracle_write() {
     let block_ref = tx_context.tx_inputs().block_header().block_num();
 
     // Create transaction script to write the data to the oracle account
-    let tx_script_code = WRITE_DATA_TX_SCRIPT
+    let tx_script_code = PUBLISH_CALL_MASM
         .replace("{1}", &word_to_masm(entry_word_1))
         .replace("{2}", &word_to_masm(entry_word_2))
         .replace("{3}", &word_to_masm(entry_word_3))
@@ -157,11 +159,11 @@ fn test_oracle_read() {
             push.0
 
             # get the hash of the `get_item` account procedure
-            push.{get_item_foreign_hash}
+            push.{get_entry_hash}
 
             # push the foreign account id
-            push.{foreign_account_id}
-            # => [foreign_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
+            push.{oracle_account_id}
+            # => [oracle_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
 
             exec.tx::execute_foreign_procedure
             # => [STORAGE_VALUE]
@@ -181,11 +183,11 @@ fn test_oracle_read() {
             push.1
 
             # get the hash of the `get_item` account procedure
-            push.{get_item_foreign_hash}
+            push.{get_entry_hash}
 
             # push the foreign account id
-            push.{foreign_account_id}
-            # => [foreign_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
+            push.{oracle_account_id}
+            # => [oracle_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
 
             exec.tx::execute_foreign_procedure
             # => [STORAGE_VALUE]
@@ -205,11 +207,11 @@ fn test_oracle_read() {
             push.2
 
             # get the hash of the `get_item` account procedure
-            push.{get_item_foreign_hash}
+            push.{get_entry_hash}
 
             # push the foreign account id
-            push.{foreign_account_id}
-            # => [foreign_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
+            push.{oracle_account_id}
+            # => [oracle_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
 
             exec.tx::execute_foreign_procedure
             # => [STORAGE_VALUE]
@@ -228,12 +230,12 @@ fn test_oracle_read() {
             # push the index of desired storage item
             push.3
 
-            # get the hash of the `get_item` account procedure
-            push.{get_item_foreign_hash}
+            # get the hash of the `get_entry` account procedure
+            push.{get_entry_hash}
 
             # push the foreign account id
-            push.{foreign_account_id}
-            # => [foreign_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
+            push.{oracle_account_id}
+            # => [oracle_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
 
             exec.tx::execute_foreign_procedure
             # => [STORAGE_VALUE]
@@ -246,8 +248,8 @@ fn test_oracle_read() {
             exec.sys::truncate_stack
         end
         ",
-        foreign_account_id = oracle_account.id(),
-        get_item_foreign_hash = oracle_account.code().procedures()[1].mast_root(),
+        oracle_account_id = oracle_account.id(),
+        get_entry_hash = oracle_account.code().procedures()[1].mast_root(),
         entry_1 = &word_to_masm(entry_word_1),
         entry_2 = &word_to_masm(entry_word_2),
         entry_3 = &word_to_masm(entry_word_3),

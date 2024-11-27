@@ -1,19 +1,10 @@
 use std::sync::Arc;
 
 use miden_crypto::{dsa::rpo_falcon512::SecretKey, Word};
-
-use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt};
-use miden_lib::accounts::auth::RpoFalcon512;
-use miden_objects::accounts::{AccountCode, AccountStorage, AuthSecretKey};
-use miden_objects::{
-    accounts::{Account, AccountComponent, AccountId, StorageSlot},
-    assets::AssetVault,
-};
+use miden_objects::accounts::AuthSecretKey;
 use miden_tx::auth::{BasicAuthenticator, TransactionAuthenticator};
 use rand::{rngs::StdRng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
-
-use crate::constants::ORACLE_COMPONENT_LIBRARY;
 
 /// Generates a new public key and authenticator for an Account
 pub fn get_new_pk_and_authenticator() -> (Word, Arc<dyn TransactionAuthenticator>) {
@@ -38,40 +29,4 @@ pub fn word_to_masm(word: Word) -> String {
         .map(|x| x.as_int().to_string())
         .collect::<Vec<_>>()
         .join(".")
-}
-
-/// Returns an instantiated Oracle account
-pub fn get_oracle_account(
-    oracle_public_key: Word,
-    oracle_account_id: AccountId,
-    storage_slots: Vec<StorageSlot>,
-) -> Account {
-    // This component supports all types of accounts for testing purposes.
-    let oracle_component = AccountComponent::new(ORACLE_COMPONENT_LIBRARY.clone(), storage_slots)
-        .unwrap()
-        .with_supports_all_types();
-    let account_type = oracle_account_id.account_type();
-    let components = [
-        RpoFalcon512::new(PublicKey::new(oracle_public_key)).into(),
-        oracle_component,
-    ];
-
-    let oracle_account_code = AccountCode::from_components(&components, account_type).unwrap();
-    let mut storage_slots = vec![];
-    storage_slots.extend(
-        components
-            .iter()
-            .flat_map(|component| component.storage_slots())
-            .cloned(),
-    );
-    let oracle_account_storage = AccountStorage::new(storage_slots).unwrap();
-    let oracle_account_vault = AssetVault::new(&[]).unwrap();
-
-    Account::from_parts(
-        oracle_account_id,
-        oracle_account_vault,
-        oracle_account_storage,
-        oracle_account_code,
-        Felt::new(1),
-    )
 }

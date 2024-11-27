@@ -13,10 +13,11 @@ workspace = true
 
 [dependencies]
 miden-assembly.workspace = true
+miden-crypto.workspace = true
 miden-lib.workspace = true
 miden-objects.workspace = true
-miden-crypto.workspace = true
 miden-tx.workspace = true
 
+anyhow.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
