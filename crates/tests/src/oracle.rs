@@ -19,7 +19,7 @@ use rand_chacha::ChaCha20Rng;
 use pm_accounts::{
     oracle::{get_oracle_account, ORACLE_COMPONENT_LIBRARY},
     publisher::PUBLISH_CALL_MASM,
-    utils::{get_new_pk_and_authenticator, word_to_masm},
+    utils::{new_pk_and_authenticator, word_to_masm},
 };
 use pm_types::{Currency, Entry, Pair};
 
@@ -27,7 +27,7 @@ use pm_types::{Currency, Entry, Pair};
 fn test_oracle_write() {
     //  SETUP
     // --------------------------------------------------------------------------------------------
-    let (oracle_pub_key, oracle_auth) = get_new_pk_and_authenticator();
+    let (oracle_pub_key, oracle_auth) = new_pk_and_authenticator();
     let oracle_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
     let oracle_storage_slots = vec![StorageSlot::Value(Word::default()); 4];
 
@@ -35,14 +35,7 @@ fn test_oracle_write() {
     let mut oracle_account =
         get_oracle_account(oracle_pub_key, oracle_account_id, oracle_storage_slots);
 
-    // create entry (price feeds)
-    let [entry_1, entry_2, entry_3, entry_4] = mock_entries();
-
-    // transform Entry into field elements for VM processing
-    let entry_word_1: Word = entry_1.try_into().unwrap();
-    let entry_word_2: Word = entry_2.try_into().unwrap();
-    let entry_word_3: Word = entry_3.try_into().unwrap();
-    let entry_word_4: Word = entry_4.try_into().unwrap();
+    let entry_as_word: Word = mock_entry().try_into().unwrap();
 
     // CONSTRUCT AND EXECUTE TX
     // --------------------------------------------------------------------------------------------
@@ -53,14 +46,7 @@ fn test_oracle_write() {
 
     // Create transaction script to write the data to the oracle account
     let tx_script_code = PUBLISH_CALL_MASM
-        .replace("{1}", &word_to_masm(entry_word_1))
-        .replace("{2}", &word_to_masm(entry_word_2))
-        .replace("{3}", &word_to_masm(entry_word_3))
-        .replace("{4}", &word_to_masm(entry_word_4))
-        .replace(
-            "[1]",
-            &format!("{}", oracle_account.code().procedures()[1].mast_root()).to_string(),
-        )
+        .replace("{1}", &word_to_masm(entry_as_word))
         .to_string();
 
     let assembler = TransactionKernel::assembler();
@@ -87,36 +73,21 @@ fn test_oracle_write() {
 
     // check that the oracle account has successfully been updated with the correct values (price
     // feeds)
-    assert_eq!(oracle_account.storage().slots()[1].value(), entry_word_1);
-    assert_eq!(oracle_account.storage().slots()[2].value(), entry_word_2);
-    assert_eq!(oracle_account.storage().slots()[3].value(), entry_word_3);
-    assert_eq!(oracle_account.storage().slots()[4].value(), entry_word_4);
+    assert_eq!(oracle_account.storage().slots()[1].value(), entry_as_word);
 }
 
 #[test]
 fn test_oracle_read() {
     //  SETUP
     // --------------------------------------------------------------------------------------------
-    let (oracle_pub_key, _) = get_new_pk_and_authenticator();
+    let (oracle_pub_key, _) = new_pk_and_authenticator();
     let oracle_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
 
-    // create entry (price feeds)
-    let [entry_1, entry_2, entry_3, entry_4] = mock_entries();
-
-    let entry_word_1: Word = entry_1.try_into().unwrap();
-    let entry_word_2: Word = entry_2.try_into().unwrap();
-    let entry_word_3: Word = entry_3.try_into().unwrap();
-    let entry_word_4: Word = entry_4.try_into().unwrap();
-
-    let oracle_storage_slots = vec![
-        StorageSlot::Value(entry_word_1),
-        StorageSlot::Value(entry_word_2),
-        StorageSlot::Value(entry_word_3),
-        StorageSlot::Value(entry_word_4),
-    ];
+    let entry_as_word: Word = mock_entry().try_into().unwrap();
+    let oracle_storage_slots = vec![StorageSlot::Value(entry_as_word)];
 
     // In this test we have 2 accounts:
-    // - Oracle account -> contains data in it's storage e.g. token price data
+    // - Oracle account -> contains entries sent by Publishers
     // - Native account -> tries to read data from the oracle account's storage
     let oracle_account =
         get_oracle_account(oracle_pub_key, oracle_account_id, oracle_storage_slots);
@@ -139,7 +110,6 @@ fn test_oracle_read() {
     mock_chain.seal_block(None);
 
     let advice_inputs = get_mock_fpi_adv_inputs(&oracle_account, &mock_chain);
-
     // query oracle (foreign account) for price feeds and compare to required values i.e correct
     // storage read
     let code = format!(
@@ -148,8 +118,6 @@ fn test_oracle_read() {
         use.miden::tx
 
         begin
-            ### get entry 1 ###
-
             # pad the stack for the `execute_foreign_procedure`execution
             # making sure to keep the stack 16 elements
             padw padw padw push.0.0
@@ -169,79 +137,7 @@ fn test_oracle_read() {
             # => [STORAGE_VALUE]
 
             # assert the correctness of the obtained value
-            push.{entry_1} assert_eqw
-            # => []
-
-            ### get entry 2 ###
-
-            # pad the stack for the `execute_foreign_procedure`execution
-            # making sure to keep the stack 16 elements
-            padw padw padw push.0.0
-            # => [pad(14)]
-
-            # push the index of desired storage item
-            push.1
-
-            # get the hash of the `get_item` account procedure
-            push.{get_entry_hash}
-
-            # push the foreign account id
-            push.{oracle_account_id}
-            # => [oracle_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
-
-            exec.tx::execute_foreign_procedure
-            # => [STORAGE_VALUE]
-
-            # assert the correctness of the obtained value
-            push.{entry_2} assert_eqw
-            # => []
-
-            ### get entry 3 ###
-
-            # pad the stack for the `execute_foreign_procedure`execution
-            # making sure to keep the stack 16 elements
-            padw padw padw push.0.0
-            # => [pad(14)]
-
-            # push the index of desired storage item
-            push.2
-
-            # get the hash of the `get_item` account procedure
-            push.{get_entry_hash}
-
-            # push the foreign account id
-            push.{oracle_account_id}
-            # => [oracle_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
-
-            exec.tx::execute_foreign_procedure
-            # => [STORAGE_VALUE]
-
-            # assert the correctness of the obtained value
-            push.{entry_3} assert_eqw
-            # => []
-
-            ### get entry 4 ###
-
-            # pad the stack for the `execute_foreign_procedure`execution
-            # making sure to keep the stack 16 elements
-            padw padw padw push.0.0
-            # => [pad(14)]
-
-            # push the index of desired storage item
-            push.3
-
-            # get the hash of the `get_entry` account procedure
-            push.{get_entry_hash}
-
-            # push the foreign account id
-            push.{oracle_account_id}
-            # => [oracle_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
-
-            exec.tx::execute_foreign_procedure
-            # => [STORAGE_VALUE]
-
-            # assert the correctness of the obtained value
-            push.{entry_4} assert_eqw
+            push.{entry} assert_eqw
             # => []
 
             # truncate the stack
@@ -250,10 +146,7 @@ fn test_oracle_read() {
         ",
         oracle_account_id = oracle_account.id(),
         get_entry_hash = oracle_account.code().procedures()[1].mast_root(),
-        entry_1 = &word_to_masm(entry_word_1),
-        entry_2 = &word_to_masm(entry_word_2),
-        entry_3 = &word_to_masm(entry_word_3),
-        entry_4 = &word_to_masm(entry_word_4)
+        entry = &word_to_masm(entry_as_word),
     );
 
     let tx_script =
@@ -279,6 +172,8 @@ fn test_oracle_read() {
     // load the foreign account's code into the transaction executor
     executor.load_account_code(oracle_account.code());
 
+    // execute the transactions.
+    // the tests assertions are directly located in the Masm script.
     executor
         .execute_transaction(
             native_account.id(),
@@ -294,33 +189,13 @@ fn test_oracle_read() {
 // ================================================================================================
 
 /// Mocks [Entry] representing price feeds for use in tests.
-fn mock_entries() -> [Entry; 4] {
-    [
-        Entry {
-            pair: Pair::new(Currency::new("BTC").unwrap(), Currency::new("USD").unwrap()),
-            price: 50000,
-            decimals: 2,
-            timestamp: 1732710094,
-        },
-        Entry {
-            pair: Pair::new(Currency::new("ETH").unwrap(), Currency::new("USD").unwrap()),
-            price: 10000,
-            decimals: 2,
-            timestamp: 1732710094,
-        },
-        Entry {
-            pair: Pair::new(Currency::new("SOL").unwrap(), Currency::new("USD").unwrap()),
-            price: 2000,
-            decimals: 2,
-            timestamp: 1732710094,
-        },
-        Entry {
-            pair: Pair::new(Currency::new("POL").unwrap(), Currency::new("USD").unwrap()),
-            price: 50,
-            decimals: 2,
-            timestamp: 1732710094,
-        },
-    ]
+fn mock_entry() -> Entry {
+    Entry {
+        pair: Pair::new(Currency::new("BTC").unwrap(), Currency::new("USD").unwrap()),
+        price: 50000,
+        decimals: 2,
+        timestamp: 1732710094,
+    }
 }
 
 /// Mocks the required advice inputs for foreign procedure invocation.

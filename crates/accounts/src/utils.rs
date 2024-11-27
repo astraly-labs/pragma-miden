@@ -7,7 +7,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
 /// Generates a new public key and authenticator for an Account
-pub fn get_new_pk_and_authenticator() -> (Word, Arc<dyn TransactionAuthenticator>) {
+pub fn new_pk_and_authenticator() -> (Word, Arc<dyn TransactionAuthenticator>) {
     let seed = [0_u8; 32];
     let mut rng = ChaCha20Rng::from_seed(seed);
 
@@ -17,10 +17,7 @@ pub fn get_new_pk_and_authenticator() -> (Word, Arc<dyn TransactionAuthenticator
     let authenticator =
         BasicAuthenticator::<StdRng>::new(&[(pub_key, AuthSecretKey::RpoFalcon512(sec_key))]);
 
-    (
-        pub_key,
-        Arc::new(authenticator) as Arc<dyn TransactionAuthenticator>,
-    )
+    (pub_key, Arc::new(authenticator))
 }
 
 /// Word to MASM
