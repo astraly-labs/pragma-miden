@@ -4,6 +4,9 @@ use.miden::account
 # ERRORS
 # =================================================================================================
 
+# Raised when an already registered publisher tries to register again.
+const.ERR_PUBLISHER_ALREADY_REGISTERED=0x0002004A
+
 # Raised when an unregistered publisher tries to publish data.
 const.ERR_PUBLISHER_NOT_REGISTERED=0x0002004A
 
@@ -14,15 +17,15 @@ const.ERR_PUBLISHER_NOT_REGISTERED=0x0002004A
 # TODO(akhercha): Remove this.
 const.LEGACY_ENTRY_SLOT=0
 
+# Holds the next storage slot index available. Will be used when we register a publisher,
+# so we can assign it a slot.
+const.NEXT_PUBLISHER_INDEX_SLOT=1
+
 # The slot in this component's storage layout where a mapping of
 # published_id <=> publisher_slot are stored.
 # Each publisher is assigned a storage slot (so as long as we have less than 200 publishers
 # it should be fine) where they'll publish entries on a Map.
 const.PUBLISHERS_REGISTRY_MAP_SLOT=2
-
-# The first index of the publishers slots. It means, from this index until the end,
-# the slots are reserved for the publishers.
-const.PUBLISHERS_ENTRIES_START_SLOT=6
 
 #! Writes a new entry into the Oracle.
 #! Must be called by a registered publisher.
@@ -33,18 +36,15 @@ const.PUBLISHERS_ENTRIES_START_SLOT=6
 #! Outputs: []
 #!
 export.publish_entry
+    # TODO: Remove this legacy block
     push.LEGACY_ENTRY_SLOT exec.account::set_item
     dropw
 
-    # Functions to use:
-    # get_id <- returns the id of the current caller?
-    # set_map_item <- store in the publisher entries map
+    # Get the id of the caller (function or from the input)
 
-    # Simple set_map_item test
-    push.2
-    push.2
-    push.2
-    exec.account::set_map_item
+    # Check if registered
+
+    # Store in its map the entry. (Data validation?)
 
     # increments the nonce for valid publishers
     push.1 exec.account::incr_nonce
@@ -54,6 +54,8 @@ export.publish_entry
 end
 
 #! Gets entry from the oracle's data slots.
+#!
+#! TODO: Remove this legacy function.
 #!
 #! Inputs:  [storage_slot]
 #! Outputs: [WORD]
@@ -69,13 +71,13 @@ end
 #! Outputs: [PRICE]
 #!
 export.get_median
-    # TODO: Implementation.
+    # get all asset prices from publisher map 0 to NEXT_PUBLISHER_INDEX_SLOT
+
+    # compute median
 
     # increments the nonce (anyone should be able to call that function)
     push.1 exec.account::incr_nonce
 
-    # get_map_item
-    
     dropw
 end
 
@@ -88,7 +90,13 @@ end
 #! Outputs: []
 #!
 export.register_publisher
-    # TODO: Implementation.
+    # get the id of the caller (or from the input)
+
+    # check if it is not already present in the registry, if yes raise err (get_map_item)
+
+    # assign NEXT_PUBLISHER_INDEX_SLOT to the caller (set_map_item)
+
+    # increment NEXT_PUBLISHER_INDEX_SLOT
 
     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
     drop

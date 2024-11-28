@@ -2,7 +2,7 @@ use miden_assembly::{
     ast::{Module, ModuleKind},
     DefaultSourceManager, LibraryPath,
 };
-use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt, Word};
+use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt, Word, ZERO};
 use miden_lib::{accounts::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
     accounts::{
@@ -45,10 +45,16 @@ pub fn get_oracle_account(
     let account_type = AccountType::RegularAccountImmutableCode;
 
     let storage_slots = storage_slots.unwrap_or(vec![
+        // Legacy slot entry
         StorageSlot::Value(Word::default()),
-        // publisher registry
+        // Next publisher slot. Starts from idx 3.
+        StorageSlot::Value([Felt::new(3), ZERO, ZERO, ZERO]),
+        // Publisher registry
         StorageSlot::Map(StorageMap::default()),
-        // publishers maps
+        // Publisher map entries (4 publishers there)
+        StorageSlot::Map(StorageMap::default()),
+        StorageSlot::Map(StorageMap::default()),
+        StorageSlot::Map(StorageMap::default()),
         StorageSlot::Map(StorageMap::default()),
     ]);
 
