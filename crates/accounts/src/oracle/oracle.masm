@@ -1,30 +1,31 @@
 use.std::sys
 use.miden::account
 
-#! Writes new entry into the oracle's data slots.
+# CONSTANTS
+# =================================================================================================
+
+# Legacy storage slot for the test, so they still pass.
+# TODO(akhercha): Remove this.
+const.LEGACY_ENTRY_SLOT=0
+
+# The slot in this component's storage layout where a mapping of
+# published_id <=> publisher_slot are stored.
+# Each publisher is assigned a storage slot (so as long as we have less than 200 publishers
+# it should be fine) where they'll publish entries on a Map.
+const.PUBLISHERS_REGISTRY_MAP_SLOT=1
+
+# The first index of the publishers slots. It means, from this index until the end,
+# the slots are reserved for the publishers.
+const.PUBLISHERS_ENTRIES_START_SLOT=6
+
+#! Writes a new entry into the oracle's data slot.
 #!
-#! Inputs:  [WORD_1, WORD_2, WORD_3, WORD_4]
+#! Inputs:  [WORD_1]
 #! Outputs: []
 #!
 export.publish_entry
-    push.0
-    exec.account::set_item
-    dropw dropw
-    # => [WORD_2, WORD_3, WORD_4]
-
-    push.1
-    exec.account::set_item
-    dropw dropw
-    # => [WORD_3, WORD_4]
-
-    push.2
-    exec.account::set_item
-    dropw dropw
-    # => [WORD_4]
-
-    push.3
-    exec.account::set_item
-    dropw dropw
+    push.LEGACY_ENTRY_SLOT exec.account::set_item
+    dropw
     # => []
 end
 
@@ -34,10 +35,19 @@ end
 #! Outputs: [WORD]
 #!
 export.get_entry
-    # make this foreign procedure unique to make sure that we invoke the procedure of the 
-    # foreign account, not the native one
-    push.1 drop
-    exec.account::get_item
-
+    push.LEGACY_ENTRY_SLOT exec.account::get_item
     exec.sys::truncate_stack
+end
+
+#! Registers a new publishers into the Oracle.
+#! Can only be called by the Owner of the Oracle account.
+#! Will reserve a storage slot for the publisher if it's not already registered,
+#! which mean this publisher will be able to publish data.
+#!
+#! Inputs:  [PUBLISHER_ID]
+#! Outputs: []
+#!
+export.register_publisher
+    dropw
+    # => []
 end

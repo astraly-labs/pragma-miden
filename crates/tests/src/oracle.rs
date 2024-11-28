@@ -31,7 +31,10 @@ fn test_oracle_write() {
     let oracle_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
     let oracle_storage_slots = vec![StorageSlot::Value(Word::default()); 4];
 
-    // create oracle account
+    // In this test we have 3 accounts:
+    // - Oracle account -> contains entries sent by Publishers
+    // - Publisher accounts -> push entries to the Oracle account
+    // - Native account -> tries to read data from the oracle account's storage
     let mut oracle_account =
         get_oracle_account(oracle_pub_key, oracle_account_id, oracle_storage_slots);
 
@@ -118,20 +121,15 @@ fn test_oracle_read() {
         use.miden::tx
 
         begin
-            # pad the stack for the `execute_foreign_procedure`execution
-            # making sure to keep the stack 16 elements
-            padw padw padw push.0.0
-            # => [pad(14)]
-
             # push the index of desired storage item
             push.0
 
-            # get the hash of the `get_item` account procedure
+            # get the hash of the `get_entry` account procedure
             push.{get_entry_hash}
 
             # push the foreign account id
             push.{oracle_account_id}
-            # => [oracle_account_id, FOREIGN_PROC_ROOT, storage_item_index, pad(14)]
+            # => [oracle_account_id, get_entry_procedure_hash, storage_item_index]
 
             exec.tx::execute_foreign_procedure
             # => [STORAGE_VALUE]
