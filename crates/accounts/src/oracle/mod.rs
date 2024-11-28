@@ -6,7 +6,8 @@ use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt, Word};
 use miden_lib::{accounts::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
     accounts::{
-        Account, AccountCode, AccountComponent, AccountId, AccountStorage, AccountType, StorageSlot,
+        Account, AccountCode, AccountComponent, AccountId, AccountStorage, AccountType, StorageMap,
+        StorageSlot,
     },
     assembly::Library,
     assets::AssetVault,
@@ -34,12 +35,23 @@ pub static ORACLE_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
 });
 
 /// Returns an instantiated Oracle account
+/// `storage_slots` can be provided for testing purposes so we can change the storage.
+/// Else it will use the default Oracle Storage.
 pub fn get_oracle_account(
     oracle_public_key: Word,
     oracle_account_id: AccountId,
-    storage_slots: Vec<StorageSlot>,
+    storage_slots: Option<Vec<StorageSlot>>,
 ) -> Account {
     let account_type = AccountType::RegularAccountImmutableCode;
+
+    let storage_slots = storage_slots.unwrap_or(vec![
+        StorageSlot::Value(Word::default()),
+        // publisher registry
+        StorageSlot::Map(StorageMap::default()),
+        // publishers maps
+        StorageSlot::Map(StorageMap::default()),
+    ]);
+
     let oracle_component = AccountComponent::new(ORACLE_COMPONENT_LIBRARY.clone(), storage_slots)
         .unwrap()
         .with_supported_type(account_type);

@@ -1,6 +1,12 @@
 use.std::sys
 use.miden::account
 
+# ERRORS
+# =================================================================================================
+
+# Raised when an unregistered publisher tries to publish data.
+const.ERR_PUBLISHER_NOT_REGISTERED=0x0002004A
+
 # CONSTANTS
 # =================================================================================================
 
@@ -12,19 +18,37 @@ const.LEGACY_ENTRY_SLOT=0
 # published_id <=> publisher_slot are stored.
 # Each publisher is assigned a storage slot (so as long as we have less than 200 publishers
 # it should be fine) where they'll publish entries on a Map.
-const.PUBLISHERS_REGISTRY_MAP_SLOT=1
+const.PUBLISHERS_REGISTRY_MAP_SLOT=2
 
 # The first index of the publishers slots. It means, from this index until the end,
 # the slots are reserved for the publishers.
 const.PUBLISHERS_ENTRIES_START_SLOT=6
 
-#! Writes a new entry into the oracle's data slot.
+#! Writes a new entry into the Oracle.
+#! Must be called by a registered publisher.
+#! The price will be stored in the publisher map for the given asset, overriding the
+#! last value.
 #!
-#! Inputs:  [WORD_1]
+#! Inputs:  [PUBLISHER_ID, ASSET, PRICE]
 #! Outputs: []
 #!
 export.publish_entry
     push.LEGACY_ENTRY_SLOT exec.account::set_item
+    dropw
+
+    # Functions to use:
+    # get_id <- returns the id of the current caller?
+    # set_map_item <- store in the publisher entries map
+
+    # Simple set_map_item test
+    push.2
+    push.2
+    push.2
+    exec.account::set_map_item
+
+    # increments the nonce for valid publishers
+    push.1 exec.account::incr_nonce
+
     dropw
     # => []
 end
@@ -39,6 +63,22 @@ export.get_entry
     exec.sys::truncate_stack
 end
 
+#! Gets the median price of a given asset.
+#!
+#! Inputs:  [ASSET]
+#! Outputs: [PRICE]
+#!
+export.get_median
+    # TODO: Implementation.
+
+    # increments the nonce (anyone should be able to call that function)
+    push.1 exec.account::incr_nonce
+
+    # get_map_item
+    
+    dropw
+end
+
 #! Registers a new publishers into the Oracle.
 #! Can only be called by the Owner of the Oracle account.
 #! Will reserve a storage slot for the publisher if it's not already registered,
@@ -48,6 +88,8 @@ end
 #! Outputs: []
 #!
 export.register_publisher
-    dropw
-    # => []
+    # TODO: Implementation.
+
+    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+    drop
 end

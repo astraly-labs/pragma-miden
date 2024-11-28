@@ -29,14 +29,12 @@ fn test_oracle_write() {
     // --------------------------------------------------------------------------------------------
     let (oracle_pub_key, oracle_auth) = new_pk_and_authenticator();
     let oracle_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
-    let oracle_storage_slots = vec![StorageSlot::Value(Word::default()); 4];
 
     // In this test we have 3 accounts:
     // - Oracle account -> contains entries sent by Publishers
     // - Publisher accounts -> push entries to the Oracle account
     // - Native account -> tries to read data from the oracle account's storage
-    let mut oracle_account =
-        get_oracle_account(oracle_pub_key, oracle_account_id, oracle_storage_slots);
+    let mut oracle_account = get_oracle_account(oracle_pub_key, oracle_account_id, None);
 
     let entry_as_word: Word = mock_entry().try_into().unwrap();
 
@@ -92,8 +90,11 @@ fn test_oracle_read() {
     // In this test we have 2 accounts:
     // - Oracle account -> contains entries sent by Publishers
     // - Native account -> tries to read data from the oracle account's storage
-    let oracle_account =
-        get_oracle_account(oracle_pub_key, oracle_account_id, oracle_storage_slots);
+    let oracle_account = get_oracle_account(
+        oracle_pub_key,
+        oracle_account_id,
+        Some(oracle_storage_slots),
+    );
 
     let native_account = AccountBuilder::new()
         .init_seed(ChaCha20Rng::from_entropy().gen())
