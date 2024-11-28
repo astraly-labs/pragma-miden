@@ -17,7 +17,7 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
 use pm_accounts::{
-    oracle::{get_oracle_account, ORACLE_COMPONENT_LIBRARY},
+    oracle::{OracleAccount, ORACLE_COMPONENT_LIBRARY},
     publisher::PUBLISH_CALL_MASM,
     utils::{new_pk_and_authenticator, word_to_masm},
 };
@@ -29,14 +29,13 @@ fn test_oracle_write() {
     // --------------------------------------------------------------------------------------------
     let (oracle_pub_key, oracle_auth) = new_pk_and_authenticator();
     let oracle_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
+    let entry_as_word: Word = mock_entry().try_into().unwrap();
 
     // In this test we have 3 accounts:
     // - Oracle account -> contains entries sent by Publishers
     // - Publisher accounts -> push entries to the Oracle account
     // - Native account -> tries to read data from the oracle account's storage
-    let mut oracle_account = get_oracle_account(oracle_pub_key, oracle_account_id, None);
-
-    let entry_as_word: Word = mock_entry().try_into().unwrap();
+    let mut oracle_account = OracleAccount::new(oracle_pub_key, oracle_account_id).build();
 
     // CONSTRUCT AND EXECUTE TX
     // --------------------------------------------------------------------------------------------
@@ -83,18 +82,14 @@ fn test_oracle_read() {
     // --------------------------------------------------------------------------------------------
     let (oracle_pub_key, _) = new_pk_and_authenticator();
     let oracle_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
-
     let entry_as_word: Word = mock_entry().try_into().unwrap();
-    let oracle_storage_slots = vec![StorageSlot::Value(entry_as_word)];
 
     // In this test we have 2 accounts:
     // - Oracle account -> contains entries sent by Publishers
     // - Native account -> tries to read data from the oracle account's storage
-    let oracle_account = get_oracle_account(
-        oracle_pub_key,
-        oracle_account_id,
-        Some(oracle_storage_slots),
-    );
+    let oracle_account = OracleAccount::new(oracle_pub_key, oracle_account_id)
+        .with_storage_slots(vec![StorageSlot::Value(entry_as_word)])
+        .build();
 
     let native_account = AccountBuilder::new()
         .init_seed(ChaCha20Rng::from_entropy().gen())

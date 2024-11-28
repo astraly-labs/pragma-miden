@@ -32,7 +32,7 @@ const.PUBLISHERS_REGISTRY_MAP_SLOT=2
 #! The price will be stored in the publisher map for the given asset, overriding the
 #! last value.
 #!
-#! Inputs:  [PUBLISHER_ID, ASSET, PRICE]
+#! Inputs:  [ASSET, PRICE]
 #! Outputs: []
 #!
 export.publish_entry
@@ -41,6 +41,7 @@ export.publish_entry
     dropw
 
     # Get the id of the caller (function or from the input)
+    exec.account::get_id
 
     # Check if registered
 
@@ -86,7 +87,7 @@ end
 #! Will reserve a storage slot for the publisher if it's not already registered,
 #! which mean this publisher will be able to publish data.
 #!
-#! Inputs:  [PUBLISHER_ID]
+#! Inputs:  []
 #! Outputs: []
 #!
 export.register_publisher

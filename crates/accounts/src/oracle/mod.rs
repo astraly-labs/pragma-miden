@@ -34,52 +34,64 @@ pub static ORACLE_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
         .expect("assembly should succeed")
 });
 
-/// Returns an instantiated Oracle account
-/// `storage_slots` can be provided for testing purposes so we can change the storage.
-/// Else it will use the default Oracle Storage.
-pub fn get_oracle_account(
-    oracle_public_key: Word,
-    oracle_account_id: AccountId,
-    storage_slots: Option<Vec<StorageSlot>>,
-) -> Account {
-    let account_type = AccountType::RegularAccountImmutableCode;
+pub struct OracleAccount {
+    account_id: AccountId,
+    account_type: AccountType,
+    public_key: Word,
+    storage_slots: Vec<StorageSlot>,
+    component_library: Library,
+}
 
-    let storage_slots = storage_slots.unwrap_or(vec![
-        // Legacy slot entry
-        StorageSlot::Value(Word::default()),
-        // Next publisher slot. Starts from idx 3.
-        StorageSlot::Value([Felt::new(3), ZERO, ZERO, ZERO]),
-        // Publisher registry
-        StorageSlot::Map(StorageMap::default()),
-        // Publisher map entries (4 publishers there)
-        StorageSlot::Map(StorageMap::default()),
-        StorageSlot::Map(StorageMap::default()),
-        StorageSlot::Map(StorageMap::default()),
-        StorageSlot::Map(StorageMap::default()),
-    ]);
+impl OracleAccount {
+    pub fn new(oracle_public_key: Word, oracle_account_id: AccountId) -> Self {
+        let default_slots = vec![
+            StorageSlot::Value(Word::default()),
+            StorageSlot::Value([Felt::new(3), ZERO, ZERO, ZERO]),
+            StorageSlot::Map(StorageMap::default()),
+            StorageSlot::Map(StorageMap::default()),
+            StorageSlot::Map(StorageMap::default()),
+            StorageSlot::Map(StorageMap::default()),
+            StorageSlot::Map(StorageMap::default()),
+        ];
 
-    let oracle_component = AccountComponent::new(ORACLE_COMPONENT_LIBRARY.clone(), storage_slots)
-        .unwrap()
-        .with_supported_type(account_type);
+        Self {
+            account_id: oracle_account_id,
+            account_type: AccountType::RegularAccountImmutableCode,
+            public_key: oracle_public_key,
+            storage_slots: default_slots,
+            component_library: ORACLE_COMPONENT_LIBRARY.clone(),
+        }
+    }
 
-    let components = [
-        RpoFalcon512::new(PublicKey::new(oracle_public_key)).into(),
-        oracle_component,
-    ];
-    let mut storage_slots = vec![];
-    storage_slots.extend(
-        components
+    pub fn with_storage_slots(mut self, slots: Vec<StorageSlot>) -> Self {
+        self.storage_slots = slots;
+        self
+    }
+
+    pub fn build(self) -> Account {
+        let oracle_component = AccountComponent::new(self.component_library, self.storage_slots)
+            .unwrap()
+            .with_supported_type(self.account_type);
+
+        let components = [
+            RpoFalcon512::new(PublicKey::new(self.public_key)).into(),
+            oracle_component,
+        ];
+
+        let storage_slots: Vec<_> = components
             .iter()
             .flat_map(|component| component.storage_slots())
-            .cloned(),
-    );
-    let oracle_account_storage = AccountStorage::new(storage_slots).unwrap();
+            .cloned()
+            .collect();
 
-    Account::from_parts(
-        oracle_account_id,
-        AssetVault::new(&[]).unwrap(),
-        oracle_account_storage,
-        AccountCode::from_components(&components, account_type).unwrap(),
-        Felt::new(1),
-    )
+        let oracle_account_storage = AccountStorage::new(storage_slots).unwrap();
+
+        Account::from_parts(
+            self.account_id,
+            AssetVault::new(&[]).unwrap(),
+            oracle_account_storage,
+            AccountCode::from_components(&components, self.account_type).unwrap(),
+            Felt::new(1),
+        )
+    }
 }
