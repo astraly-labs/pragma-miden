@@ -34,7 +34,7 @@ pub static ORACLE_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
         .expect("assembly should succeed")
 });
 
-pub struct OracleAccount {
+pub struct OracleAccountBuilder {
     account_id: AccountId,
     account_type: AccountType,
     public_key: Word,
@@ -42,12 +42,17 @@ pub struct OracleAccount {
     component_library: Library,
 }
 
-impl OracleAccount {
+impl OracleAccountBuilder {
     pub fn new(oracle_public_key: Word, oracle_account_id: AccountId) -> Self {
         let default_slots = vec![
+            // Legacy slot entry
+            // TODO(akhercha): Should be deleted!
             StorageSlot::Value(Word::default()),
+            // Next publisher slot. Starts from idx 3.
             StorageSlot::Value([Felt::new(3), ZERO, ZERO, ZERO]),
+            // Publisher registry
             StorageSlot::Map(StorageMap::default()),
+            // Publisher map entries (4 publishers below)
             StorageSlot::Map(StorageMap::default()),
             StorageSlot::Map(StorageMap::default()),
             StorageSlot::Map(StorageMap::default()),
@@ -61,6 +66,11 @@ impl OracleAccount {
             storage_slots: default_slots,
             component_library: ORACLE_COMPONENT_LIBRARY.clone(),
         }
+    }
+
+    pub fn with_account_type(mut self, account_type: AccountType) -> Self {
+        self.account_type = account_type;
+        self
     }
 
     pub fn with_storage_slots(mut self, slots: Vec<StorageSlot>) -> Self {
@@ -84,12 +94,10 @@ impl OracleAccount {
             .cloned()
             .collect();
 
-        let oracle_account_storage = AccountStorage::new(storage_slots).unwrap();
-
         Account::from_parts(
             self.account_id,
             AssetVault::new(&[]).unwrap(),
-            oracle_account_storage,
+            AccountStorage::new(storage_slots).unwrap(),
             AccountCode::from_components(&components, self.account_type).unwrap(),
             Felt::new(1),
         )

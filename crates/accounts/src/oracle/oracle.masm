@@ -32,7 +32,7 @@ const.PUBLISHERS_REGISTRY_MAP_SLOT=2
 #! The price will be stored in the publisher map for the given asset, overriding the
 #! last value.
 #!
-#! Inputs:  [ASSET, PRICE]
+#! Inputs:  [ENTRY]
 #! Outputs: []
 #!
 export.publish_entry

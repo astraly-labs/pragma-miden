@@ -3,8 +3,7 @@ use std::sync::Arc;
 use miden_crypto::{Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
-    accounts::{Account, AccountBuilder, AccountId, AccountStorage, StorageSlot},
-    testing::account_component::AccountMockComponent,
+    accounts::{Account, AccountId, StorageSlot},
     transaction::{TransactionArgs, TransactionScript},
     vm::AdviceInputs,
     Digest,
@@ -13,61 +12,85 @@ use miden_tx::{
     testing::{MockChain, TransactionContextBuilder},
     TransactionExecutor,
 };
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha20Rng;
-
 use pm_accounts::{
-    oracle::{OracleAccount, ORACLE_COMPONENT_LIBRARY},
-    publisher::PUBLISH_CALL_MASM,
+    oracle::{OracleAccountBuilder, ORACLE_COMPONENT_LIBRARY},
     utils::{new_pk_and_authenticator, word_to_masm},
+    RegularAccountBuilder,
 };
 use pm_types::{Currency, Entry, Pair};
+
+const ORACLE_ID: u64 = 88314212732225;
 
 #[test]
 fn test_oracle_write() {
     //  SETUP
-    // --------------------------------------------------------------------------------------------
-    let (oracle_pub_key, oracle_auth) = new_pk_and_authenticator();
-    let oracle_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
-    let entry_as_word: Word = mock_entry().try_into().unwrap();
-
     // In this test we have 3 accounts:
     // - Oracle account -> contains entries sent by Publishers
     // - Publisher accounts -> push entries to the Oracle account
     // - Native account -> tries to read data from the oracle account's storage
-    let mut oracle_account = OracleAccount::new(oracle_pub_key, oracle_account_id).build();
+    // --------------------------------------------------------------------------------------------
+    let entry_as_word: Word = mock_entry().try_into().unwrap();
+
+    let (oracle_pub_key, _) = new_pk_and_authenticator();
+    let oracle_account_id = AccountId::try_from(ORACLE_ID).unwrap();
+    let oracle_account: Account =
+        OracleAccountBuilder::new(oracle_pub_key, oracle_account_id).build();
+
+    let (publisher_pub_key, publisher_auth) = new_pk_and_authenticator();
+    let mut publisher_account = RegularAccountBuilder::new(publisher_pub_key).build();
 
     // CONSTRUCT AND EXECUTE TX
     // --------------------------------------------------------------------------------------------
-    let tx_context = TransactionContextBuilder::new(oracle_account.clone()).build();
+    let tx_context = TransactionContextBuilder::new(publisher_account.clone()).build();
     let executor =
-        TransactionExecutor::new(Arc::new(tx_context.clone()), Some(oracle_auth.clone()));
+        TransactionExecutor::new(Arc::new(tx_context.clone()), Some(publisher_auth.clone()));
     let block_ref = tx_context.tx_inputs().block_header().block_num();
 
     // Create transaction script to write the data to the oracle account
-    let tx_script_code = PUBLISH_CALL_MASM
-        .replace("{1}", &word_to_masm(entry_as_word))
-        .to_string();
+    let tx_script_code = format!(
+        "
+        use.std::sys
+        use.miden::tx
 
-    let assembler = TransactionKernel::assembler();
+        begin
+            # push the entry
+            push.{entry}
+
+            # get the hash of the `publish_entry` account procedure
+            push.{publish_entry_hash}
+
+            # push the foreign account id
+            push.{oracle_account_id}
+            # => [oracle_account_id, publish_entry_procedure_hash]
+
+            exec.tx::execute_foreign_procedure
+            # => []
+        end
+    ",
+        oracle_account_id = oracle_account.id(),
+        publish_entry_hash = oracle_account.code().procedures()[0].mast_root(),
+        entry = &word_to_masm(entry_as_word)
+    );
+
     let tx_script = TransactionScript::compile(
         tx_script_code,
         [],
         // Add the oracle account's component as a library to link
         // against so we can reference the account in the transaction script.
-        assembler
+        TransactionKernel::assembler()
             .with_library(ORACLE_COMPONENT_LIBRARY.as_ref())
             .expect("adding oracle library should not fail")
             .clone(),
     )
     .unwrap();
+
     let txn_args = TransactionArgs::with_tx_script(tx_script);
 
     let executed_transaction = executor
-        .execute_transaction(oracle_account.id(), block_ref, &[], txn_args)
+        .execute_transaction(publisher_account.id(), block_ref, &[], txn_args)
         .unwrap();
 
-    oracle_account
+    publisher_account
         .apply_delta(executed_transaction.account_delta())
         .unwrap();
 
@@ -79,33 +102,23 @@ fn test_oracle_write() {
 #[test]
 fn test_oracle_read() {
     //  SETUP
-    // --------------------------------------------------------------------------------------------
-    let (oracle_pub_key, _) = new_pk_and_authenticator();
-    let oracle_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
-    let entry_as_word: Word = mock_entry().try_into().unwrap();
-
     // In this test we have 2 accounts:
     // - Oracle account -> contains entries sent by Publishers
     // - Native account -> tries to read data from the oracle account's storage
-    let oracle_account = OracleAccount::new(oracle_pub_key, oracle_account_id)
+    // --------------------------------------------------------------------------------------------
+    let entry_as_word: Word = mock_entry().try_into().unwrap();
+
+    let (oracle_pub_key, _) = new_pk_and_authenticator();
+    let oracle_account_id = AccountId::try_from(ORACLE_ID).unwrap();
+    let oracle_account: Account = OracleAccountBuilder::new(oracle_pub_key, oracle_account_id)
         .with_storage_slots(vec![StorageSlot::Value(entry_as_word)])
         .build();
 
-    let native_account = AccountBuilder::new()
-        .init_seed(ChaCha20Rng::from_entropy().gen())
-        .with_component(
-            AccountMockComponent::new_with_slots(
-                TransactionKernel::testing_assembler(),
-                vec![AccountStorage::mock_item_0().slot],
-            )
-            .unwrap(),
-        )
-        .build_existing()
-        .unwrap();
+    let (regular_pub_key, _) = new_pk_and_authenticator();
+    let regular_account = RegularAccountBuilder::new(regular_pub_key).build();
 
     let mut mock_chain =
-        MockChain::with_accounts(&[native_account.clone(), oracle_account.clone()]);
-
+        MockChain::with_accounts(&[regular_account.clone(), oracle_account.clone()]);
     mock_chain.seal_block(None);
 
     let advice_inputs = get_mock_fpi_adv_inputs(&oracle_account, &mock_chain);
@@ -117,15 +130,12 @@ fn test_oracle_read() {
         use.miden::tx
 
         begin
-            # push the index of desired storage item
-            push.0
-
             # get the hash of the `get_entry` account procedure
             push.{get_entry_hash}
 
             # push the foreign account id
             push.{oracle_account_id}
-            # => [oracle_account_id, get_entry_procedure_hash, storage_item_index]
+            # => [oracle_account_id, get_entry_hash]
 
             exec.tx::execute_foreign_procedure
             # => [STORAGE_VALUE]
@@ -147,7 +157,7 @@ fn test_oracle_read() {
         TransactionScript::compile(code, vec![], TransactionKernel::testing_assembler()).unwrap();
 
     let tx_context = mock_chain
-        .build_tx_context(native_account.id(), &[], &[])
+        .build_tx_context(regular_account.id(), &[], &[])
         .advice_inputs(advice_inputs.clone())
         .tx_script(tx_script)
         .build();
@@ -170,7 +180,7 @@ fn test_oracle_read() {
     // the tests assertions are directly located in the Masm script.
     executor
         .execute_transaction(
-            native_account.id(),
+            regular_account.id(),
             block_ref,
             &note_ids,
             tx_context.tx_args().clone(),

@@ -1,2 +1,2 @@
 #[cfg(test)]
-pub mod oracle;
+pub mod test_oracle;
