@@ -4,16 +4,13 @@ use miden_crypto::{Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
     accounts::{Account, AccountId, StorageSlot},
-    transaction::{TransactionArgs, TransactionScript},
+    transaction::TransactionScript,
     vm::AdviceInputs,
     Digest,
 };
-use miden_tx::{
-    testing::{MockChain, TransactionContextBuilder},
-    TransactionExecutor,
-};
+use miden_tx::{testing::MockChain, TransactionExecutor};
 use pm_accounts::{
-    oracle::{OracleAccountBuilder, ORACLE_COMPONENT_LIBRARY},
+    oracle::OracleAccountBuilder,
     utils::{new_pk_and_authenticator, word_to_masm},
     RegularAccountBuilder,
 };
@@ -39,55 +36,84 @@ fn test_oracle_write() {
     let (publisher_pub_key, publisher_auth) = new_pk_and_authenticator();
     let mut publisher_account = RegularAccountBuilder::new(publisher_pub_key).build();
 
+    let mut mock_chain =
+        MockChain::with_accounts(&[publisher_account.clone(), oracle_account.clone()]);
+    mock_chain.seal_block(None);
+
+    let advice_inputs = get_mock_advice_inputs(&oracle_account, &mock_chain);
+
     // CONSTRUCT AND EXECUTE TX
     // --------------------------------------------------------------------------------------------
-    let tx_context = TransactionContextBuilder::new(publisher_account.clone()).build();
-    let executor =
-        TransactionExecutor::new(Arc::new(tx_context.clone()), Some(publisher_auth.clone()));
-    let block_ref = tx_context.tx_inputs().block_header().block_num();
-
     // Create transaction script to write the data to the oracle account
-    let tx_script_code = format!(
+    let code = format!(
         "
         use.std::sys
         use.miden::tx
+        use.kernel::prologue
 
         begin
+            # pad the stack for the `execute_foreign_procedure` execution
+            padw padw padw push.0.0
+            # => [pad(14)]
+
             # push the entry
             push.{entry}
+            # => [entry, pad(14)]
 
             # get the hash of the `publish_entry` account procedure
             push.{publish_entry_hash}
+            # => [publish_entry_hash, entry, pad(14)]
 
-            # push the foreign account id
+            # push the id
             push.{oracle_account_id}
-            # => [oracle_account_id, publish_entry_procedure_hash]
+            # => [foreign_account_id, publish_entry_hash, entry, pad(14)]
 
             exec.tx::execute_foreign_procedure
             # => []
+
+            # truncate the stack
+            exec.sys::truncate_stack
         end
     ",
-        oracle_account_id = oracle_account.id(),
+        entry = &word_to_masm(entry_as_word),
         publish_entry_hash = oracle_account.code().procedures()[0].mast_root(),
-        entry = &word_to_masm(entry_as_word)
+        oracle_account_id = oracle_account.id(),
     );
 
     let tx_script = TransactionScript::compile(
-        tx_script_code,
-        [],
+        code,
+        [], // TODO: Use inputs instead of string formatting?
         // Add the oracle account's component as a library to link
         // against so we can reference the account in the transaction script.
-        TransactionKernel::assembler()
-            .with_library(ORACLE_COMPONENT_LIBRARY.as_ref())
-            .expect("adding oracle library should not fail")
-            .clone(),
+        TransactionKernel::testing_assembler(),
     )
     .unwrap();
 
-    let txn_args = TransactionArgs::with_tx_script(tx_script);
+    let tx_context = mock_chain
+        .build_tx_context(publisher_account.id(), &[], &[])
+        .advice_inputs(advice_inputs.clone())
+        .tx_script(tx_script)
+        .build();
 
+    let block_ref = tx_context.tx_inputs().block_header().block_num();
+
+    let mut executor =
+        TransactionExecutor::new(Arc::new(tx_context.clone()), Some(publisher_auth.clone()))
+            .with_debug_mode(true);
+
+    // load the foreign account's code into the transaction executor
+    executor.load_account_code(oracle_account.code());
+
+    // execute the transactions.
+    // the tests assertions are directly located in the Masm script.
     let executed_transaction = executor
-        .execute_transaction(publisher_account.id(), block_ref, &[], txn_args)
+        .execute_transaction(
+            publisher_account.id(),
+            block_ref,
+            &[],
+            tx_context.tx_args().clone(),
+        )
+        .map_err(|e| e.to_string())
         .unwrap();
 
     publisher_account
@@ -121,7 +147,7 @@ fn test_oracle_read() {
         MockChain::with_accounts(&[regular_account.clone(), oracle_account.clone()]);
     mock_chain.seal_block(None);
 
-    let advice_inputs = get_mock_fpi_adv_inputs(&oracle_account, &mock_chain);
+    let advice_inputs = get_mock_advice_inputs(&oracle_account, &mock_chain);
     // query oracle (foreign account) for price feeds and compare to required values i.e correct
     // storage read
     let code = format!(
@@ -137,7 +163,7 @@ fn test_oracle_read() {
             push.{oracle_account_id}
             # => [oracle_account_id, get_entry_hash]
 
-            exec.tx::execute_foreign_procedure
+            call.tx::execute_foreign_procedure
             # => [STORAGE_VALUE]
 
             # assert the correctness of the obtained value
@@ -203,7 +229,7 @@ fn mock_entry() -> Entry {
 }
 
 /// Mocks the required advice inputs for foreign procedure invocation.
-fn get_mock_fpi_adv_inputs(foreign_account: &Account, mock_chain: &MockChain) -> AdviceInputs {
+fn get_mock_advice_inputs(foreign_account: &Account, mock_chain: &MockChain) -> AdviceInputs {
     let foreign_id_root = Digest::from([foreign_account.id().into(), ZERO, ZERO, ZERO]);
     let foreign_id_and_nonce = [
         foreign_account.id().into(),
@@ -215,7 +241,7 @@ fn get_mock_fpi_adv_inputs(foreign_account: &Account, mock_chain: &MockChain) ->
     let foreign_storage_root = foreign_account.storage().commitment();
     let foreign_code_root = foreign_account.code().commitment();
 
-    let mut inputs = AdviceInputs::default()
+    AdviceInputs::default()
         .with_map([
             // ACCOUNT_ID |-> [ID_AND_NONCE, VAULT_ROOT, STORAGE_ROOT, CODE_ROOT]
             (
@@ -236,20 +262,5 @@ fn get_mock_fpi_adv_inputs(foreign_account: &Account, mock_chain: &MockChain) ->
             // CODE_ROOT |-> [[ACCOUNT_PROCEDURE_DATA]]
             (foreign_code_root, foreign_account.code().as_elements()),
         ])
-        .with_merkle_store(mock_chain.accounts().into());
-
-    for slot in foreign_account.storage().slots() {
-        // if there are storage maps, we populate the merkle store and advice map
-        if let StorageSlot::Map(map) = slot {
-            // extend the merkle store and map with the storage maps
-            inputs.extend_merkle_store(map.inner_nodes());
-            // populate advice map with Sparse Merkle Tree leaf nodes
-            inputs.extend_map(
-                map.leaves()
-                    .map(|(_, leaf)| (leaf.hash(), leaf.to_elements())),
-            );
-        }
-    }
-
-    inputs
+        .with_merkle_store(mock_chain.accounts().into())
 }
