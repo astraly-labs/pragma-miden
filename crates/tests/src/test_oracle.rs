@@ -40,7 +40,7 @@ fn test_oracle_write() {
         MockChain::with_accounts(&[publisher_account.clone(), oracle_account.clone()]);
     mock_chain.seal_block(None);
 
-    let advice_inputs = get_mock_advice_inputs(&oracle_account, &mock_chain);
+    let advice_inputs = get_mock_advice_inputs(&mock_chain, &oracle_account);
 
     // CONSTRUCT AND EXECUTE TX
     // --------------------------------------------------------------------------------------------
@@ -147,7 +147,7 @@ fn test_oracle_read() {
         MockChain::with_accounts(&[regular_account.clone(), oracle_account.clone()]);
     mock_chain.seal_block(None);
 
-    let advice_inputs = get_mock_advice_inputs(&oracle_account, &mock_chain);
+    let advice_inputs = get_mock_advice_inputs(&mock_chain, &oracle_account);
     // query oracle (foreign account) for price feeds and compare to required values i.e correct
     // storage read
     let code = format!(
@@ -189,6 +189,7 @@ fn test_oracle_read() {
         .build();
 
     let block_ref = tx_context.tx_inputs().block_header().block_num();
+
     let note_ids = tx_context
         .tx_inputs()
         .input_notes()
@@ -229,7 +230,7 @@ fn mock_entry() -> Entry {
 }
 
 /// Mocks the required advice inputs for foreign procedure invocation.
-fn get_mock_advice_inputs(foreign_account: &Account, mock_chain: &MockChain) -> AdviceInputs {
+fn get_mock_advice_inputs(mock_chain: &MockChain, foreign_account: &Account) -> AdviceInputs {
     let foreign_id_root = Digest::from([foreign_account.id().into(), ZERO, ZERO, ZERO]);
     let foreign_id_and_nonce = [
         foreign_account.id().into(),

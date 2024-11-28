@@ -14,6 +14,14 @@ The project utilizes MASM instructions to implement oracle functionality securel
 
 You can learn more about Miden [here](https://docs.polygon.technology/miden/).
 
+## Design
+
+This is the chosen design for the first version of the Oracle:
+
+<p align="center">
+  <img src=".github/design.png">
+</p>
+
 ## Key Features
 
 It's an easy-to-use CLI for interacting with Miden Network. It provides functionality for:
