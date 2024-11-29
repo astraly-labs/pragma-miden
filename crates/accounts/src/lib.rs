@@ -1,4 +1,5 @@
 pub mod oracle;
+pub mod publisher;
 pub mod utils;
 
 use miden_crypto::{dsa::rpo_falcon512::PublicKey, Word};
