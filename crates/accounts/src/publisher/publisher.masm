@@ -7,11 +7,14 @@ use.miden::account
 # Raised when we try to read a pair not published.
 const.ERR_PAIR_NOT_FOUND=0x0002004A
 
+# Failed to read an account map item from a non-map storage slot
+const.ERR_ACCOUNT_READING_MAP_VALUE_FROM_NON_MAP_SLOT=0x00020002
+
 # CONSTANTS
 # =================================================================================================
 
 #! Mapping containing the prices published for the fetcher.
-const.ENTRIES_MAP_SLOT=0
+const.ENTRIES_MAP_SLOT=1
 
 #! Writes a new entry into the Oracle.
 #! Must be called by a registered publisher.
@@ -23,7 +26,7 @@ const.ENTRIES_MAP_SLOT=0
 #!
 export.publish_entry
     # TODO: check error handling, how do we validate inputs?
-    exec.account::set_map_item
+    push.ENTRIES_MAP_SLOT exec.account::set_map_item
 
     # Only the publisher owner should be able to call this
     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
@@ -39,11 +42,11 @@ end
 #!
 export.get_entry
     # TODO: check error handling, how do we validate inputs?
-    push.ENTRIES_MAP_SLOT exec.account::get_map_item
+    push.ENTRIES_MAP_SLOT
+    # => [entries_map_slot, pair]
 
-    # increments the nonce (anyone should be able to call that function)
-    push.1 exec.account::incr_nonce
+    exec.account::get_map_item
+    # => [entry]
 
-    # Truncate just in case
     exec.sys::truncate_stack
 end

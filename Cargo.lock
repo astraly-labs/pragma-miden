@@ -1012,6 +1012,7 @@ dependencies = [
  "miden-lib",
  "miden-objects",
  "miden-tx",
+ "pm-types",
  "rand",
  "rand_chacha",
 ]

@@ -44,11 +44,16 @@ pub struct PublisherAccountBuilder {
 
 impl PublisherAccountBuilder {
     pub fn new(publisher_public_key: Word, publisher_account_id: AccountId) -> Self {
-        let default_slots = vec![StorageSlot::Map(StorageMap::default())];
+        let default_slots = vec![
+            // TODO: We needed to have this first storage else it fails :)
+            StorageSlot::Map(StorageMap::default()),
+            // Entries map
+            StorageSlot::Map(StorageMap::default()),
+        ];
 
         Self {
             account_id: publisher_account_id,
-            account_type: AccountType::RegularAccountImmutableCode,
+            account_type: AccountType::RegularAccountUpdatableCode,
             public_key: publisher_public_key,
             storage_slots: default_slots,
             component_library: PUBLISHER_COMPONENT_LIBRARY.clone(),

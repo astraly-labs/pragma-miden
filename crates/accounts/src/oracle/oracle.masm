@@ -66,14 +66,14 @@ end
 #! Will reserve a storage slot for the publisher if it's not already registered,
 #! which mean this publisher will be able to publish data.
 #!
-#! Inputs:  []
+#! Inputs:  [caller_id]
 #! Outputs: []
 #!
 export.register_publisher
     # get the id of the caller (or from the input)
 
     # check if it is not already present in the registry, if yes raise err (get_map_item)
-
+    
     # assign NEXT_PUBLISHER_INDEX_SLOT to the caller and store in the registry map (set_map_item)
 
     # increment NEXT_PUBLISHER_INDEX_SLOT

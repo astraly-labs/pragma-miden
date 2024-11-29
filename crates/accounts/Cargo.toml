@@ -12,6 +12,8 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+pm-types.workspace = true
+
 miden-assembly.workspace = true
 miden-crypto.workspace = true
 miden-lib.workspace = true
