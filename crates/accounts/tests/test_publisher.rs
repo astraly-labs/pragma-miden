@@ -133,15 +133,15 @@ fn test_publisher_read() {
         begin
             # push the pair stored in the map
             push.{pair}
-            # => [pair, pad(14)]
+            # => [pair]
 
             # get the hash of the `get_entry` account procedure
             push.{get_entry_hash}
-            # => [get_entry_procedure_hash, pair, pad(14)]
+            # => [get_entry_procedure_hash, pair]
 
             # push the foreign account id
             push.{publisher_account_id}
-            # => [publisher_account_id, get_entry_procedure_hash, pair, pad(14)]
+            # => [publisher_account_id, get_entry_procedure_hash, pair]
 
             exec.tx::execute_foreign_procedure
             # => [entry]

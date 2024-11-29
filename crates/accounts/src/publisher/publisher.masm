@@ -7,9 +7,6 @@ use.miden::account
 # Raised when we try to read a pair not published.
 const.ERR_PAIR_NOT_FOUND=0x0002004A
 
-# Failed to read an account map item from a non-map storage slot
-const.ERR_ACCOUNT_READING_MAP_VALUE_FROM_NON_MAP_SLOT=0x00020002
-
 # CONSTANTS
 # =================================================================================================
 
@@ -44,9 +41,8 @@ export.get_entry
     # TODO: check error handling, how do we validate inputs?
     push.ENTRIES_MAP_SLOT
     # => [entries_map_slot, pair]
-
     exec.account::get_map_item
     # => [entry]
-
+        
     exec.sys::truncate_stack
 end

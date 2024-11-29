@@ -45,14 +45,13 @@ pub struct OracleAccountBuilder {
 impl OracleAccountBuilder {
     pub fn new(oracle_public_key: Word, oracle_account_id: AccountId) -> Self {
         let default_slots = vec![
-            // Legacy slot entry
-            // TODO(akhercha): Should be deleted!
-            StorageSlot::Value(Word::default()),
+            // TODO: We have to add a map at position 0 else something fails.
+            StorageSlot::Map(StorageMap::default()),
             // Next publisher slot. Starts from idx 3.
             StorageSlot::Value([Felt::new(3), ZERO, ZERO, ZERO]),
             // Publisher registry
             StorageSlot::Map(StorageMap::default()),
-            // Publisher map entries (4 publishers below)
+            // Publishers ids
             StorageSlot::Map(StorageMap::default()),
             StorageSlot::Map(StorageMap::default()),
             StorageSlot::Map(StorageMap::default()),
