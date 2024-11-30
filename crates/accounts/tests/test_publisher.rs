@@ -23,7 +23,7 @@ use std::sync::Arc;
 fn test_publisher_write() {
     //  SETUP
     // --------------------------------------------------------------------------------------------
-    let (publisher_pub_key, publisher_auth) = new_pk_and_authenticator();
+    let (publisher_pub_key, publisher_auth) = new_pk_and_authenticator([0_u8; 32]);
     let publisher_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
 
     // In this test we have 3 accounts:
@@ -99,7 +99,7 @@ fn test_publisher_read() {
     //    - Publisher account -> contains entries
     //    - Native account -> tries to read data from the publisher account
     // --------------------------------------------------------------------------------------------
-    let (publisher_pub_key, _) = new_pk_and_authenticator();
+    let (publisher_pub_key, _) = new_pk_and_authenticator([0_u8; 32]);
     let publisher_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
     let entry: Word = mock_entry().try_into().unwrap();
 
@@ -115,7 +115,7 @@ fn test_publisher_read() {
         ])
         .build();
 
-    let (regular_pub_key, _) = new_pk_and_authenticator();
+    let (regular_pub_key, _) = new_pk_and_authenticator([1_u8; 32]);
     let native_account = RegularAccountBuilder::new(regular_pub_key).build();
 
     let mut mock_chain =
@@ -192,7 +192,7 @@ fn test_publisher_read() {
 fn test_publisher_read_fails_if_pair_not_found() {
     //  SETUP
     // --------------------------------------------------------------------------------------------
-    let (publisher_pub_key, _) = new_pk_and_authenticator();
+    let (publisher_pub_key, _) = new_pk_and_authenticator([0_u8; 32]);
     let publisher_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
     let entry: Word = mock_entry().try_into().unwrap();
 
@@ -213,7 +213,7 @@ fn test_publisher_read_fails_if_pair_not_found() {
     // We change pair definition
     pair_word = [pair + Felt::new(1), ZERO, ZERO, ZERO];
 
-    let (regular_pub_key, _) = new_pk_and_authenticator();
+    let (regular_pub_key, _) = new_pk_and_authenticator([1_u8; 32]);
     let native_account = RegularAccountBuilder::new(regular_pub_key).build();
 
     let mut mock_chain =

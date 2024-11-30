@@ -9,8 +9,8 @@ use miden_objects::{
 
 use miden_tx::{testing::MockChain, TransactionExecutor};
 use pm_accounts::{
-    oracle::OracleAccountBuilder,
-    publisher::PublisherAccountBuilder,
+    oracle::{OracleAccountBuilder, ORACLE_COMPONENT_LIBRARY},
+    publisher::{PublisherAccountBuilder, PUBLISHER_COMPONENT_LIBRARY},
     utils::{new_pk_and_authenticator, word_to_masm},
     RegularAccountBuilder,
 };
@@ -29,29 +29,27 @@ fn test_oracle_get_entry() {
     let pair: Felt = mock_entry().pair.try_into().unwrap();
     let pair: Word = [pair, ZERO, ZERO, ZERO];
 
-    let (oracle_pub_key, _) = new_pk_and_authenticator();
-    let oracle_id = 10376293541461622847_u64;
-    let oracle_account_id = AccountId::try_from(oracle_id).unwrap();
-
-    let (publisher_pub_key, _) = new_pk_and_authenticator();
+    let (publisher_pub_key, _) = new_pk_and_authenticator([0_u8; 32]);
     let publisher_id = 10376424242421622847_u64;
     let publisher_id_word = [Felt::new(publisher_id), ZERO, ZERO, ZERO];
     let publisher_account_id = AccountId::try_from(publisher_id).unwrap();
-
     let publisher_account = PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id)
         .with_storage_slots(vec![
+            // TODO: For some reasons, we have to add this map at index 0.
             StorageSlot::Map(StorageMap::default()),
+            // Entries map
             StorageSlot::Map(
                 StorageMap::with_entries(vec![(RpoDigest::from(pair), entry)]).unwrap(),
             ),
         ])
         .build();
 
-    // In this test we have 2 accounts:
-    // - oracle account -> contains entries
-    // - Native account -> tries to read data from the oracle account
+    let (oracle_pub_key, _) = new_pk_and_authenticator([1_u8; 32]);
+    let oracle_id = 10376293541461622847_u64;
+    let oracle_account_id = AccountId::try_from(oracle_id).unwrap();
     let oracle_account = OracleAccountBuilder::new(oracle_pub_key, oracle_account_id)
         .with_storage_slots(vec![
+            // TODO: For some reasons, we have to add this map at index 0.
             StorageSlot::Map(StorageMap::default()),
             // Next publisher slot. Starts from idx 4 for our test since 3 is already populated.
             StorageSlot::Value([Felt::new(4), ZERO, ZERO, ZERO]),
@@ -69,7 +67,7 @@ fn test_oracle_get_entry() {
         ])
         .build();
 
-    let (regular_pub_key, regular_auth) = new_pk_and_authenticator();
+    let (regular_pub_key, _) = new_pk_and_authenticator([2_u8; 32]);
     let native_account = RegularAccountBuilder::new(regular_pub_key).build();
 
     let mut mock_chain = MockChain::with_accounts(&[
@@ -80,8 +78,8 @@ fn test_oracle_get_entry() {
     mock_chain.seal_block(None);
 
     let advice_inputs = FpiAdviceBuilder::new(&mock_chain)
-        .add_account(&oracle_account)
-        .add_account(&publisher_account)
+        .with_account(&oracle_account)
+        .with_account(&publisher_account)
         .build();
 
     // storage read
@@ -95,7 +93,7 @@ fn test_oracle_get_entry() {
             push.{pair}
             # => [pair]
 
-            # push the publisher we want to read
+            # push the publisher we want to read=
             push.{publisher_id}
             # => [publisher_id, pair]
 
@@ -104,7 +102,7 @@ fn test_oracle_get_entry() {
             # => [get_entry_procedure_hash, publisher_id, pair]
 
             # push the foreign account id
-            push.{oracle_account}
+            push.{oracle_account_id}
             # => [oracle_account_id, get_entry_procedure_hash, publisher_id, pair]
 
             exec.tx::execute_foreign_procedure
@@ -118,30 +116,30 @@ fn test_oracle_get_entry() {
         ",
         pair = word_to_masm(pair),
         publisher_id = publisher_account.id(),
-        oracle_account = oracle_account.id(),
-        get_entry_hash = oracle_account.code().procedures()[0].mast_root(),
+        oracle_account_id = oracle_account.id(),
+        // TODO: So here, [1] works... even though get_entry is supposed to be 0.
+        get_entry_hash = oracle_account.code().procedures()[1].mast_root(),
     );
 
-    let tx_script =
-        TransactionScript::compile(code, vec![], TransactionKernel::testing_assembler()).unwrap();
-
+    let assembler = TransactionKernel::testing_assembler()
+        .with_library(PUBLISHER_COMPONENT_LIBRARY.as_ref())
+        .unwrap()
+        .with_library(ORACLE_COMPONENT_LIBRARY.as_ref())
+        .unwrap();
+    let tx_script = TransactionScript::compile(code, vec![], assembler).unwrap();
     let tx_context = mock_chain
         .build_tx_context(native_account.id(), &[], &[])
         .advice_inputs(advice_inputs.clone())
         .tx_script(tx_script)
         .build();
 
-    let block_ref = tx_context.tx_inputs().block_header().block_num();
-
-    let mut executor: TransactionExecutor =
-        TransactionExecutor::new(Arc::new(tx_context.clone()), Some(regular_auth)).with_tracing();
-
+    let mut executor = TransactionExecutor::new(Arc::new(tx_context.clone()), None).with_tracing();
     // load the foreign account's code into the transaction executor
-    executor.load_account_code(oracle_account.code());
     executor.load_account_code(publisher_account.code());
+    executor.load_account_code(oracle_account.code());
 
     // execute the transactions.
-    // the tests assertions are directly located in the Masm script.
+    let block_ref = tx_context.tx_inputs().block_header().block_num();
     executor
         .execute_transaction(
             native_account.id(),
@@ -173,7 +171,6 @@ pub struct FpiAdviceBuilder<'a> {
 }
 
 impl<'a> FpiAdviceBuilder<'a> {
-    /// Creates a new builder instance with the given mock chain
     pub fn new(chain: &'a MockChain) -> Self {
         Self {
             chain,
@@ -182,14 +179,8 @@ impl<'a> FpiAdviceBuilder<'a> {
     }
 
     /// Adds an account to the builder
-    pub fn add_account(&mut self, account: &'a Account) -> &mut Self {
+    pub fn with_account(&mut self, account: &'a Account) -> &mut Self {
         self.accounts.push(account);
-        self
-    }
-
-    /// Adds multiple accounts to the builder
-    pub fn add_accounts(&mut self, accounts: &[&'a Account]) -> &mut Self {
-        self.accounts.extend(accounts);
         self
     }
 

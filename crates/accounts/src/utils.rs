@@ -7,8 +7,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
 /// Generates a new public key and authenticator for an Account
-pub fn new_pk_and_authenticator() -> (Word, Arc<dyn TransactionAuthenticator>) {
-    let seed = [0_u8; 32];
+pub fn new_pk_and_authenticator(seed: [u8; 32]) -> (Word, Arc<dyn TransactionAuthenticator>) {
     let mut rng = ChaCha20Rng::from_seed(seed);
 
     let sec_key = SecretKey::with_rng(&mut rng);

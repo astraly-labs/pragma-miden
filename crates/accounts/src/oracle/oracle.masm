@@ -2,38 +2,24 @@ use.std::sys
 use.miden::account
 use.miden::tx
 
-# ERRORS
-# =================================================================================================
-
-# Raised when an already registered publisher tries to register again.
-const.ERR_PUBLISHER_ALREADY_REGISTERED=0x0002004A
-
-# Raised when an unregistered publisher tries to publish data.
-const.ERR_PUBLISHER_NOT_REGISTERED=0x0002004A
-
-const.PUBLISHER_GET_ENTRY_HASH_0=1007391524189378068
-const.PUBLISHER_GET_ENTRY_HASH_1=7679889649787278131
-const.PUBLISHER_GET_ENTRY_HASH_2=9558208618383477329
-const.PUBLISHER_GET_ENTRY_HASH_3=3591001968011231748
-
 # CONSTANTS
 # =================================================================================================
 
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
-const.NEXT_PUBLISHER_INDEX_SLOT=0
+const.NEXT_PUBLISHER_INDEX_SLOT=1
 
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
-const.PUBLISHER_REGISTRY_MAP_SLOT=1
+const.PUBLISHER_REGISTRY_MAP_SLOT=2
 
 #! Gets entry from the oracle's data slots.
 #!
 #! Inputs:  [publisher_id, pair]
-#! Outputs: [WORD] ; Word being [pair, price, decimals, timestamp]
+#! Outputs: [pair, price, decimals, timestamp]
 export.get_entry
     # Duplicate the publisher id for verification  
-    dupw
+    dup
     # => [publisher_id, publisher_id, pair]
 
     # Verifies if the publisher is registered, panics if not
@@ -44,11 +30,11 @@ export.get_entry
     drop
     # => [publisher_id, pair]
 
-    # Push the get_entry hash word (constant?)
+    # Push the get_entry hash function for the publisher account (constant?)
     push.0x14160cfd40f9fa0d3313c559f272946a510ad3cb1894a58404c2099343cdd531
     # => [get_entry_hash, publisher_id, pair]
 
-    swap.1
+    movup.4
     # => [publisher_id, get_entry_hash, pair]
 
     exec.tx::execute_foreign_procedure

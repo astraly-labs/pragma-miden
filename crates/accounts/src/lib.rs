@@ -21,7 +21,7 @@ impl RegularAccountBuilder {
     pub fn build(&self) -> Account {
         AccountBuilder::new()
             .init_seed(ChaCha20Rng::from_entropy().gen())
-            .account_type(AccountType::RegularAccountUpdatableCode)
+            .account_type(AccountType::RegularAccountImmutableCode)
             .storage_mode(AccountStorageMode::Public)
             .with_component(BasicWallet)
             .with_component(RpoFalcon512::new(PublicKey::new(self.public_key)))
