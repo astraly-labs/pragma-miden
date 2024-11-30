@@ -51,11 +51,6 @@ impl OracleAccountBuilder {
             StorageSlot::Value([Felt::new(3), ZERO, ZERO, ZERO]),
             // Publisher registry
             StorageSlot::Map(StorageMap::default()),
-            // Publishers ids
-            StorageSlot::Map(StorageMap::default()),
-            StorageSlot::Map(StorageMap::default()),
-            StorageSlot::Map(StorageMap::default()),
-            StorageSlot::Map(StorageMap::default()),
         ];
 
         Self {

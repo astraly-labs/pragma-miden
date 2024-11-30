@@ -8,37 +8,29 @@ use.miden::tx
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
 const.NEXT_PUBLISHER_INDEX_SLOT=1
-
+ 
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
-const.PUBLISHER_REGISTRY_MAP_SLOT=2
+const.PUBLISHER_REGISTRY_MAP_SLOT=3
 
 #! Gets entry from the oracle's data slots.
 #!
-#! Inputs:  [publisher_id, pair]
-#! Outputs: [pair, price, decimals, timestamp]
-export.get_entry
-    # Duplicate the publisher id for verification  
-    dup
-    # => [publisher_id, publisher_id, pair]
-
+#! Inputs:  [PUBLISHER_ID, PAIR]
+#! Outputs: [ENTRY]
+export.get_entry    
     # Verifies if the publisher is registered, panics if not
-    push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item
-    # => [slot, publisher_id, pair]
+    dupw push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item dropw
+    # => [PUBLISHER_ID, PAIR]
     
-    # Remove the slot id
-    drop
-    # => [publisher_id, pair]
-
     # Push the get_entry hash function for the publisher account (constant?)
     push.0x14160cfd40f9fa0d3313c559f272946a510ad3cb1894a58404c2099343cdd531
-    # => [get_entry_hash, publisher_id, pair]
+    # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
 
-    movup.4
-    # => [publisher_id, get_entry_hash, pair]
+    swapw
+    # => [PUBLISHER_ID, GET_ENTRY_HASH, PAIR]
 
     exec.tx::execute_foreign_procedure
-    # => [entry]
+    # => [ENTRY]
 
     # Truncate if necessary
     exec.sys::truncate_stack

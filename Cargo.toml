@@ -6,12 +6,6 @@ default-members = ["crates/types", "crates/accounts", "crates/tests"]
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
-[workspace.lints.clippy]
-print_stdout = "warn"
-print_stderr = "warn"
-# unwrap_used = "warn"
-# missing_docs = "warn"
-
 [workspace.package]
 version = "0.1.0"
 authors = ["Pragma <https://github.com/astraly-labs>"]

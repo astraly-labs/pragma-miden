@@ -9,8 +9,8 @@ use miden_objects::{
 
 use miden_tx::{testing::MockChain, TransactionExecutor};
 use pm_accounts::{
-    oracle::{OracleAccountBuilder, ORACLE_COMPONENT_LIBRARY},
-    publisher::{PublisherAccountBuilder, PUBLISHER_COMPONENT_LIBRARY},
+    oracle::OracleAccountBuilder,
+    publisher::PublisherAccountBuilder,
     utils::{new_pk_and_authenticator, word_to_masm},
     RegularAccountBuilder,
 };
@@ -26,11 +26,11 @@ fn test_oracle_get_entry() {
     //    - Native account -> calls the Oracle to get the entry published
     // --------------------------------------------------------------------------------------------
     let entry: Word = mock_entry().try_into().unwrap();
-    let pair: Felt = mock_entry().pair.try_into().unwrap();
-    let pair: Word = [pair, ZERO, ZERO, ZERO];
+    let pair: Felt = entry[0];
+    let pair_word: Word = [pair, ZERO, ZERO, ZERO];
 
     let (publisher_pub_key, _) = new_pk_and_authenticator([0_u8; 32]);
-    let publisher_id = 10376424242421622847_u64;
+    let publisher_id = 12345_u64;
     let publisher_id_word = [Felt::new(publisher_id), ZERO, ZERO, ZERO];
     let publisher_account_id = AccountId::try_from(publisher_id).unwrap();
     let publisher_account = PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id)
@@ -39,13 +39,13 @@ fn test_oracle_get_entry() {
             StorageSlot::Map(StorageMap::default()),
             // Entries map
             StorageSlot::Map(
-                StorageMap::with_entries(vec![(RpoDigest::from(pair), entry)]).unwrap(),
+                StorageMap::with_entries(vec![(RpoDigest::from(pair_word), entry)]).unwrap(),
             ),
         ])
         .build();
 
     let (oracle_pub_key, _) = new_pk_and_authenticator([1_u8; 32]);
-    let oracle_id = 10376293541461622847_u64;
+    let oracle_id = 98765_u64;
     let oracle_account_id = AccountId::try_from(oracle_id).unwrap();
     let oracle_account = OracleAccountBuilder::new(oracle_pub_key, oracle_account_id)
         .with_storage_slots(vec![
@@ -61,9 +61,7 @@ fn test_oracle_get_entry() {
                 )])
                 .unwrap(),
             ),
-            // Publishers ids
             StorageSlot::Value(publisher_id_word),
-            StorageSlot::Map(StorageMap::default()),
         ])
         .build();
 
@@ -91,22 +89,22 @@ fn test_oracle_get_entry() {
         begin
             # push the pair we want to read
             push.{pair}
-            # => [pair]
+            # => [PAIR]
 
             # push the publisher we want to read=
             push.{publisher_id}
-            # => [publisher_id, pair]
+            # => [publisher_id, PAIR]
 
             # get the hash of the `get_entry` account procedure
             push.{get_entry_hash}
-            # => [get_entry_procedure_hash, publisher_id, pair]
+            # => [GET_ENTRY_PROCEDURE_HASH, publisher_id, PAIR]
 
             # push the foreign account id
             push.{oracle_account_id}
-            # => [oracle_account_id, get_entry_procedure_hash, publisher_id, pair]
+            # => [oracle_account_id, GET_ENTRY_PROCEDURE_HASH, publisher_id, PAIR]
 
             exec.tx::execute_foreign_procedure
-            # => [entry]
+            # => [ENTRY]
 
             # ===== TODO: Assertion =====
 
@@ -114,18 +112,14 @@ fn test_oracle_get_entry() {
             exec.sys::truncate_stack
         end
         ",
-        pair = word_to_masm(pair),
+        pair = word_to_masm(pair_word),
         publisher_id = publisher_account.id(),
         oracle_account_id = oracle_account.id(),
         // TODO: So here, [1] works... even though get_entry is supposed to be 0.
         get_entry_hash = oracle_account.code().procedures()[1].mast_root(),
     );
 
-    let assembler = TransactionKernel::testing_assembler()
-        .with_library(PUBLISHER_COMPONENT_LIBRARY.as_ref())
-        .unwrap()
-        .with_library(ORACLE_COMPONENT_LIBRARY.as_ref())
-        .unwrap();
+    let assembler = TransactionKernel::testing_assembler();
     let tx_script = TransactionScript::compile(code, vec![], assembler).unwrap();
     let tx_context = mock_chain
         .build_tx_context(native_account.id(), &[], &[])
@@ -133,13 +127,23 @@ fn test_oracle_get_entry() {
         .tx_script(tx_script)
         .build();
 
-    let mut executor = TransactionExecutor::new(Arc::new(tx_context.clone()), None).with_tracing();
+    let mut executor = TransactionExecutor::new(Arc::new(tx_context.clone()), None)
+        .with_debug_mode(true)
+        .with_tracing();
+
     // load the foreign account's code into the transaction executor
-    executor.load_account_code(publisher_account.code());
     executor.load_account_code(oracle_account.code());
+    executor.load_account_code(publisher_account.code());
 
     // execute the transactions.
     let block_ref = tx_context.tx_inputs().block_header().block_num();
+
+    println!("Key: {:?}", publisher_id_word);
+    println!(
+        "Value: {:?}",
+        oracle_account.storage().get_map_item(3, publisher_id_word)
+    );
+
     executor
         .execute_transaction(
             native_account.id(),
