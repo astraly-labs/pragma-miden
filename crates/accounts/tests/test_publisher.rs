@@ -95,6 +95,9 @@ fn test_publisher_write() {
 #[test]
 fn test_publisher_read() {
     //  SETUP
+    //  In this test we have 2 accounts:
+    //    - Publisher account -> contains entries
+    //    - Native account -> tries to read data from the publisher account
     // --------------------------------------------------------------------------------------------
     let (publisher_pub_key, _) = new_pk_and_authenticator();
     let publisher_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
@@ -103,9 +106,6 @@ fn test_publisher_read() {
     let pair: Felt = mock_entry().pair.try_into().unwrap();
     let pair: Word = [pair, ZERO, ZERO, ZERO];
 
-    // In this test we have 2 accounts:
-    // - Publisher account -> contains entries
-    // - Native account -> tries to read data from the publisher account
     let publisher_account = PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id)
         .with_storage_slots(vec![
             StorageSlot::Map(StorageMap::default()),

@@ -43,6 +43,5 @@ export.get_entry
     # => [entries_map_slot, pair]
     exec.account::get_map_item
     # => [entry]
-        
     exec.sys::truncate_stack
 end
