@@ -17,7 +17,7 @@ use std::sync::{Arc, LazyLock};
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 
 pub static PUBLISHER_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
-    let assembler = TransactionKernel::assembler();
+    let assembler = TransactionKernel::testing_assembler().with_debug_mode(true);
     let source_manager = Arc::new(DefaultSourceManager::default());
     let publisher_component_module = Module::parser(ModuleKind::Library)
         .parse_str(

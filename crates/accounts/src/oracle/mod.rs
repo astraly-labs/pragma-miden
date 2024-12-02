@@ -17,7 +17,7 @@ use std::sync::{Arc, LazyLock};
 pub const ORACLE_ACCOUNT_MASM: &str = include_str!("oracle.masm");
 
 pub static ORACLE_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
-    let assembler = TransactionKernel::assembler();
+    let assembler = TransactionKernel::testing_assembler().with_debug_mode(true);
     let source_manager = Arc::new(DefaultSourceManager::default());
     let oracle_component_module = Module::parser(ModuleKind::Library)
         .parse_str(

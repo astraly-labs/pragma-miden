@@ -104,7 +104,7 @@ fn test_publisher_read() {
     let entry: Word = mock_entry().try_into().unwrap();
 
     let pair: Felt = mock_entry().pair.try_into().unwrap();
-    let pair: Word = [ZERO, ZERO, ZERO, pair];
+    let pair: Word = [pair, ZERO, ZERO, ZERO];
 
     let publisher_account = PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id)
         .with_storage_slots(vec![
@@ -205,7 +205,7 @@ fn test_publisher_read_fails_if_pair_not_found() {
     let publisher_account =
         PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id).build();
 
-    let non_existing_pair = [ZERO, ZERO, ZERO, Felt::new(1)];
+    let non_existing_pair = [Felt::new(1), ZERO, ZERO, ZERO];
 
     let (regular_pub_key, _) = new_pk_and_authenticator([1_u8; 32]);
     let native_account = RegularAccountBuilder::new(regular_pub_key).build();
