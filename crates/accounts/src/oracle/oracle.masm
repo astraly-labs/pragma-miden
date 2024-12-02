@@ -8,26 +8,34 @@ use.miden::tx
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
 const.NEXT_PUBLISHER_INDEX_SLOT=1
- 
+
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
-const.PUBLISHER_REGISTRY_MAP_SLOT=3
+const.PUBLISHER_REGISTRY_MAP_SLOT=2
 
 #! Gets entry from the oracle's data slots.
 #!
 #! Inputs:  [PUBLISHER_ID, PAIR]
 #! Outputs: [ENTRY]
-export.get_entry    
+export.get_entry
     # Verifies if the publisher is registered, panics if not
-    dupw push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item dropw
+    # dupw push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item dropw
     # => [PUBLISHER_ID, PAIR]
-    
-    # Push the get_entry hash function for the publisher account (constant?)
+    debug.stack
+
+    # Push the get_entry hash function for the publisher account
     push.0x14160cfd40f9fa0d3313c559f272946a510ad3cb1894a58404c2099343cdd531
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
 
+    # Push [PUBLISHER_ID] to the top & convert it from word to felt
     swapw
-    # => [PUBLISHER_ID, GET_ENTRY_HASH, PAIR]
+    swap
+    drop
+    swap
+    drop
+    swap
+    drop
+    # => [publisher_id, GET_ENTRY_HASH, PAIR]
 
     exec.tx::execute_foreign_procedure
     # => [ENTRY]

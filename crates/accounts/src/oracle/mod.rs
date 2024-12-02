@@ -6,8 +6,7 @@ use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt, Word, ZERO};
 use miden_lib::{accounts::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
     accounts::{
-        Account, AccountCode, AccountComponent, AccountId, AccountStorage, AccountType, StorageMap,
-        StorageSlot,
+        Account, AccountCode, AccountComponent, AccountId, AccountStorage, AccountType, StorageSlot,
     },
     assembly::Library,
     assets::AssetVault,
@@ -18,8 +17,7 @@ use std::sync::{Arc, LazyLock};
 pub const ORACLE_ACCOUNT_MASM: &str = include_str!("oracle.masm");
 
 pub static ORACLE_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
-    let assembler = TransactionKernel::assembler().with_debug_mode(true);
-
+    let assembler = TransactionKernel::assembler();
     let source_manager = Arc::new(DefaultSourceManager::default());
     let oracle_component_module = Module::parser(ModuleKind::Library)
         .parse_str(
@@ -44,20 +42,24 @@ pub struct OracleAccountBuilder {
 
 impl OracleAccountBuilder {
     pub fn new(oracle_public_key: Word, oracle_account_id: AccountId) -> Self {
-        let default_slots = vec![
-            // TODO: We have to add a map at position 0 else something fails.
-            StorageSlot::Map(StorageMap::default()),
+        let default_storage_slots = vec![
+            // TODO: for some reasons, we need this leading map
+            StorageSlot::empty_map(),
             // Next publisher slot. Starts from idx 3.
-            StorageSlot::Value([Felt::new(3), ZERO, ZERO, ZERO]),
+            StorageSlot::Value([ZERO, ZERO, ZERO, Felt::new(3)]),
             // Publisher registry
-            StorageSlot::Map(StorageMap::default()),
+            StorageSlot::empty_map(),
+            // Publishers slots, 3 for now
+            StorageSlot::empty_value(),
+            StorageSlot::empty_value(),
+            StorageSlot::empty_value(),
         ];
 
         Self {
             account_id: oracle_account_id,
             account_type: AccountType::RegularAccountImmutableCode,
             public_key: oracle_public_key,
-            storage_slots: default_slots,
+            storage_slots: default_storage_slots,
             component_library: ORACLE_COMPONENT_LIBRARY.clone(),
         }
     }

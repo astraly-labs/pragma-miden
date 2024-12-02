@@ -13,16 +13,15 @@ const.ERR_PAIR_NOT_FOUND=0x0002004A
 #! Mapping containing the prices published for the fetcher.
 const.ENTRIES_MAP_SLOT=1
 
-#! Writes a new entry into the Oracle.
-#! Must be called by a registered publisher.
+#! Writes a new entry.
+#! Must be called by the publisher.
 #! The price will be stored in the publisher map for the given asset, overriding the
 #! last value.
 #!
-#! Inputs:  [pair, entry]
+#! Inputs:  [PAIR, ENTRY]
 #! Outputs: []
 #!
 export.publish_entry
-    # TODO: check error handling, how do we validate inputs?
     push.ENTRIES_MAP_SLOT exec.account::set_map_item
 
     # Only the publisher owner should be able to call this
@@ -32,16 +31,15 @@ export.publish_entry
     exec.sys::truncate_stack
 end
 
-#! Gets entry from the oracle's data slots.
+#! Get the published entry for a pair.
 #!
-#! Inputs:  [pair]
-#! Outputs: [WORD] ; Word being [pair, price, decimals, timestamp]
+#! Inputs:  [PAIR]
+#! Outputs: [ENTRY] ; Word being [pair, price, decimals, timestamp]
 #!
 export.get_entry
-    # TODO: check error handling, how do we validate inputs?
     push.ENTRIES_MAP_SLOT
-    # => [entries_map_slot, pair]
+    # => [entries_map_slot, PAIR]
     exec.account::get_map_item
-    # => [entry]
+    # => [ENTRY]
     exec.sys::truncate_stack
 end

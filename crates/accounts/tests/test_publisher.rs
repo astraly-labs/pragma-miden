@@ -42,7 +42,7 @@ fn test_publisher_write() {
     let block_ref = tx_context.tx_inputs().block_header().block_num();
 
     let pair: Felt = mock_entry().pair.try_into().unwrap();
-    let pair: Word = [pair, ZERO, ZERO, ZERO];
+    let pair: Word = [ZERO, ZERO, ZERO, pair];
 
     // Create transaction script to write the data to the oracle account
     let tx_script_code = format!(
@@ -66,11 +66,11 @@ fn test_publisher_write() {
         entry = word_to_masm(entry_as_word)
     );
 
-    let assembler = TransactionKernel::assembler();
     let tx_script = TransactionScript::compile(
         tx_script_code,
         [],
-        assembler
+        TransactionKernel::testing_assembler()
+            .with_debug_mode(true)
             .with_library(PUBLISHER_COMPONENT_LIBRARY.as_ref())
             .expect("adding publisher library should not fail")
             .clone(),
@@ -104,11 +104,12 @@ fn test_publisher_read() {
     let entry: Word = mock_entry().try_into().unwrap();
 
     let pair: Felt = mock_entry().pair.try_into().unwrap();
-    let pair: Word = [pair, ZERO, ZERO, ZERO];
+    let pair: Word = [ZERO, ZERO, ZERO, pair];
 
     let publisher_account = PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id)
         .with_storage_slots(vec![
-            StorageSlot::Map(StorageMap::default()),
+            // TODO: For some reasons, we have to add this leading slot storage.
+            StorageSlot::empty_map(),
             StorageSlot::Map(
                 StorageMap::with_entries(vec![(RpoDigest::from(pair), entry)]).unwrap(),
             ),
@@ -169,7 +170,9 @@ fn test_publisher_read() {
     let block_ref = tx_context.tx_inputs().block_header().block_num();
 
     let mut executor: TransactionExecutor =
-        TransactionExecutor::new(Arc::new(tx_context.clone()), None).with_tracing();
+        TransactionExecutor::new(Arc::new(tx_context.clone()), None)
+            .with_debug_mode(true)
+            .with_tracing();
 
     // load the foreign account's code into the transaction executor
     executor.load_account_code(publisher_account.code());
@@ -196,22 +199,13 @@ fn test_publisher_read_fails_if_pair_not_found() {
     let publisher_account_id = AccountId::try_from(10376293541461622847_u64).unwrap();
     let entry: Word = mock_entry().try_into().unwrap();
 
-    let pair: Felt = mock_entry().pair.try_into().unwrap();
-    let mut pair_word: Word = [pair, ZERO, ZERO, ZERO];
     // In this test we have 2 accounts:
     // - Publisher account -> contains entries
     // - Native account -> tries to read data from the publisher account
-    let publisher_account = PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id)
-        .with_storage_slots(vec![
-            StorageSlot::Map(StorageMap::default()),
-            StorageSlot::Map(
-                StorageMap::with_entries(vec![(RpoDigest::from(pair_word), entry)]).unwrap(),
-            ),
-        ])
-        .build();
+    let publisher_account =
+        PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id).build();
 
-    // We change pair definition
-    pair_word = [pair + Felt::new(1), ZERO, ZERO, ZERO];
+    let non_existing_pair = [ZERO, ZERO, ZERO, Felt::new(1)];
 
     let (regular_pub_key, _) = new_pk_and_authenticator([1_u8; 32]);
     let native_account = RegularAccountBuilder::new(regular_pub_key).build();
@@ -230,8 +224,8 @@ fn test_publisher_read_fails_if_pair_not_found() {
 
         begin
             # push the pair stored in the map
-            push.{pair_word}
-            # => [pair_word]
+            push.{non_existing_pair}
+            # => [non_existing_pair]
 
             # get the hash of the `get_entry` account procedure
             push.{get_entry_hash}
@@ -250,7 +244,7 @@ fn test_publisher_read_fails_if_pair_not_found() {
             exec.sys::truncate_stack
         end
         ",
-        pair_word = word_to_masm(pair_word),
+        non_existing_pair = word_to_masm(non_existing_pair),
         publisher_account_id = publisher_account.id(),
         get_entry_hash = publisher_account.code().procedures()[1].mast_root(),
         entry = word_to_masm(entry),
@@ -268,7 +262,9 @@ fn test_publisher_read_fails_if_pair_not_found() {
     let block_ref = tx_context.tx_inputs().block_header().block_num();
 
     let mut executor: TransactionExecutor =
-        TransactionExecutor::new(Arc::new(tx_context.clone()), None).with_tracing();
+        TransactionExecutor::new(Arc::new(tx_context.clone()), None)
+            .with_debug_mode(true)
+            .with_tracing();
 
     // load the foreign account's code into the transaction executor
     executor.load_account_code(publisher_account.code());

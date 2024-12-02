@@ -6,8 +6,7 @@ use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt, Word};
 use miden_lib::{accounts::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
     accounts::{
-        Account, AccountCode, AccountComponent, AccountId, AccountStorage, AccountType, StorageMap,
-        StorageSlot,
+        Account, AccountCode, AccountComponent, AccountId, AccountStorage, AccountType, StorageSlot,
     },
     assembly::Library,
     assets::AssetVault,
@@ -18,8 +17,7 @@ use std::sync::{Arc, LazyLock};
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 
 pub static PUBLISHER_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
-    let assembler = TransactionKernel::assembler().with_debug_mode(true);
-
+    let assembler = TransactionKernel::assembler();
     let source_manager = Arc::new(DefaultSourceManager::default());
     let publisher_component_module = Module::parser(ModuleKind::Library)
         .parse_str(
@@ -44,18 +42,17 @@ pub struct PublisherAccountBuilder {
 
 impl PublisherAccountBuilder {
     pub fn new(publisher_public_key: Word, publisher_account_id: AccountId) -> Self {
-        let default_slots = vec![
-            // TODO: We needed to have this first storage else it fails :)
-            StorageSlot::Map(StorageMap::default()),
+        let default_storage_slots = vec![
+            // TODO: for some reasons, we need this leading map
+            StorageSlot::empty_map(),
             // Entries map
-            StorageSlot::Map(StorageMap::default()),
+            StorageSlot::empty_map(),
         ];
-
         Self {
             account_id: publisher_account_id,
             account_type: AccountType::RegularAccountUpdatableCode,
             public_key: publisher_public_key,
-            storage_slots: default_slots,
+            storage_slots: default_storage_slots,
             component_library: PUBLISHER_COMPONENT_LIBRARY.clone(),
         }
     }

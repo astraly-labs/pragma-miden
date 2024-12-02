@@ -9,10 +9,9 @@ use miden_objects::{
 
 use miden_tx::{testing::MockChain, TransactionExecutor};
 use pm_accounts::{
-    oracle::OracleAccountBuilder,
+    oracle::{OracleAccountBuilder, ORACLE_COMPONENT_LIBRARY},
     publisher::PublisherAccountBuilder,
     utils::{new_pk_and_authenticator, word_to_masm},
-    RegularAccountBuilder,
 };
 use pm_types::{Currency, Entry, Pair};
 use std::sync::Arc;
@@ -20,44 +19,50 @@ use std::sync::Arc;
 #[test]
 fn test_oracle_get_entry() {
     //  SETUP
-    //  In this test we have 3 accounts:
+    //  In this test we have 2 accounts:
     //    - Publisher account -> contains entries published
-    //    - Oracle account -> contains registered publisher
-    //    - Native account -> calls the Oracle to get the entry published
+    //    - Oracle account -> contains registered publisher & can read_entry
     // --------------------------------------------------------------------------------------------
-    let entry: Word = mock_entry().try_into().unwrap();
-    let pair: Felt = entry[0];
-    let pair_word: Word = [pair, ZERO, ZERO, ZERO];
+    let entry = mock_entry();
+    let entry_as_word: Word = entry.try_into().unwrap();
+    let pair: Felt = entry_as_word[0];
+    let pair_word: Word = [ZERO, ZERO, ZERO, pair];
 
     let (publisher_pub_key, _) = new_pk_and_authenticator([0_u8; 32]);
     let publisher_id = 12345_u64;
-    let publisher_id_word = [Felt::new(publisher_id), ZERO, ZERO, ZERO];
+    let publisher_id_word = [ZERO, ZERO, ZERO, Felt::new(publisher_id)];
     let publisher_account_id = AccountId::try_from(publisher_id).unwrap();
     let publisher_account = PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id)
         .with_storage_slots(vec![
-            // TODO: For some reasons, we have to add this map at index 0.
-            StorageSlot::Map(StorageMap::default()),
+            // TODO: We need a leading empty map else indexing goes wrong.
+            StorageSlot::empty_map(),
             // Entries map
             StorageSlot::Map(
-                StorageMap::with_entries(vec![(RpoDigest::from(pair_word), entry)]).unwrap(),
+                StorageMap::with_entries(vec![(
+                    // The key is the pair id
+                    RpoDigest::from(pair_word),
+                    // The value is the entry
+                    entry_as_word,
+                )])
+                .unwrap(),
             ),
         ])
         .build();
 
-    let (oracle_pub_key, _) = new_pk_and_authenticator([1_u8; 32]);
+    let (oracle_pub_key, oracle_auth) = new_pk_and_authenticator([1_u8; 32]);
     let oracle_id = 98765_u64;
     let oracle_account_id = AccountId::try_from(oracle_id).unwrap();
     let oracle_account = OracleAccountBuilder::new(oracle_pub_key, oracle_account_id)
         .with_storage_slots(vec![
             // TODO: For some reasons, we have to add this map at index 0.
-            StorageSlot::Map(StorageMap::default()),
+            StorageSlot::empty_map(),
             // Next publisher slot. Starts from idx 4 for our test since 3 is already populated.
-            StorageSlot::Value([Felt::new(4), ZERO, ZERO, ZERO]),
+            StorageSlot::Value([ZERO, ZERO, ZERO, Felt::new(4)]),
             // Publisher registry
             StorageSlot::Map(
                 StorageMap::with_entries(vec![(
                     RpoDigest::new(publisher_id_word),
-                    [Felt::new(3), ZERO, ZERO, ZERO],
+                    [ZERO, ZERO, ZERO, Felt::new(3)],
                 )])
                 .unwrap(),
             ),
@@ -65,93 +70,67 @@ fn test_oracle_get_entry() {
         ])
         .build();
 
-    let (regular_pub_key, _) = new_pk_and_authenticator([2_u8; 32]);
-    let native_account = RegularAccountBuilder::new(regular_pub_key).build();
-
-    let mut mock_chain = MockChain::with_accounts(&[
-        publisher_account.clone(),
-        oracle_account.clone(),
-        native_account.clone(),
-    ]);
+    let mut mock_chain =
+        MockChain::with_accounts(&[publisher_account.clone(), oracle_account.clone()]);
     mock_chain.seal_block(None);
 
-    let advice_inputs = FpiAdviceBuilder::new(&mock_chain)
-        .with_account(&oracle_account)
-        .with_account(&publisher_account)
-        .build();
-
-    // storage read
-    let code = format!(
+    let tx_script_code = format!(
         "
+        use.oracle_component::oracle_module
         use.std::sys
-        use.miden::tx
 
         begin
-            # push the pair we want to read
             push.{pair}
-            # => [PAIR]
-
-            # push the publisher we want to read=
             push.{publisher_id}
-            # => [publisher_id, PAIR]
 
-            # get the hash of the `get_entry` account procedure
-            push.{get_entry_hash}
-            # => [GET_ENTRY_PROCEDURE_HASH, publisher_id, PAIR]
+            call.oracle_module::get_entry
 
-            # push the foreign account id
-            push.{oracle_account_id}
-            # => [oracle_account_id, GET_ENTRY_PROCEDURE_HASH, publisher_id, PAIR]
+            push.{entry} assert_eqw
 
-            exec.tx::execute_foreign_procedure
-            # => [ENTRY]
-
-            # ===== TODO: Assertion =====
-
-            # truncate the stack
             exec.sys::truncate_stack
         end
         ",
         pair = word_to_masm(pair_word),
         publisher_id = publisher_account.id(),
-        oracle_account_id = oracle_account.id(),
-        // TODO: So here, [1] works... even though get_entry is supposed to be 0.
-        get_entry_hash = oracle_account.code().procedures()[1].mast_root(),
+        entry = word_to_masm(entry_as_word),
     );
 
-    let assembler = TransactionKernel::testing_assembler();
-    let tx_script = TransactionScript::compile(code, vec![], assembler).unwrap();
+    let tx_script = TransactionScript::compile(
+        tx_script_code,
+        [],
+        TransactionKernel::testing_assembler()
+            .with_library(ORACLE_COMPONENT_LIBRARY.as_ref())
+            .expect("adding oracle library should not fail")
+            .clone(),
+    )
+    .unwrap();
+
+    let advice_inputs = FpiAdviceBuilder::new(&mock_chain)
+        .with_account(&publisher_account)
+        .build();
+
     let tx_context = mock_chain
-        .build_tx_context(native_account.id(), &[], &[])
-        .advice_inputs(advice_inputs.clone())
+        .build_tx_context(oracle_account.id(), &[], &[])
+        .advice_inputs(advice_inputs)
         .tx_script(tx_script)
         .build();
 
-    let mut executor = TransactionExecutor::new(Arc::new(tx_context.clone()), None)
-        .with_debug_mode(true)
-        .with_tracing();
+    let mut executor =
+        TransactionExecutor::new(Arc::new(tx_context.clone()), Some(oracle_auth.clone()))
+            .with_debug_mode(true)
+            .with_tracing();
 
     // load the foreign account's code into the transaction executor
-    executor.load_account_code(oracle_account.code());
     executor.load_account_code(publisher_account.code());
 
-    // execute the transactions.
-    let block_ref = tx_context.tx_inputs().block_header().block_num();
-
-    println!("Key: {:?}", publisher_id_word);
-    println!(
-        "Value: {:?}",
-        oracle_account.storage().get_map_item(3, publisher_id_word)
-    );
-
-    executor
+    // execute the tx. The test assertion is made in the masm script.
+    let _ = executor
         .execute_transaction(
-            native_account.id(),
-            block_ref,
+            oracle_account.id(),
+            tx_context.tx_inputs().block_header().block_num(),
             &[],
             tx_context.tx_args().clone(),
         )
-        .map_err(|e| e.to_string())
         .unwrap();
 }
 
