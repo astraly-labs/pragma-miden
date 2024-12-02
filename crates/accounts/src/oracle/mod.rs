@@ -80,6 +80,7 @@ impl OracleAccountBuilder {
             .with_supported_type(self.account_type);
 
         let components = [
+            // If inverted, gives error Not Native account
             RpoFalcon512::new(PublicKey::new(self.public_key)).into(),
             oracle_component,
         ];
