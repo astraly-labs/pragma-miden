@@ -2,12 +2,6 @@ use.std::sys
 use.miden::account
 use.miden::tx
 
-# EVENTS
-# =================================================================================================
-
-# Emitted when a new publisher is registered.
-const.NEW_PUBLISHER_REGISTERED=0x4e4557
-
 # CONSTANTS
 # =================================================================================================
 
@@ -24,7 +18,7 @@ const.PUBLISHER_REGISTRY_MAP_SLOT=2
 #! Example:
 #! [WORD[1, 0, 0, 0]] will be updated to [1]
 proc.word_to_felt
-  swap.3 drop drop drop
+    drop drop drop
 end
 
 #! Gets entry from the oracle's data slots.
@@ -93,8 +87,6 @@ export.register_publisher
     push.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
     # => [NEXT_PUBLISHER_SLOT, PUBLISHER_ID, PUBLISHER_ID]
 
-    debug.stack
-
     # Prepare the stack for the set_item and set_map_item calls
     dupw movdnw.2 exec.word_to_felt
     # => [next_publisher_slot, PUBLISHER_ID, NEXT_PUBLISHER_SLOT, PUBLISHER_ID]
@@ -111,10 +103,9 @@ export.register_publisher
     push.NEXT_PUBLISHER_INDEX_SLOT add.1
     # => [PUBLISHER_ID]
 
-    # Emit event about new publisher registration
-    emit.NEW_PUBLISHER_REGISTERED
-
     # Only the oracle owner should be able to call this
     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
     drop
+
+    exec.sys::truncate_stack
 end

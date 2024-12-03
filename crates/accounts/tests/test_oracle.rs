@@ -225,14 +225,12 @@ fn test_oracle_register_publisher() {
         .apply_delta(executed_transaction.account_delta())
         .unwrap();
 
-    let expected_publisher_slot: Word = [Felt::new(3), ZERO, ZERO, ZERO];
-
     assert_eq!(
         oracle_account
             .storage()
             .get_map_item(1, publisher_id_word)
             .unwrap(),
-        expected_publisher_slot
+        [Felt::new(3), ZERO, ZERO, ZERO]
     );
     assert_eq!(
         oracle_account.storage().get_item(3).unwrap(),
