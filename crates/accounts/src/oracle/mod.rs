@@ -46,7 +46,7 @@ impl OracleAccountBuilder {
             // TODO: for some reasons, we need this leading map
             StorageSlot::empty_map(),
             // Next publisher slot. Starts from idx 3.
-            StorageSlot::Value([ZERO, ZERO, ZERO, Felt::new(3)]),
+            StorageSlot::Value([Felt::new(3), ZERO, ZERO, ZERO]),
             // Publisher registry
             StorageSlot::empty_map(),
             // Publishers slots, 3 for now

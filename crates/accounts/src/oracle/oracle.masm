@@ -2,6 +2,12 @@ use.std::sys
 use.miden::account
 use.miden::tx
 
+# EVENTS
+# =================================================================================================
+
+# Emitted when a new publisher is registered.
+const.NEW_PUBLISHER_REGISTERED=0x4e4557
+
 # CONSTANTS
 # =================================================================================================
 
@@ -13,13 +19,19 @@ const.NEXT_PUBLISHER_INDEX_SLOT=1
 # so we can assign it a slot.
 const.PUBLISHER_REGISTRY_MAP_SLOT=2
 
+#! Updates the word on top of the stack to a felt.
+#! The felt will be the first element of the word.
+#! Example:
+#! [WORD[1, 0, 0, 0]] will be updated to [1]
+proc.word_to_felt
+  swap.3 drop drop drop
+end
+
 #! Gets entry from the oracle's data slots.
 #!
 #! Inputs:  [PUBLISHER_ID, PAIR]
 #! Outputs: [ENTRY]
 export.get_entry
-    debug.stack
-    
     # Verifies if the publisher is registered, panics if not
     # dupw push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item dropw
     # => [PUBLISHER_ID, PAIR]
@@ -29,7 +41,7 @@ export.get_entry
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
 
     # Push [PUBLISHER_ID] to the top & convert it from word to felt
-    swapw swap drop swap drop swap drop
+    swapw exec.word_to_felt
     # => [publisher_id, GET_ENTRY_HASH, PAIR]
 
     exec.tx::execute_foreign_procedure
@@ -66,19 +78,41 @@ end
 #! Will reserve a storage slot for the publisher if it's not already registered,
 #! which mean this publisher will be able to publish data.
 #!
-#! Inputs:  [publisher_id]
+#! Inputs:  [PUBLISHER_ID]
 #! Outputs: []
 #!
 export.register_publisher
-    # check if it is not already present in the registry, if yes raise err (get_map_item)
-    
-    # assign NEXT_PUBLISHER_INDEX_SLOT to the caller and store in the registry map (set_map_item)
-    push.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
-    # => [next_publisher_slot, publisher_id]
+    # Check if it is not already present in the registry, if yes raise err (get_map_item)
+    # TODO: How?
 
-    # increment NEXT_PUBLISHER_INDEX_SLOT
-    add.1
-    push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::set_item
+    # Duplicate the publisher id
+    dupw
+    # => [PUBLISHER_ID, PUBLISHER_ID]
+
+    # Assign NEXT_PUBLISHER_INDEX_SLOT to the caller and store in the registry map (set_map_item)
+    push.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
+    # => [NEXT_PUBLISHER_SLOT, PUBLISHER_ID, PUBLISHER_ID]
+
+    debug.stack
+
+    # Prepare the stack for the set_item and set_map_item calls
+    dupw movdnw.2 exec.word_to_felt
+    # => [next_publisher_slot, PUBLISHER_ID, NEXT_PUBLISHER_SLOT, PUBLISHER_ID]
+
+    # Store the publisher into its assigned slot
+    exec.account::set_item
+    # => [NEXT_PUBLISHER_SLOT, PUBLISHER_ID]
+
+    # Register the publisher into its mapping
+    push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::set_map_item
+    # => []
+
+    # Increment NEXT_PUBLISHER_INDEX_SLOT
+    push.NEXT_PUBLISHER_INDEX_SLOT add.1
+    # => [PUBLISHER_ID]
+
+    # Emit event about new publisher registration
+    emit.NEW_PUBLISHER_REGISTERED
 
     # Only the oracle owner should be able to call this
     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512

@@ -42,7 +42,7 @@ fn test_publisher_write() {
     let block_ref = tx_context.tx_inputs().block_header().block_num();
 
     let pair: Felt = mock_entry().pair.try_into().unwrap();
-    let pair: Word = [ZERO, ZERO, ZERO, pair];
+    let pair: Word = [pair, ZERO, ZERO, ZERO];
 
     // Create transaction script to write the data to the oracle account
     let tx_script_code = format!(

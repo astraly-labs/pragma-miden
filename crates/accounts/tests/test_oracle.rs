@@ -57,12 +57,12 @@ fn test_oracle_get_entry() {
             // TODO: For some reasons, we have to add this map at index 0.
             StorageSlot::empty_map(),
             // Next publisher slot. Starts from idx 4 for our test since 3 is already populated.
-            StorageSlot::Value([ZERO, ZERO, ZERO, Felt::new(4)]),
+            StorageSlot::Value([Felt::new(4), ZERO, ZERO, ZERO]),
             // Publisher registry
             StorageSlot::Map(
                 StorageMap::with_entries(vec![(
                     RpoDigest::new(publisher_id_word),
-                    [ZERO, ZERO, ZERO, Felt::new(3)],
+                    [Felt::new(3), ZERO, ZERO, ZERO],
                 )])
                 .unwrap(),
             ),
@@ -163,6 +163,83 @@ fn test_oracle_get_entry() {
         .unwrap();
 }
 
+#[test]
+fn test_oracle_register_publisher() {
+    let (oracle_pub_key, oracle_auth) = new_pk_and_authenticator([1_u8; 32]);
+    let oracle_id = 98765_u64;
+    let oracle_account_id = AccountId::try_from(oracle_id).unwrap();
+    let mut oracle_account = OracleAccountBuilder::new(oracle_pub_key, oracle_account_id).build();
+
+    let mut mock_chain = MockChain::with_accounts(&[oracle_account.clone()]);
+    mock_chain.seal_block(None);
+
+    let publisher_id = 12345_u64;
+    let publisher_id_word = [Felt::new(publisher_id), ZERO, ZERO, ZERO];
+    let publisher_account_id = AccountId::try_from(publisher_id).unwrap();
+
+    let tx_script_code = format!(
+        "
+        use.oracle_component::oracle_module
+        use.std::sys
+
+        begin
+            push.{publisher_account_id}
+            call.oracle_module::register_publisher
+            exec.sys::truncate_stack
+        end
+        ",
+    );
+
+    let tx_script = TransactionScript::compile(
+        tx_script_code,
+        [],
+        TransactionKernel::testing_assembler()
+            .with_library(ORACLE_COMPONENT_LIBRARY.as_ref())
+            .expect("adding oracle library should not fail")
+            .with_debug_mode(true)
+            .clone(),
+    )
+    .unwrap();
+
+    let tx_context = mock_chain
+        .build_tx_context(oracle_account.id(), &[], &[])
+        .tx_script(tx_script)
+        .build();
+
+    let executor =
+        TransactionExecutor::new(Arc::new(tx_context.clone()), Some(oracle_auth.clone()))
+            .with_debug_mode(true)
+            .with_tracing();
+
+    // execute the tx. The test assertion is made in the masm script.
+    let executed_transaction = executor
+        .execute_transaction(
+            oracle_account.id(),
+            tx_context.tx_inputs().block_header().block_num(),
+            &[],
+            tx_context.tx_args().clone(),
+        )
+        .unwrap();
+
+    oracle_account
+        .apply_delta(executed_transaction.account_delta())
+        .unwrap();
+
+    let expected_publisher_slot: Word = [Felt::new(3), ZERO, ZERO, ZERO];
+
+    assert_eq!(
+        oracle_account
+            .storage()
+            .get_map_item(1, publisher_id_word)
+            .unwrap(),
+        expected_publisher_slot
+    );
+    assert_eq!(
+        oracle_account.storage().get_item(3).unwrap(),
+        RpoDigest::new(publisher_id_word)
+    );
+}
+
 // HELPER FUNCTIONS
 // ================================================================================================
 
@@ -201,7 +278,6 @@ impl<'a> FpiAdviceBuilder<'a> {
         let mut advice_map = Vec::new();
         let mut inputs = AdviceInputs::default().with_merkle_store(self.chain.accounts().into());
 
-        // Process each account just like the original function
         for account in &self.accounts {
             let foreign_id_root = Digest::from([account.id().into(), ZERO, ZERO, ZERO]);
             let foreign_id_and_nonce = [account.id().into(), ZERO, ZERO, account.nonce()];
