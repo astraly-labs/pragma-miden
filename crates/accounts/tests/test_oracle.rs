@@ -228,13 +228,17 @@ fn test_oracle_register_publisher() {
     assert_eq!(
         oracle_account
             .storage()
-            .get_map_item(1, publisher_id_word)
+            .get_map_item(3, publisher_id_word)
             .unwrap(),
         [Felt::new(3), ZERO, ZERO, ZERO]
     );
     assert_eq!(
-        oracle_account.storage().get_item(3).unwrap(),
+        oracle_account.storage().get_item(4).unwrap(),
         RpoDigest::new(publisher_id_word)
+    );
+    assert_eq!(
+        oracle_account.storage().get_item(2).unwrap(),
+        RpoDigest::new([Felt::new(4), ZERO, ZERO, ZERO])
     );
 }
 

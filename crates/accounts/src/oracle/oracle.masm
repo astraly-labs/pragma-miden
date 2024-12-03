@@ -16,9 +16,44 @@ const.PUBLISHER_REGISTRY_MAP_SLOT=2
 #! Updates the word on top of the stack to a felt.
 #! The felt will be the first element of the word.
 #! Example:
-#! [WORD[1, 0, 0, 0]] will be updated to [1]
+#! [WORD[0, 0, 0, 1]] will be updated to [1]
 proc.word_to_felt
     drop drop drop
+end
+
+#! Check if the top element of the stack is greater or equal than the second
+#! element on the stack.
+#! Example:
+#! [1, 2] will update the stack to [0, 1, 2].
+proc.is_lower
+    dup 
+    # => [1, 1, 2]
+    movup.2 dup
+    # => [2, 2, 1, 1]
+    swap.3
+    # => [1, 2, 1, 2]
+    gt
+    # => [1, 2]
+end
+
+#! Calls the PUBLISHER_ID get_entry procedure.
+#! Expected the [PUBLISHER_ID, PAIR] words on top of the stack.
+proc.call_publisher_get_entry
+    push.0x14160cfd40f9fa0d3313c559f272946a510ad3cb1894a58404c2099343cdd531
+    # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
+    swapw exec.word_to_felt
+    # => [publisher_id, GET_ENTRY_HASH, PAIR]
+    exec.tx::execute_foreign_procedure
+    # => [ENTRY]
+end
+
+#! Drop n entries from a stack of entries
+#! Expected [index_to_keep, price_0, ..., price_1]
+proc.only_keep_n
+    add.1 push.0.0.0
+
+    push.1
+
 end
 
 #! Gets entry from the oracle's data slots.
@@ -31,15 +66,7 @@ export.get_entry
     # => [PUBLISHER_ID, PAIR]
 
     # Push the get_entry hash function for the publisher account
-    push.0x14160cfd40f9fa0d3313c559f272946a510ad3cb1894a58404c2099343cdd531
-    # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
-
-    # Push [PUBLISHER_ID] to the top & convert it from word to felt
-    swapw exec.word_to_felt
-    # => [publisher_id, GET_ENTRY_HASH, PAIR]
-
-    exec.tx::execute_foreign_procedure
-    # => [ENTRY]
+    exec.call_publisher_get_entry
 
     # Truncate if necessary
     exec.sys::truncate_stack
@@ -47,21 +74,54 @@ end
 
 #! Gets the median price of a given asset.
 #!
-#! Inputs:  [ASSET]
+#! Inputs:  [PAIR]
 #! Outputs: [PRICE]
 #!
 export.get_median
-    # 1. iterate from 2 to NEXT_PUBLISHER_INDEX_SLOT value.
+    # Iterate from 3 to NEXT_PUBLISHER_INDEX_SLOT value.
+    push.NEXT_PUBLISHER_INDEX_SLOT.3 exec.is_lower
+    # => [3, next_publisher_slot, PAIR]
 
-    # 2. for each slot, get the publisher id and call get_entry.
+    while.true
+        dup.2
+        # => [PAIR, 3, next_publisher_slot, PAIR]
 
-    # 3. sort the entries, see sorting algorithms here: https://github.com/0xPolygonMiden/examples/pulls
+        # Get the publisher id at slot [top of the stack]
+        dup exec.account::get_item
+        # => [PUBLISHER_ID, PAIR, 3, next_publisher_slot, PAIR]
 
-    # 4. compute median
+        # Call get_entry
+        push.0.0 exec.call_publisher_get_entry
+        # => [ENTRY, 0, 0, 3, next_publisher_slot, PAIR]
 
-    # 5. return median
+        # Push the entry at the back of the stack
+        movdnw.2 drop drop
+        # => [3, next_publisher_slot, PAIR, ENTRY_N]
 
-    # 6. increments the nonce (anyone should be able to call that function)
+        # Increment the next index and check if there's still publishers to process
+        add.1 exec.is_lower
+        # => [4, next_publisher_slot, PAIR, ENTRY_N]
+    end
+
+    # Drop the utilities used to get all the entries
+    drop drop dropw
+    # => [ENTRY_0, ..., ENTRY_N]
+
+    # Sort the entries, see sorting algorithms here: https://github.com/0xPolygonMiden/examples/pulls
+    # => [ENTRY_0, ..., ENTRY_N]
+
+    # Compute median
+    push.NEXT_PUBLISHER_INDEX_SLOT.3 sub dup
+    # => [nb_of_entries, nb_of_entries, ENTRY_0, ..., ENTRY_N]
+    
+    is_odd if.true
+        # retrieve LIST_ENTRIES[NEXT_PUBLISHER_INDEX_SLOT/2]
+
+    else
+        # compute (LIST_ENTRIES[NEXT_PUBLISHER_INDEX_SLOT/2 - 1] + LIST_ENTRIES[NEXT_PUBLISHER_INDEX_SLOT/2])/2
+    end
+
+    # increments the nonce (anyone should be able to call that function)
     push.1 exec.account::incr_nonce
 
     dropw
@@ -83,7 +143,7 @@ export.register_publisher
     dupw
     # => [PUBLISHER_ID, PUBLISHER_ID]
 
-    # Assign NEXT_PUBLISHER_INDEX_SLOT to the caller and store in the registry map (set_map_item)
+    # Retrieve the next_publisher_slot available from the slot
     push.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
     # => [NEXT_PUBLISHER_SLOT, PUBLISHER_ID, PUBLISHER_ID]
 
@@ -100,8 +160,15 @@ export.register_publisher
     # => []
 
     # Increment NEXT_PUBLISHER_INDEX_SLOT
-    push.NEXT_PUBLISHER_INDEX_SLOT add.1
-    # => [PUBLISHER_ID]
+    push.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
+    # => [PUBLISHER_INDEX_SLOT]
+
+    # Update the storage value
+    swap.3 add.1 swap.3
+    # => [PUBLISHER_INDEX_SLOT+1]
+
+    push.NEXT_PUBLISHER_INDEX_SLOT exec.account::set_item
+    # => []
 
     # Only the oracle owner should be able to call this
     call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
