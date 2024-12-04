@@ -100,7 +100,7 @@ proc.ram_bubble_sort
     # Initialize outer loop counter
     dup push.1 sub
     # [n-1, n]
-    
+    push.1
     while.true
         # Initialize inner loop counter j=0
         push.0
@@ -249,7 +249,7 @@ export.get_median
     # => [4]
 
     # Sort the entries stored on the RAM
-    exec.ram_bubble_sort
+    dup exec.ram_bubble_sort
     # => [4]
 
     # Retrieves the median from the sorted RAM entries
