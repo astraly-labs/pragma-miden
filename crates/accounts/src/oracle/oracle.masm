@@ -97,49 +97,73 @@ end
 #! Inputs:  [nb_of_entries]
 #! Output:  []
 proc.ram_bubble_sort
-    # Initialize outer loop counter
-    dup push.1 sub
-    # [n-1, n]
+    # This is the outer counter
+    dup
+    # => [N, N]
+    sub.1 dup
+    # => [N-1(i),N-1(i),N]
     push.1
+    # => [1,N-1(i),N-1(i),N]
+    gt
     while.true
-        # Initialize inner loop counter j=0
+        # => [N-1(i),N]
+        dup
+        # => [N-1(i),N-1(i),N]
+        # => Inner index
         push.0
-        # [j=0, i, n]
-        
-        # Inner loop condition: j < n-i-1
-        dup.2 dup.2 sub sub.1 dup.2 lt
+        # => [0(j), N-1(i),N-1(i),N]
+        dup 
+        # => [0(j),0(j), N-1(i),N-1(i),N]
+        swap.2
+        # => [N-1(i),0(j),0(j),N-1(i),N]
+        # We exit this loop if j > i-1
+        lte
+        # => [bool,N-1(i),0(j),N]
         while.true
-            # Compare and swap if needed
-            dup dup.1 add.1
-            # [j, j+1, j, i, n]
-            exec.ram_is_lower
-            # [is_lower, j, j+1]
-            if.true
-                exec.ram_swap
-            else
-                drop drop drop
-            end
-            
-            # Increment j
+            # => [0(j),N-1(i),N]
+            dup
+            # => [0(j),0(j),N-1(i),N]
             add.1
-            # [j+1, i, n]
-            
-            # Check inner loop condition
-            dup.2 dup.2 sub sub.1 dup.2 lt
-        end
-        
+            # => [0(j)+1,0(j),N-1(i),N]
+            swap
+            # => [0(j),0(j)+1,N-1(i),N]
+            exec.ram_is_lower
+            # => [bool, 0(j),0(j)+1,N-1(i),N]
+            if.true
+            else
+                dup 
+                # => [0(j),0(j),0(j)+1,N-1(i),N]
+                dup.2
+                # => [0(j)+1,0(j),0(j),0(j)+1,N-1(i),N]
+                swap
+                # => [0(j),0(j)+1,0(j),0(j)+1,N-1(i),N]
+                exec.ram_swap
+                # => [0(j),0(j)+1,N-1(i),N]
+            end
+            drop
+            # => [0(j)+1,N-1(i),N]
+            dup
+            # => [0(j)+1,0(j)+1,N-1(i),N]
+            dup.2
+            # => [N-1(i),0(j)+1,0(j)+1,N-1(i),N]
+            lt
+            # => [bool,0(j)+1,N-1(i),N]
+        end 
+        # => [0(j)+1,N-1(i),N]
         drop
-        # [i, n]
-        
-        # Decrement i
+        # => [N-1(i),N]
         sub.1
-        # [i-1, n]
-        
-        # Check outer loop condition
-        dup push.0 gt
+        # => [N-2(i-1),N]
+        dup
+        # => [N-2(i-1),N-2(i-1),N]
+        push.1
+        # => [1,N-2(i-1),N-2(i-1),N]
+        gte
+        # => [bool,N-2(i-1),N]
     end
     drop
 end
+
 
 #! Reads from the sorted entries on the RAM and get the median.
 #! ⚠ The RAM must be sorted before!
