@@ -1,4 +1,5 @@
 use.std::sys
+use.std::math::u64
 use.miden::account
 use.miden::tx
 
@@ -31,8 +32,10 @@ proc.felt_is_lower
     # => [1, 2]
 end
 
-#! Calls the PUBLISHER_ID get_entry procedure.
-#! Expected the [PUBLISHER_ID, PAIR] words on top of the stack.
+#! Calls the PUBLISHER_ID get_entry procedure of the provided account.
+#!
+#! Inputs: [PUBLISHER_ID, PAIR]
+#! Output: [ENTRY]
 proc.call_publisher_get_entry
     push.0x14160cfd40f9fa0d3313c559f272946a510ad3cb1894a58404c2099343cdd531
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
@@ -44,8 +47,10 @@ end
 
 #! Swaps two elements stored in the ram at index (i, j).
 #! Input is taken from the stack, example:
-#! => [i, j]
-proc.swap_ram
+#!
+#! Inputs: [i, j]
+#! Output: []
+proc.ram_swap
   dup
   # => [i, i, j]
   push.0.0.0.0 movup.4 mem_loadw
@@ -87,19 +92,135 @@ end
 #! Sort the N entries in the RAM using a Bubble Sort.
 #! All the elements must already be stored on the RAM and the top of
 #! the stack must include the length of the entries.
-proc.bubble_sort_ram
+#! Inputs:  [nb_of_entries]
+#!
+#! Output:  [nb_of_entries]
+
+#! procedure tri_bulles(T)
+#! 2: N ← taille de T
+#! 3: pour i de N − 1 à 1 faire
+#! 4: pour j de 0 à i − 1 faire
+#! 5: si T[j] > T[j + 1] alors
+#! 6: échanger T[j] et T[j + 1]
+#! 7: fin si
+#! 8: fin pour
+#! 9: fin pour
+#! 10: fin procedure
+proc.ram_bubble_sort
+    # This is the outer counter
+    dup
+    # => [N, N]
+    sub.1 dup
+    # => [N-1(i),N-1(i),N]
+    push.1
+    # => [1,N-1(i),N-1(i),N]
+    lt
+    while.true
+        # => [N-1(i),N]
+        dup
+        # => [N-1(i),N-1(i),N]
+        # => Inner index
+        push.0
+        # => [0(j), N-1(i),N-1(i),N]
+        dup 
+        # => [0(j),0(j), N-1(i),N-1(i),N]
+        swap.2
+        # => [0(j),N-1(i),0(j),N-1(i),N]
+        # We exit this loop if j >= i-1
+        lte
+        while.true
+            # => [0(j),N-1(i),N]
+            dup
+            # => [0(j),0(j),N-1(i),N]
+            add.1
+            # => [0(j)+1,0(j),N-1(i),N]
+            swap
+            # => [0(j),0(j)+1,N-1(i),N]
+            exec.ram_is_lower
+            # => [bool, 0(j),0(j)+1,N-1(i),N]
+            if.true
+            else
+                dup 
+                # => [0(j),0(j),0(j)+1,N-1(i),N]
+                dup.2
+                # => [0(j)+1,0(j),0(j),0(j)+1,N-1(i),N]
+                swap
+                # => [0(j),0(j)+1,0(j),0(j)+1,N-1(i),N]
+                exec.ram_swap
+                # => [0(j),0(j)+1,N-1(i),N]
+            end
+            drop
+            # => [0(j)+1,N-1(i),N]
+            dup
+            # => [0(j)+1,0(j)+1,N-1(i),N]
+            dup.2
+            # => [N-1(i),0(j)+1,0(j)+1,N-1(i),N]
+            gte 
+            # => [bool,0(j)+1,N-1(i),N]
+        end 
+        # => [0(j)+1,N-1(i),N]
+        drop
+        # => [N-1(i),N]
+        sub.1
+        # => [N-2(i-1),N]
+        dup
+        # => [N-2(i-1),N-2(i-1),N]
+        push.1
+        # => [1,N-2(i-1),N-2(i-1),N]
+        lte
+        # => [bool,N-2(i-1),N]
+    end
 end
 
-#! TODO.
-proc.get_median_ram
-    push.NEXT_PUBLISHER_INDEX_SLOT.3 sub dup
-    # => [nb_of_entries, nb_of_entries, ENTRY_0, ..., ENTRY_N]
-    
-    is_odd if.true
-        # retrieve LIST_ENTRIES[NEXT_PUBLISHER_INDEX_SLOT/2]
+#! Reads from the sorted entries on the RAM and get the median.
+#! ⚠ The RAM must be sorted before!
+#! The input will be the number of elements on top of the stack.
+#! 
+#! Inputs:  [nb_of_entries]
+#! Output:  [median_price]
+proc.ram_get_median
+    dup is_odd
+    # => [nb_of_entries]
 
+    if.true
+        # nb_of_entries / 2
+        push.0.2.0
+        exec.u64::div drop
+        # => [index_to_read]
+
+        push.0.0.0.0 movup.4 mem_loadw
+        # => [MEDIAN_ENTRY]
+
+        exec.entry_to_price
+        # => [price_median]
     else
-        # compute (LIST_ENTRIES[NEXT_PUBLISHER_INDEX_SLOT/2 - 1] + LIST_ENTRIES[NEXT_PUBLISHER_INDEX_SLOT/2])/2
+        push.0.2.0
+        exec.u64::div drop
+        # => [index_to_read]
+        
+        dup sub.1
+        # => [index_to_read - 1, index_to_read]
+
+        push.0.0.0.0 movup.4 mem_loadw
+        # => [ENTRY_N_MINUS_1, index_to_read]
+
+        movup.4 push.0.0.0.0 mem_loadw
+        # => [ENTRY_N, ENTRY_N_MINUS_1]
+
+        exec.entry_to_price
+        # => [price_n, ENTRY_N_MINUS_1]
+
+        movdn.3 exec.entry_to_price
+        # => [price_n_minus_1, price_n]
+
+        push.0.0 movdn.2
+        # => [0, price_n_minus_1, 0, price_n]
+
+        exec.u64::overflowing_add
+        # => [0, price_sum]
+
+        push.2.0 exec.u64::div drop
+        # => [price_median]
     end
 end
 
@@ -125,7 +246,7 @@ end
 #! Gets the median price of a given asset.
 #!
 #! Inputs:  [PAIR]
-#! Outputs: [PRICE]
+#! Outputs: [median_price]
 #!
 export.get_median
     # Iterate from 3 to NEXT_PUBLISHER_INDEX_SLOT value.
@@ -161,12 +282,12 @@ export.get_median
     # => [4]
 
     # Sort the entries stored on the RAM
-    exec.bubble_sort_ram
+    exec.ram_bubble_sort
     # => [4]
 
-    # Compute median
-    exec.get_median_ram
-    # => [median]
+    # Retrieves the median from the sorted RAM entries
+    exec.ram_get_median
+    # => [median_price]
 
     # increments the nonce (anyone should be able to call that function)
     push.1 exec.account::incr_nonce
