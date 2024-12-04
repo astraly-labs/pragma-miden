@@ -19,8 +19,9 @@ const.PUBLISHER_REGISTRY_MAP_SLOT=2
 
 #! Check if the top element of the stack is greater or equal than the second
 #! element on the stack.
-#! Example:
-#! [1, 2] will update the stack to [0, 1, 2].
+#!
+#! Inputs: [A, B]
+#! Output: [BOOL] 1 if A < B, else 0
 proc.felt_is_lower
     dup 
     # => [1, 1, 2]
@@ -92,85 +93,52 @@ end
 #! Sort the N entries in the RAM using a Bubble Sort.
 #! All the elements must already be stored on the RAM and the top of
 #! the stack must include the length of the entries.
-#! Inputs:  [nb_of_entries]
 #!
-#! Output:  [nb_of_entries]
-
-#! procedure tri_bulles(T)
-#! 2: N ← taille de T
-#! 3: pour i de N − 1 à 1 faire
-#! 4: pour j de 0 à i − 1 faire
-#! 5: si T[j] > T[j + 1] alors
-#! 6: échanger T[j] et T[j + 1]
-#! 7: fin si
-#! 8: fin pour
-#! 9: fin pour
-#! 10: fin procedure
+#! Inputs:  [nb_of_entries]
+#! Output:  []
 proc.ram_bubble_sort
-    # This is the outer counter
-    dup
-    # => [N, N]
-    sub.1 dup
-    # => [N-1(i),N-1(i),N]
-    push.1
-    # => [1,N-1(i),N-1(i),N]
-    gt
+    # Initialize outer loop counter
+    dup push.1 sub
+    # [n-1, n]
+    
     while.true
-        # => [N-1(i),N]
-        dup
-        # => [N-1(i),N-1(i),N]
-        # => Inner index
+        # Initialize inner loop counter j=0
         push.0
-        # => [0(j), N-1(i),N-1(i),N]
-        dup 
-        # => [0(j),0(j), N-1(i),N-1(i),N]
-        swap.2
-        # => [0(j),N-1(i),0(j),N-1(i),N]
-        # We exit this loop if j >= i-1
-        lte
-        # => [bool,0(j),N-1(i),N]
+        # [j=0, i, n]
+        
+        # Inner loop condition: j < n-i-1
+        dup.2 dup.2 sub sub.1 dup.2 lt
         while.true
-            # => [0(j),N-1(i),N]
-            dup
-            # => [0(j),0(j),N-1(i),N]
-            add.1
-            # => [0(j)+1,0(j),N-1(i),N]
-            swap
-            # => [0(j),0(j)+1,N-1(i),N]
+            # Compare and swap if needed
+            dup dup.1 add.1
+            # [j, j+1, j, i, n]
             exec.ram_is_lower
-            # => [bool, 0(j),0(j)+1,N-1(i),N]
+            # [is_lower, j, j+1]
             if.true
-            else
-                dup 
-                # => [0(j),0(j),0(j)+1,N-1(i),N]
-                dup.2
-                # => [0(j)+1,0(j),0(j),0(j)+1,N-1(i),N]
-                swap
-                # => [0(j),0(j)+1,0(j),0(j)+1,N-1(i),N]
                 exec.ram_swap
-                # => [0(j),0(j)+1,N-1(i),N]
+            else
+                drop drop drop
             end
-            drop
-            # => [0(j)+1,N-1(i),N]
-            dup
-            # => [0(j)+1,0(j)+1,N-1(i),N]
-            dup.2
-            # => [N-1(i),0(j)+1,0(j)+1,N-1(i),N]
-            lte 
-            # => [bool,0(j)+1,N-1(i),N]
-        end 
-        # => [0(j)+1,N-1(i),N]
+            
+            # Increment j
+            add.1
+            # [j+1, i, n]
+            
+            # Check inner loop condition
+            dup.2 dup.2 sub sub.1 dup.2 lt
+        end
+        
         drop
-        # => [N-1(i),N]
+        # [i, n]
+        
+        # Decrement i
         sub.1
-        # => [N-2(i-1),N]
-        dup
-        # => [N-2(i-1),N-2(i-1),N]
-        push.1
-        # => [1,N-2(i-1),N-2(i-1),N]
-        lte
-        # => [bool,N-2(i-1),N]
+        # [i-1, n]
+        
+        # Check outer loop condition
+        dup push.0 gt
     end
+    drop
 end
 
 #! Reads from the sorted entries on the RAM and get the median.
@@ -184,10 +152,10 @@ proc.ram_get_median
     # => [nb_of_entries]
 
     if.true
-        # nb_of_entries / 2
         push.0.2.0
         exec.u64::div drop
         # => [index_to_read]
+        # = nb_of_entries / 2
 
         push.0.0.0.0 movup.4 mem_loadw
         # => [MEDIAN_ENTRY]
@@ -247,7 +215,6 @@ end
 #!
 #! Inputs:  [PAIR]
 #! Outputs: [median_price]
-#!
 export.get_median
     # Iterate from 3 to NEXT_PUBLISHER_INDEX_SLOT value.
     push.0.0.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
@@ -300,7 +267,6 @@ end
 #!
 #! Inputs:  [PUBLISHER_ID]
 #! Outputs: []
-#!
 export.register_publisher
     # Check if it is not already present in the registry, if yes raise err (get_map_item)
     # TODO: How?
