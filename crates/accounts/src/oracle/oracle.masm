@@ -114,7 +114,7 @@ proc.ram_bubble_sort
     # => [N-1(i),N-1(i),N]
     push.1
     # => [1,N-1(i),N-1(i),N]
-    lt
+    gt
     while.true
         # => [N-1(i),N]
         dup
@@ -128,6 +128,7 @@ proc.ram_bubble_sort
         # => [0(j),N-1(i),0(j),N-1(i),N]
         # We exit this loop if j >= i-1
         lte
+        # => [bool,0(j),N-1(i),N]
         while.true
             # => [0(j),N-1(i),N]
             dup
@@ -155,7 +156,7 @@ proc.ram_bubble_sort
             # => [0(j)+1,0(j)+1,N-1(i),N]
             dup.2
             # => [N-1(i),0(j)+1,0(j)+1,N-1(i),N]
-            gte 
+            lte 
             # => [bool,0(j)+1,N-1(i),N]
         end 
         # => [0(j)+1,N-1(i),N]
@@ -204,13 +205,12 @@ proc.ram_get_median
         push.0.0.0.0 movup.4 mem_loadw
         # => [ENTRY_N_MINUS_1, index_to_read]
 
-        movup.4 push.0.0.0.0 mem_loadw
-        # => [ENTRY_N, ENTRY_N_MINUS_1]
+        push.0.0.0.0 movup.8 mem_loadw
 
         exec.entry_to_price
         # => [price_n, ENTRY_N_MINUS_1]
 
-        movdn.3 exec.entry_to_price
+        movdn.4 exec.entry_to_price
         # => [price_n_minus_1, price_n]
 
         push.0.0 movdn.2
@@ -219,7 +219,7 @@ proc.ram_get_median
         exec.u64::overflowing_add
         # => [0, price_sum]
 
-        push.2.0 exec.u64::div drop
+        drop push.2.0 exec.u64::div drop
         # => [price_median]
     end
 end
