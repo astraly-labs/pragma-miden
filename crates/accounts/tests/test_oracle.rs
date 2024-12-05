@@ -265,6 +265,8 @@ fn test_oracle_get_median() {
         expected_median = expected_median
     );
 
+    println!("{}", tx_script_code);
+
     let tx_script = TransactionScript::compile(
         tx_script_code,
         [],
@@ -325,7 +327,7 @@ pub fn generate_publishers_and_median(n: usize) -> (Vec<(Word, Account)>, u64) {
         let pair_word: Word = [pair, ZERO, ZERO, ZERO];
 
         let (publisher_pub_key, _) = new_pk_and_authenticator([0_u8; 32]);
-        let publisher_account_id = AccountId::try_from(publisher_id).unwrap();
+        let publisher_account_id = AccountId::try_from(publisher_id * 10000).unwrap();
 
         let publisher_account =
             PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id)
