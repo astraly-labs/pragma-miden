@@ -308,8 +308,10 @@ export.register_publisher
     # => [next_publisher_slot, PUBLISHER_ID, NEXT_PUBLISHER_SLOT, PUBLISHER_ID]
 
     # Store the publisher into its assigned slot
-    exec.account::set_item
-    # => [NEXT_PUBLISHER_SLOT, PUBLISHER_ID]
+    exec.account::set_item dropw dropw swapw
+    # => [PUBLISHER_ID, NEXT_PUBLISHER_SLOT]
+
+    debug.stack
 
     # Register the publisher into its mapping
     push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::set_map_item

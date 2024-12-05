@@ -18,11 +18,6 @@ use std::sync::Arc;
 
 #[test]
 fn test_oracle_get_entry() {
-    //  SETUP
-    //  In this test we have 2 accounts:
-    //    - Publisher account -> contains entries published
-    //    - Oracle account -> contains registered publisher & can read_entry
-    // --------------------------------------------------------------------------------------------
     let entry = mock_entry();
     let entry_as_word: Word = entry.try_into().unwrap();
     let pair: Felt = entry_as_word[0];
@@ -174,7 +169,7 @@ fn test_oracle_register_publisher() {
     mock_chain.seal_block(None);
 
     let publisher_id = 12345_u64;
-    let publisher_id_word = [Felt::new(publisher_id), ZERO, ZERO, ZERO];
+    let publisher_id_word = [ZERO, ZERO, ZERO, Felt::new(publisher_id)];
     let publisher_account_id = AccountId::try_from(publisher_id).unwrap();
 
     let tx_script_code = format!(
