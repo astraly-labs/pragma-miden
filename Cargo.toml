@@ -1,29 +1,41 @@
-[package]
-name = "pragma-miden"
+[workspace]
+members = ["crates/types", "crates/accounts"]
+resolver = "1"
+default-members = ["crates/types", "crates/accounts"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.package]
 version = "0.1.0"
+authors = ["Pragma <https://github.com/astraly-labs>"]
+homepage = "https://www.pragma.build/"
 edition = "2021"
+repository = "https://github.com/astraly-labs/pragma-miden"
+license = "MIT"
 
-[dependencies]
-miden-client = { version = "0.5", features = ["concurrent", "testing", "sqlite", "tonic"] }
-miden-crypto = { version = "0.10", default-features = false }
-miden-lib = { version = "0.5", default-features = false }
-miden-objects = { version = "0.5", default-features = false }
-miden-tx = { version = "0.5" }
-miden-cli = { version = "0.5" }
-assembly = { package = "miden-assembly", version = "0.10", default-features = false }
+[workspace.dependencies]
+pm-types = { path = "crates/types", default-features = false }
+pm-accounts = { path = "crates/accounts", default-features = false }
 
-rusqlite = { version = "0.31", features = ["vtab", "array", "bundled"]}
-rand = "0.8"
-tonic = { version = "0.12.3" }
-tokio = { version = "1.40.0", features = ["rt-multi-thread", "net", "macros"] }
-clap = { version = "4.5", features = ["derive"] }
-log = { version = "0.4.22" }
-env_logger = { version = "0.11.5" }
-colored = { version = "2.1.0" }
-serde = { version = "1.0", features = ["derive"] }
-tracing = { version = "0.1.40" }
-tracing-subscriber = { version = "0.3" }
-winter-maybe-async = "0.10"
-hex = "0.4.3"
-rand_chacha = "0.3"
-once_cell = "1.20"
+anyhow = "1.0.93"
+rand = { version = "0.8", default-features = false }
+rand_chacha = { version = "0.3", default-features = false }
+lazy_static = "1.5.0"
+
+miden-assembly = { version = "0.11", default-features = false, features = [
+  "testing",
+] }
+miden-crypto = { version = "0.12", default-features = false }
+miden-lib = { git = "https://github.com/0xPolygonMiden/miden-base", branch = "next", default-features = false, features = [
+  "concurrent",
+  "testing",
+] }
+miden-objects = { git = "https://github.com/0xPolygonMiden/miden-base", branch = "next", default-features = false, features = [
+  "concurrent",
+  "testing",
+] }
+miden-tx = { git = "https://github.com/0xPolygonMiden/miden-base", branch = "next", features = [
+  "concurrent",
+  "testing",
+] }

@@ -1,36 +1,8 @@
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-
-<!-- ************************************* -->
-<!-- *        HEADER WITH LOGO           * -->
-<!-- ************************************* -->
 <p align="center">
-  <img src="assets/logo/logo.png" height="256">
+  <img src=".github/logo.svg" height="256">
 </p>
 
-<h1 align="center">👾 Pragma Miden 👾</h1>
-
-<p align="center">
-  <strong>A MASM implementation of Pragma</strong>
-</p>
-
-<p align="center">
-  <a href="https://polygon.technology/polygon-miden">https://polygon.technology/polygon-miden</a>
-</p>
-
-<!-- ************************************* -->
-<!-- *        BADGES                     * -->
-<!-- ************************************* -->
-<div align="center">
-<br />
-<a href="https://github.com/your-username/pragma-miden/actions/workflows/build_and_test.yml">
-  <img src="https://github.com/your-username/pragma-miden/actions/workflows/build_and_test.yml/badge.svg" alt="Build and Test">
-</a>
-</div>
-
-<!-- ************************************* -->
-<!-- *        CONTENTS                   * -->
-<!-- ************************************* -->
+<h1 align="center">Pragma Miden</h1>
 
 This repository contains an implementation of the Pragma protocol for the Polygon Miden blockchain. Pragma Miden aims to provide a decentralized oracle solution specifically designed for the Miden network.
 
@@ -42,50 +14,59 @@ The project utilizes MASM instructions to implement oracle functionality securel
 
 You can learn more about Miden [here](https://docs.polygon.technology/miden/).
 
-## Key Features
+## Design
 
-It's an easy-to-use CLI for interacting with Miden Network. It provides functionality for:
+<p align="center">
+  <img src=".github/design.png">
+</p>
 
-- **Oracle Account Management**: Create and manage oracle accounts on Miden.
-- **Data Pushing**: Securely push price data and other oracle information to the blockchain.
-- **Data Reading**: Retrieve oracle data from the Miden network.
-- **Client Synchronization**: Keep the local client state in sync with the Miden network.
 
-## Project Structure
+### Oracle Account
 
-The project is organized as follows:
+The Oracle acts as a central registry and aggregator with these key functions:
+* Maintains a registry of trusted publisher ids (Supports up to 253 publishers),
+* Retrieves the price of a publisher for a given pair,
+* Aggregates all the available prices into a median.
 
-- `src/`: Contains the main Rust source code
-  - `accounts/`: Implementations for oracle account
-  - `commands/`: CLI command implementations
-  - `main.rs`: Entry point of the application
-  - `setup.rs`: Sets up the miden-client to interact with the Miden Rollup
+Storage Structure:
+* `next_publisher_slot`: Value, tracks the next available slot for publisher registration,
+* `publisher_registry`: Map of publisher_id -> assigned_slot for quick lookups (no need to iterate on the slots value everytime to know if a publisher is registered, for `get_entry` & `register_publisher`),
+* publisher IDs in sequential slots Values for easy iteration when we make an aggregation.
 
-## Supported Features
+Procedures:
+* `register_publisher`: Add new trusted price sources (admin only),
+* `get_entry`: Fetch a specific publisher's price for a trading pair,
+* `get_median`: Calculate median price across all publishers for a pair.
 
-| Feature                    | Status |
-|----------------------------|--------|
-| Oracle Account             | ✅     |
-| Publisher Registry Account | ❌     |
-| Python SDK                 | ❌     |
+### Publisher
 
-## Getting Started
+Since a publisher cannot directly ask the Oracle to update its a storage with a provided value, the publisher will be responsible of its own storage and publish prices to itself.
 
-*This project is built with Rust. If you don't have Rust and Cargo installed, you can get them from the [Rust website](https://www.rust-lang.org/). Follow the installation instructions for your operating system.*
+Its storage will only be a single map. The key is a word containing the pair, example:
+```
+[pair, ZERO, ZERO, ZERO]
+```
+For now, it only contains the pair but we can imagine that it will hold more information later, for example the source, the type of the asset etc...:
+```
+[SPOT, BINANCE, pair_name, ZERO]
+or
+[FUTURE, BYBIT, pair_name, ZERO]
+```
 
-First of all, run `cargo install --path .  ` to install the CLI. This will compile the project and install the `pragma-miden` binary in your Cargo binary directory.
+The value is an Entry type:
+```rust
+pub struct Entry {
+    pub pair: Pair,
+    // TODO(akhercha): We may prefer a u128 for more precision.
+    // This can probably done by storing a Price(low, high) struct with two u64s.
+    // We can remove the "pair" field for that? Since it's possible to find it using the mapping?
+    pub price: u64,
+    pub decimals: u32,
+    pub timestamp: u64,
+}
+```
 
-Next, run `pragma-miden init` to initialize the miden-client, creating a new `store.sqlite3`. It's recommended to run this command when you want to reset your local state or start with a clean slate.
-
-To synchronize the state of the rollup and update your local state, use the `pragma-miden sync` command. It's recommended to run this command before performing any operations to ensure you're working with the most up-to-date information.
-
-Now, if you want to create your own oracle account on Miden rollup, you can run `pragma-miden new-oracle --data-provider-public-key <PUB_KEY>` given that you have the data provider for your oracle! 
-
-We have our oracle account on Miden already with this AccountID - <PRAGMA ORACLE ACCOUNT ID>
-
-Next, to push some data to the Pragma Oracle you can run `pragma-miden push-data --asset-pair <ASSET_PAIR> --price <PRICE> --decimals <DECIMALS> --publisher-id <PUBLISHER_ID>`
-
-And, to read data from the Pragma oracle you can run `pragma-miden read-data --account-id <ACCOUNT_ID> --asset-pair <ASSET_PAIR>`
+Converted to a Word.
 
 ## License
 

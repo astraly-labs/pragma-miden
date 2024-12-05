@@ -1,0 +1,338 @@
+use.std::sys
+use.std::math::u64
+use.miden::account
+use.miden::tx
+
+# CONSTANTS
+# =================================================================================================
+
+# Holds the next storage slot index available. Will be used when we register a publisher,
+# so we can assign it a slot.
+const.NEXT_PUBLISHER_INDEX_SLOT=1
+
+# Holds the next storage slot index available. Will be used when we register a publisher,
+# so we can assign it a slot.
+const.PUBLISHER_REGISTRY_MAP_SLOT=2
+
+# INTERNAL PROCEDURES (utilities)
+# =================================================================================================
+
+#! Check if the top element of the stack is greater or equal than the second
+#! element on the stack.
+#!
+#! Inputs: [A, B]
+#! Output: [BOOL] 1 if A < B, else 0
+proc.felt_is_lower
+    dup 
+    # => [1, 1, 2]
+    movup.2 dup
+    # => [2, 2, 1, 1]
+    swap.3
+    # => [1, 2, 1, 2]
+    gt
+    # => [1, 2]
+end
+
+#! Calls the PUBLISHER_ID get_entry procedure of the provided account.
+#!
+#! Inputs: [PUBLISHER_ID, PAIR]
+#! Output: [ENTRY]
+proc.call_publisher_get_entry
+    push.0x14160cfd40f9fa0d3313c559f272946a510ad3cb1894a58404c2099343cdd531
+    # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
+    swapw drop drop drop
+    # => [publisher_id, GET_ENTRY_HASH, PAIR]
+    exec.tx::execute_foreign_procedure
+    # => [ENTRY]
+end
+
+#! Swaps two elements stored in the ram at index (i, j).
+#! Input is taken from the stack, example:
+#!
+#! Inputs: [i, j]
+#! Output: []
+proc.ram_swap
+  dup
+  # => [i, i, j]
+  push.0.0.0.0 movup.4 mem_loadw
+  # => [mem_i, i, j]
+  movup.5 dup push.0.0.0.0 movup.4 mem_loadw
+  # => [mem_j, j, mem_i, i]
+  movup.9
+  # => [i, mem_j, j, mem_i]
+  mem_storew dropw mem_storew dropw
+end
+
+
+#! Updates the top word on the stack that is an entry to its price
+#! by selecting its 2nd element.
+#! Example:
+#! => [A, 42, B, C]
+#! returns:
+#! => [42]
+proc.entry_to_price
+  drop swap.1 drop swap.1 drop
+end
+
+#! Returns 1 if the element at index i is lower than element at index j.
+#! Example:
+#! => [i, j] for RAM[i] = 42, RAM[i] = 69
+#! returns
+#! => [0, i, j]
+proc.ram_is_lower
+  dup push.0.0.0.0 movup.5 mem_loadw exec.entry_to_price
+  # => [mem_i, i, j]
+  movup.2 dup push.0.0.0.0 movup.4 mem_loadw exec.entry_to_price
+  # => [mem_j, j, mem_i, i]
+  movup.2 swap.1 lt
+  # => [BOOL, j, i]
+  swap.2 movup.2
+  # => [BOOL, i, j]
+end
+
+#! Sort the N entries in the RAM using a Bubble Sort.
+#! All the elements must already be stored on the RAM and the top of
+#! the stack must include the length of the entries.
+#!
+#! Inputs:  [nb_of_entries]
+#! Output:  []
+proc.ram_bubble_sort
+    # This is the outer counter
+    dup
+    # => [N, N]
+    sub.1 dup
+    # => [N-1(i), N-1(i), N]
+    push.1
+    # => [1, N-1(i), N-1(i), N]
+    gt
+    while.true
+        # => [N-1(i), N]
+        dup
+        # => [N-1(i), N-1(i), N]
+        # => Inner index
+        push.0
+        # => [0(j), N-1(i), N-1(i), N]
+        dup 
+        # => [0(j), 0(j), N-1(i), N-1(i), N]
+        swap.2
+        # => [N-1(i), 0(j), 0(j), N-1(i), N]
+        # We exit this loop if j > i-1
+        lte
+        # => [bool, N-1(i), 0(j), N]
+        while.true
+            # => [0(j), N-1(i), N]
+            dup
+            # => [0(j), 0(j), N-1(i), N]
+            add.1
+            # => [0(j)+1, 0(j), N-1(i), N]
+            swap
+            # => [0(j), 0(j)+1, N-1(i), N]
+            exec.ram_is_lower
+            # => [bool,  0(j), 0(j)+1, N-1(i), N]
+            if.true
+            else
+                dup 
+                # => [0(j), 0(j), 0(j)+1, N-1(i), N]
+                dup.2
+                # => [0(j)+1, 0(j), 0(j), 0(j)+1, N-1(i), N]
+                swap
+                # => [0(j), 0(j)+1, 0(j), 0(j)+1, N-1(i), N]
+                exec.ram_swap
+                # => [0(j), 0(j)+1, N-1(i), N]
+            end
+            drop
+            # => [0(j)+1, N-1(i), N]
+            dup
+            # => [0(j)+1, 0(j)+1, N-1(i), N]
+            dup.2
+            # => [N-1(i), 0(j)+1, 0(j)+1, N-1(i), N]
+            lt
+            # => [bool, 0(j)+1, N-1(i), N]
+        end 
+        # => [0(j)+1, N-1(i), N]
+        drop
+        # => [N-1(i), N]
+        sub.1
+        # => [N-2(i-1), N]
+        dup
+        # => [N-2(i-1), N-2(i-1), N]
+        push.1
+        # => [1, N-2(i-1), N-2(i-1), N]
+        gte
+        # => [bool, N-2(i-1), N]
+    end
+    drop
+end
+
+
+#! Reads from the sorted entries on the RAM and get the median.
+#! ⚠ The RAM must be sorted before!
+#! The input will be the number of elements on top of the stack.
+#! 
+#! Inputs:  [nb_of_entries]
+#! Output:  [median_price]
+proc.ram_get_median
+    dup is_odd
+    # => [nb_of_entries]
+
+    if.true
+        push.0.2.0
+        exec.u64::div drop
+        # => [index_to_read]
+        # = nb_of_entries / 2
+
+        push.0.0.0.0 movup.4 mem_loadw
+        # => [MEDIAN_ENTRY]
+
+        exec.entry_to_price
+        # => [price_median]
+    else
+        push.0.2.0
+        exec.u64::div drop
+        # => [index_to_read]
+        
+        dup sub.1
+        # => [index_to_read - 1, index_to_read]
+
+        push.0.0.0.0 movup.4 mem_loadw
+        # => [ENTRY_N_MINUS_1, index_to_read]
+
+        push.0.0.0.0 movup.8 mem_loadw
+
+        exec.entry_to_price
+        # => [price_n, ENTRY_N_MINUS_1]
+
+        movdn.4 exec.entry_to_price
+        # => [price_n_minus_1, price_n]
+
+        push.0.0 movdn.2
+        # => [0, price_n_minus_1, 0, price_n]
+
+        exec.u64::overflowing_add
+        # => [0, price_sum]
+
+        drop push.2.0 exec.u64::div drop
+        # => [price_median]
+    end
+end
+
+# EXTERNAL PROCEDURES
+# =================================================================================================
+
+#! Gets entry from the oracle's data slots.
+#!
+#! Inputs:  [PUBLISHER_ID, PAIR]
+#! Outputs: [ENTRY]
+export.get_entry
+    # Verifies if the publisher is registered, panics if not
+    # dupw push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item dropw
+    # => [PUBLISHER_ID, PAIR]
+
+    # Push the get_entry hash function for the publisher account
+    exec.call_publisher_get_entry
+
+    # Truncate if necessary
+    exec.sys::truncate_stack
+end
+
+#! Gets the median price of a given asset.
+#!
+#! Inputs:  [PAIR]
+#! Outputs: [median_price]
+export.get_median
+    # Iterate from 3 to NEXT_PUBLISHER_INDEX_SLOT value.
+    push.0.0.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
+    # => [next_publisher_slot, 0, 0, PAIR]
+
+    push.3 exec.felt_is_lower
+    # => [3, next_publisher_slot, 0, 0, PAIR]
+
+    while.true
+        # Get the publisher id at slot [top of the stack]
+        dup exec.account::get_item
+        # => [PUBLISHER_ID, 3, next_publisher_slot, 0, 0, PAIR]
+
+        dupw.2 swapw.1
+        # => [PUBLISHER_ID, PAIR, 3, next_publisher_slot, 0, 0, PAIR]
+
+        # Call get_entry
+        exec.call_publisher_get_entry
+        # => [ENTRY, 3, next_publisher_slot, PAIR]
+
+        # Store the entry in the RAM from index 0 to index N
+        dup.4 push.3 sub mem_storew dropw
+        # => [3, next_publisher_slot, PAIR]
+
+        # Increment the next index and check if there's still publishers to process
+        add.1 exec.felt_is_lower
+        # => [4, next_publisher_slot, PAIR]
+    end
+
+    # Drop the utilities used to get all the entries - only keep the length on the ram.
+    swap drop movdn.4 dropw
+    # => [4]
+
+    # Sort the entries stored on the RAM
+    dup exec.ram_bubble_sort
+    # => [4]
+
+    # Retrieves the median from the sorted RAM entries
+    exec.ram_get_median
+    # => [median_price]
+
+    # increments the nonce (anyone should be able to call that function)
+    push.1 exec.account::incr_nonce
+    
+    exec.sys::truncate_stack
+end
+
+#! Registers a new publishers into the Oracle.
+#! Can only be called by the Owner of the Oracle account.
+#! Will reserve a storage slot for the publisher if it's not already registered,
+#! which mean this publisher will be able to publish data.
+#!
+#! Inputs:  [PUBLISHER_ID]
+#! Outputs: []
+export.register_publisher
+    # Check if it is not already present in the registry, if yes raise err (get_map_item)
+    # TODO: How?
+
+    # Duplicate the publisher id
+    dupw
+    # => [PUBLISHER_ID, PUBLISHER_ID]
+
+    # Retrieve the next_publisher_slot available from the slot
+    push.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
+    # => [NEXT_PUBLISHER_SLOT, PUBLISHER_ID, PUBLISHER_ID]
+
+    # Prepare the stack for the set_item and set_map_item calls
+    dupw movdnw.2 drop drop drop
+    # => [next_publisher_slot, PUBLISHER_ID, NEXT_PUBLISHER_SLOT, PUBLISHER_ID]
+
+    # Store the publisher into its assigned slot
+    exec.account::set_item dropw dropw swapw
+    # => [PUBLISHER_ID, NEXT_PUBLISHER_SLOT]
+
+    debug.stack
+
+    # Register the publisher into its mapping
+    push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::set_map_item
+    # => []
+
+    # Increment NEXT_PUBLISHER_INDEX_SLOT
+    push.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
+    # => [PUBLISHER_INDEX_SLOT]
+
+    # Update the storage value
+    swap.3 add.1 swap.3
+    # => [PUBLISHER_INDEX_SLOT+1]
+
+    push.NEXT_PUBLISHER_INDEX_SLOT exec.account::set_item
+    # => []
+
+    # Only the oracle owner should be able to call this
+    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+    drop
+
+    exec.sys::truncate_stack
+end
