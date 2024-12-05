@@ -1,7 +1,7 @@
 [workspace]
-members = ["crates/types", "crates/accounts"]
+members = ["crates/types", "crates/accounts", "crates/cli"]
 resolver = "1"
-default-members = ["crates/types", "crates/accounts"]
+default-members = ["crates/types", "crates/accounts", "crates/cli"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -17,11 +17,13 @@ license = "MIT"
 [workspace.dependencies]
 pm-types = { path = "crates/types", default-features = false }
 pm-accounts = { path = "crates/accounts", default-features = false }
+pm-cli = { path = "crates/cli", default-features = false}
 
 anyhow = "1.0.93"
 rand = { version = "0.8", default-features = false }
 rand_chacha = { version = "0.3", default-features = false }
 lazy_static = "1.5.0"
+clap = { version = "4.5.22", features = ["derive"]}
 
 miden-assembly = { version = "0.11", default-features = false, features = [
   "testing",
