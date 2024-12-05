@@ -21,6 +21,7 @@ pub fn mock_entry() -> Entry {
 }
 
 /// Mocks a random [Entry] representing price feeds for use in tests.
+#[allow(unused)]
 pub fn random_entry() -> Entry {
     let mut rng = rand::thread_rng();
 
