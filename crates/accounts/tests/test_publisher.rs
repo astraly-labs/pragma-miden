@@ -1,23 +1,24 @@
+mod common;
+
+use std::sync::Arc;
+
+use common::{mock_entry, FpiAdviceBuilder};
 use miden_crypto::{hash::rpo::RpoDigest, Felt, Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
-    accounts::{Account, AccountId, StorageMap, StorageSlot},
+    accounts::{AccountId, StorageMap, StorageSlot},
     transaction::{TransactionArgs, TransactionScript},
-    vm::AdviceInputs,
-    Digest,
 };
-
 use miden_tx::{
     testing::{MockChain, TransactionContextBuilder},
     TransactionExecutor,
 };
+
 use pm_accounts::{
     publisher::{PublisherAccountBuilder, PUBLISHER_COMPONENT_LIBRARY},
     utils::{new_pk_and_authenticator, word_to_masm},
     RegularAccountBuilder,
 };
-use pm_types::{Currency, Entry, Pair};
-use std::sync::Arc;
 
 #[test]
 fn test_publisher_write() {
@@ -124,7 +125,10 @@ fn test_publisher_read() {
 
     mock_chain.seal_block(None);
 
-    let advice_inputs = get_mock_fpi_adv_inputs(&mock_chain, &publisher_account);
+    let advice_inputs = FpiAdviceBuilder::new(&mock_chain)
+        .with_account(&publisher_account)
+        .build();
+
     // storage read
     let code = format!(
         "
@@ -215,7 +219,10 @@ fn test_publisher_read_fails_if_pair_not_found() {
 
     mock_chain.seal_block(None);
 
-    let advice_inputs = get_mock_fpi_adv_inputs(&mock_chain, &publisher_account);
+    let advice_inputs = FpiAdviceBuilder::new(&mock_chain)
+        .with_account(&publisher_account)
+        .build();
+
     // storage read
     let code = format!(
         "
@@ -280,68 +287,4 @@ fn test_publisher_read_fails_if_pair_not_found() {
         )
         .map_err(|e| e.to_string())
         .unwrap();
-}
-// HELPER FUNCTIONS
-// ================================================================================================
-
-/// Mocks [Entry] representing price feeds for use in tests.
-fn mock_entry() -> Entry {
-    Entry {
-        pair: Pair::new(Currency::new("BTC").unwrap(), Currency::new("USD").unwrap()),
-        price: 50000,
-        decimals: 2,
-        timestamp: 1732710094,
-    }
-}
-
-/// Mocks the required advice inputs for foreign procedure invocation.
-fn get_mock_fpi_adv_inputs(mock_chain: &MockChain, foreign_account: &Account) -> AdviceInputs {
-    let foreign_id_root = Digest::from([foreign_account.id().into(), ZERO, ZERO, ZERO]);
-    let foreign_id_and_nonce = [
-        foreign_account.id().into(),
-        ZERO,
-        ZERO,
-        foreign_account.nonce(),
-    ];
-    let foreign_vault_root = foreign_account.vault().commitment();
-    let foreign_storage_root = foreign_account.storage().commitment();
-    let foreign_code_root = foreign_account.code().commitment();
-
-    let mut inputs = AdviceInputs::default()
-        .with_map([
-            // ACCOUNT_ID |-> [ID_AND_NONCE, VAULT_ROOT, STORAGE_ROOT, CODE_ROOT]
-            (
-                foreign_id_root,
-                [
-                    &foreign_id_and_nonce,
-                    foreign_vault_root.as_elements(),
-                    foreign_storage_root.as_elements(),
-                    foreign_code_root.as_elements(),
-                ]
-                .concat(),
-            ),
-            // STORAGE_ROOT |-> [[STORAGE_SLOT_DATA]]
-            (
-                foreign_storage_root,
-                foreign_account.storage().as_elements(),
-            ),
-            // CODE_ROOT |-> [[ACCOUNT_PROCEDURE_DATA]]
-            (foreign_code_root, foreign_account.code().as_elements()),
-        ])
-        .with_merkle_store(mock_chain.accounts().into());
-
-    for slot in foreign_account.storage().slots() {
-        // if there are storage maps, we populate the merkle store and advice map
-        if let StorageSlot::Map(map) = slot {
-            // extend the merkle store and map with the storage maps
-            inputs.extend_merkle_store(map.inner_nodes());
-            // populate advice map with Sparse Merkle Tree leaf nodes
-            inputs.extend_map(
-                map.leaves()
-                    .map(|(_, leaf)| (leaf.hash(), leaf.to_elements())),
-            );
-        }
-    }
-
-    inputs
 }

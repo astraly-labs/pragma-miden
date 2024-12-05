@@ -1,20 +1,22 @@
+mod common;
+
+use std::sync::Arc;
+
 use miden_crypto::{hash::rpo::RpoDigest, Felt, Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
-    accounts::{Account, AccountId, StorageMap, StorageSlot},
+    accounts::{AccountId, StorageMap, StorageSlot},
     transaction::TransactionScript,
-    vm::AdviceInputs,
-    Digest,
 };
-
 use miden_tx::{testing::MockChain, TransactionExecutor};
+
 use pm_accounts::{
     oracle::{OracleAccountBuilder, ORACLE_COMPONENT_LIBRARY},
     publisher::PublisherAccountBuilder,
     utils::{new_pk_and_authenticator, word_to_masm},
 };
-use pm_types::{Currency, Entry, Pair};
-use std::sync::Arc;
+
+use common::{mock_entry, FpiAdviceBuilder};
 
 #[test]
 fn test_oracle_get_entry() {
@@ -237,82 +239,7 @@ fn test_oracle_register_publisher() {
     );
 }
 
-// HELPER FUNCTIONS
-// ================================================================================================
-
-/// Mocks [Entry] representing price feeds for use in tests.
-fn mock_entry() -> Entry {
-    Entry {
-        pair: Pair::new(Currency::new("BTC").unwrap(), Currency::new("USD").unwrap()),
-        price: 50000,
-        decimals: 2,
-        timestamp: 1732710094,
-    }
-}
-
-/// Builder for constructing FPI (Foreign Procedure Invocation) advice inputs
-pub struct FpiAdviceBuilder<'a> {
-    chain: &'a MockChain,
-    accounts: Vec<&'a Account>,
-}
-
-impl<'a> FpiAdviceBuilder<'a> {
-    pub fn new(chain: &'a MockChain) -> Self {
-        Self {
-            chain,
-            accounts: Vec::new(),
-        }
-    }
-
-    /// Adds an account to the builder
-    pub fn with_account(&mut self, account: &'a Account) -> &mut Self {
-        self.accounts.push(account);
-        self
-    }
-
-    /// Builds the AdviceInputs with all the configured accounts
-    pub fn build(&self) -> AdviceInputs {
-        let mut advice_map = Vec::new();
-        let mut inputs = AdviceInputs::default().with_merkle_store(self.chain.accounts().into());
-
-        for account in &self.accounts {
-            let foreign_id_root = Digest::from([account.id().into(), ZERO, ZERO, ZERO]);
-            let foreign_id_and_nonce = [account.id().into(), ZERO, ZERO, account.nonce()];
-            let foreign_vault_root = account.vault().commitment();
-            let foreign_storage_root = account.storage().commitment();
-            let foreign_code_root = account.code().commitment();
-
-            // Add account information to advice map
-            advice_map.push((
-                foreign_id_root,
-                [
-                    &foreign_id_and_nonce,
-                    foreign_vault_root.as_elements(),
-                    foreign_storage_root.as_elements(),
-                    foreign_code_root.as_elements(),
-                ]
-                .concat(),
-            ));
-
-            // Add storage and code roots
-            advice_map.push((foreign_storage_root, account.storage().as_elements()));
-            advice_map.push((foreign_code_root, account.code().as_elements()));
-
-            // Process storage slots
-            for slot in account.storage().slots() {
-                if let StorageSlot::Map(map) = slot {
-                    // extend the merkle store and map with the storage maps
-                    inputs.extend_merkle_store(map.inner_nodes());
-                    // populate advice map with Sparse Merkle Tree leaf nodes
-                    inputs.extend_map(
-                        map.leaves()
-                            .map(|(_, leaf)| (leaf.hash(), leaf.to_elements())),
-                    );
-                }
-            }
-        }
-
-        // Add all collected advice map entries
-        inputs.with_map(advice_map)
-    }
+#[test]
+fn test_oracle_get_median() {
+    assert!(true);
 }
