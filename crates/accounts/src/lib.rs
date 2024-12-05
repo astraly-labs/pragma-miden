@@ -25,7 +25,8 @@ impl RegularAccountBuilder {
             .storage_mode(AccountStorageMode::Public)
             .with_component(BasicWallet)
             .with_component(RpoFalcon512::new(PublicKey::new(self.public_key)))
-            .build_existing()
+            .build_testing()
             .unwrap()
+            .0
     }
 }

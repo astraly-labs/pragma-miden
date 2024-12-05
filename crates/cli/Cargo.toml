@@ -13,5 +13,13 @@ workspace = true
 
 [dependencies]
 anyhow.workspace = true
-miden-crypto.workspace = true
+pm-accounts.workspace = true
+pm-types.workspace = true
 clap.workspace = true
+colored.workspace = true
+thiserror.workspace = true
+miden-client.workspace = true
+miden-tx.workspace = true
+rusqlite.workspace = true
+rand.workspace = true
+tokio.workspace = true

@@ -1,5 +1,5 @@
-pub mod publish;
-pub mod init;
 pub mod entry;
-pub mod median; 
+pub mod init;
+pub mod median;
+pub mod publish;
 pub mod register;

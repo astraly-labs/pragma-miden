@@ -8,7 +8,9 @@ use miden_objects::{
     accounts::{Account, AccountId, StorageMap, StorageSlot},
     transaction::TransactionScript,
 };
-use miden_tx::{auth::TransactionAuthenticator, testing::MockChain, TransactionExecutor};
+use miden_tx::{
+    auth::TransactionAuthenticator, testing::mock_chain::MockChain, TransactionExecutor,
+};
 
 use pm_accounts::{
     oracle::{OracleAccountBuilder, ORACLE_COMPONENT_LIBRARY},

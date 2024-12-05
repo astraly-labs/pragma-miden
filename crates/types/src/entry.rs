@@ -1,7 +1,7 @@
 use miden_crypto::{Felt, Word};
 
 use crate::pair::Pair;
-
+#[derive(Debug, Clone)]
 pub struct Entry {
     pub pair: Pair,
     // TODO(akhercha): We may prefer a u128 for more precision.

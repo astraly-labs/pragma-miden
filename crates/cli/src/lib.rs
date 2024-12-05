@@ -1,22 +1,24 @@
 mod commands;
-mod config;
+mod errors;
+mod utils;
 
 use clap::Parser;
-use commands::{init::InitCmd, publish::PublishCmd, register::RegisterCmd, entry::EntryCmd, median::MedianCmd}; 
-use config::PmConfig;
-#[derive(Debug, Parser)]
+use commands::{
+    entry::EntryCmd, init::InitCmd, median::MedianCmd, publish::PublishCmd, register::RegisterCmd,
+};
+use utils::setup_client;
+#[derive(Debug, Parser, Clone)]
 pub enum SubCommand {
-
     // Init a publisher configuration
-    #[clap(name = "init-publisher", bin_name = "init-publisher" )]
-    Init(InitCmd), 
+    #[clap(name = "init-publisher", bin_name = "init-publisher")]
+    Init(InitCmd),
     // Publish an entry
     #[clap(name = "publisher-entry", bin_name = "publisher-entry")]
-    Publish(PublishCmd), 
+    Publish(PublishCmd),
     // Register a publisher
     #[clap(name = "register-publisher", bin_name = "publisher-entry")]
-    Register(RegisterCmd), 
-    // Get an entry for a given pair id 
+    Register(RegisterCmd),
+    // Get an entry for a given pair id
     #[clap(name = "get-entry", bin_name = "get-entry")]
     Entry(EntryCmd),
     // Compute the median for a given pair id
@@ -24,15 +26,36 @@ pub enum SubCommand {
     Median(MedianCmd),
 }
 
-
 impl SubCommand {
-    pub fn call(self, config: PmConfig) {
+    pub async fn call(&self) {
+        let mut client = setup_client().await;
+
         match self {
-            Self::Init(cmd) => cmd.call(config),
-            Self::Publish(cmd) => cmd.call(config),
-            Self::Register(cmd) => cmd.call(config),
-            Self::Entry(cmd) => cmd.call(config),
-            Self::Median(cmd) => cmd.call(config),
+            Self::Init(cmd) => cmd
+                .clone()
+                .call(&mut client)
+                .await
+                .expect("Failed to initialize publisher"),
+            Self::Publish(cmd) => cmd
+                .clone()
+                .call(&mut client)
+                .await
+                .expect("Failed to publish entry"),
+            Self::Register(cmd) => cmd
+                .clone()
+                .call(&mut client)
+                .await
+                .expect("Failed to register publisher"),
+            Self::Entry(cmd) => cmd
+                .clone()
+                .call(&mut client)
+                .await
+                .expect("Failed to get entry"),
+            Self::Median(cmd) => cmd
+                .clone()
+                .call(&mut client)
+                .await
+                .expect("Failed to compute median"),
         }
     }
 }
