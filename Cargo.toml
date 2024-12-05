@@ -1,7 +1,7 @@
 [workspace]
-members = ["crates/types", "crates/accounts", "crates/tests"]
+members = ["crates/types", "crates/accounts"]
 resolver = "1"
-default-members = ["crates/types", "crates/accounts", "crates/tests"]
+default-members = ["crates/types", "crates/accounts"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -17,7 +17,6 @@ license = "MIT"
 [workspace.dependencies]
 pm-types = { path = "crates/types", default-features = false }
 pm-accounts = { path = "crates/accounts", default-features = false }
-pm-tests = { path = "crates/tests", default-features = false }
 
 anyhow = "1.0.93"
 rand = { version = "0.8", default-features = false }

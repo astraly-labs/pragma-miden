@@ -1018,20 +1018,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pm-tests"
-version = "0.1.0"
-dependencies = [
- "miden-crypto",
- "miden-lib",
- "miden-objects",
- "miden-tx",
- "pm-accounts",
- "pm-types",
- "rand",
- "rand_chacha",
-]
-
-[[package]]
 name = "pm-types"
 version = "0.1.0"
 dependencies = [
