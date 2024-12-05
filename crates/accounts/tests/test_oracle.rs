@@ -265,8 +265,6 @@ fn test_oracle_get_median() {
         expected_median = expected_median
     );
 
-    println!("{}", tx_script_code);
-
     let tx_script = TransactionScript::compile(
         tx_script_code,
         [],
