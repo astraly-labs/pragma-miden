@@ -1708,16 +1708,37 @@ dependencies = [
 ]
 
 [[package]]
-name = "pm-cli"
+name = "pm-oracle-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "colored",
  "miden-client",
  "miden-tx",
  "pm-accounts",
  "pm-types",
+ "pm-utils-cli",
+ "rand",
+ "rusqlite",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "pm-publisher-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "colored",
+ "miden-client",
+ "miden-tx",
+ "pm-accounts",
+ "pm-types",
+ "pm-utils-cli",
  "rand",
  "rusqlite",
  "thiserror",
@@ -1730,6 +1751,24 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "miden-crypto",
+]
+
+[[package]]
+name = "pm-utils-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "colored",
+ "miden-client",
+ "miden-tx",
+ "pm-accounts",
+ "pm-types",
+ "rand",
+ "rusqlite",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]

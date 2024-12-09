@@ -1,8 +1,10 @@
+pub mod commands;
+
 use clap::Parser;
-use pm_cli::SubCommand;
+use commands::SubCommand;
 
 #[derive(Parser, Debug)]
-#[command(name = "pm-cli")]
+#[command(name = "pm-oracle-cli")]
 #[command(about = "Pragma Miden oracle CLI")]
 struct Cli {
     #[command(subcommand)]
@@ -10,7 +12,8 @@ struct Cli {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    cli.command.call().await;
+    cli.command.call().await?;
+    Ok(())
 }

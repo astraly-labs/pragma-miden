@@ -1,6 +1,6 @@
 [package]
-name = "pm-cli"
-description = "Pragma-Miden cli for publishers"
+name = "pm-utils-cli"
+description = "Pragma-Miden utilities for the CLIs"
 authors.workspace = true
 homepage.workspace = true
 edition.workspace = true
@@ -12,6 +12,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+async-trait.workspace = true
 anyhow.workspace = true
 pm-accounts.workspace = true
 pm-types.workspace = true

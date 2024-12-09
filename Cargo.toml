@@ -1,7 +1,7 @@
 [workspace]
-members = ["crates/types", "crates/accounts", "crates/cli"]
+members = ["crates/types", "crates/accounts", "crates/cli/oracle", "crates/cli/publisher", "crates/cli/utils"]
 resolver = "1"
-default-members = ["crates/types", "crates/accounts", "crates/cli"]
+default-members = ["crates/types", "crates/accounts", "crates/cli/oracle", "crates/cli/publisher", "crates/cli/utils"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -17,9 +17,12 @@ license = "MIT"
 [workspace.dependencies]
 pm-types = { path = "crates/types", default-features = false }
 pm-accounts = { path = "crates/accounts", default-features = false }
-pm-cli = { path = "crates/cli", default-features = false}
+pm-oracle-cli = { path = "crates/cli/oracle", default-features = false}
+pm-publisher-cli = { path = "crates/cli/publisher", default-features = false}
+pm-utils-cli = { path = "crates/cli/utils", default-features = false}
 
 anyhow = "1.0.93"
+async-trait = "0.1.83"
 rand = { version = "0.8", default-features = false }
 rand_chacha = { version = "0.3", default-features = false }
 lazy_static = "1.5.0"

@@ -69,8 +69,9 @@ fn test_oracle_get_entry() {
         ])
         .build();
 
-    let mut mock_chain =
-        MockChain::with_accounts(&[publisher_account.clone(), oracle_account.clone()]);
+    let mut mock_chain = MockChain::new();
+    mock_chain.add_account(publisher_account.clone());
+    mock_chain.add_account(oracle_account.clone());
     mock_chain.seal_block(None);
 
     let tx_script_code = format!(
@@ -110,7 +111,7 @@ fn test_oracle_get_entry() {
         .build();
 
     let tx_context = mock_chain
-        .build_tx_context(oracle_account.id(), &[], &[])
+        .build_tx_context(oracle_account.id())
         .advice_inputs(advice_inputs)
         .tx_script(tx_script)
         .build();
@@ -169,7 +170,8 @@ fn test_oracle_register_publisher() {
     let oracle_account_id = AccountId::try_from(oracle_id).unwrap();
     let mut oracle_account = OracleAccountBuilder::new(oracle_pub_key, oracle_account_id).build();
 
-    let mut mock_chain = MockChain::with_accounts(&[oracle_account.clone()]);
+    let mut mock_chain = MockChain::new();
+    mock_chain.add_account(oracle_account.clone());
     mock_chain.seal_block(None);
 
     let publisher_id = 12345_u64;
@@ -201,7 +203,7 @@ fn test_oracle_register_publisher() {
     .unwrap();
 
     let tx_context = mock_chain
-        .build_tx_context(oracle_account.id(), &[], &[])
+        .build_tx_context(oracle_account.id())
         .tx_script(tx_script)
         .build();
 
@@ -287,7 +289,7 @@ fn test_oracle_get_median() {
     let advice_inputs = advice_inputs_builder.build();
 
     let tx_context = mock_chain
-        .build_tx_context(oracle_account.id(), &[], &[])
+        .build_tx_context(oracle_account.id())
         .advice_inputs(advice_inputs)
         .tx_script(tx_script)
         .build();
@@ -419,5 +421,8 @@ pub fn setup_mock_chain(publishers: &[(Word, Account)], oracle_account: &Account
         .map(|(_, publisher)| publisher)
         .collect();
     accounts.push(oracle_account.clone());
-    MockChain::with_accounts(&accounts)
+    
+    let mut mock_chain = MockChain::new();
+    mock_chain.add_account(oracle_account.clone());
+    mock_chain
 }

@@ -10,7 +10,7 @@ use miden_objects::{
     transaction::{TransactionArgs, TransactionScript},
 };
 use miden_tx::{
-    testing::{MockChain, TransactionContextBuilder},
+    testing::{mock_chain::MockChain, TransactionContextBuilder},
     TransactionExecutor,
 };
 
@@ -120,9 +120,9 @@ fn test_publisher_read() {
     let (regular_pub_key, _) = new_pk_and_authenticator([1_u8; 32]);
     let native_account = RegularAccountBuilder::new(regular_pub_key).build();
 
-    let mut mock_chain =
-        MockChain::with_accounts(&[native_account.clone(), publisher_account.clone()]);
-
+    let mut mock_chain = MockChain::new();
+    mock_chain.add_account(native_account.clone());
+    mock_chain.add_account(publisher_account.clone());
     mock_chain.seal_block(None);
 
     let advice_inputs = FpiAdviceBuilder::new(&mock_chain)
@@ -166,7 +166,7 @@ fn test_publisher_read() {
         TransactionScript::compile(code, vec![], TransactionKernel::testing_assembler()).unwrap();
 
     let tx_context = mock_chain
-        .build_tx_context(native_account.id(), &[], &[])
+        .build_tx_context(native_account.id())
         .advice_inputs(advice_inputs.clone())
         .tx_script(tx_script)
         .build();
@@ -214,9 +214,9 @@ fn test_publisher_read_fails_if_pair_not_found() {
     let (regular_pub_key, _) = new_pk_and_authenticator([1_u8; 32]);
     let native_account = RegularAccountBuilder::new(regular_pub_key).build();
 
-    let mut mock_chain =
-        MockChain::with_accounts(&[native_account.clone(), publisher_account.clone()]);
-
+    let mut mock_chain = MockChain::new();
+    mock_chain.add_account(native_account.clone());
+    mock_chain.add_account(publisher_account.clone());
     mock_chain.seal_block(None);
 
     let advice_inputs = FpiAdviceBuilder::new(&mock_chain)
@@ -261,7 +261,7 @@ fn test_publisher_read_fails_if_pair_not_found() {
         TransactionScript::compile(code, vec![], TransactionKernel::testing_assembler()).unwrap();
 
     let tx_context = mock_chain
-        .build_tx_context(native_account.id(), &[], &[])
+        .build_tx_context(native_account.id())
         .advice_inputs(advice_inputs.clone())
         .tx_script(tx_script)
         .build();

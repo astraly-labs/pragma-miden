@@ -6,7 +6,7 @@ use miden_objects::{
     vm::AdviceInputs,
     Digest,
 };
-use miden_tx::testing::MockChain;
+use miden_tx::testing::mock_chain::MockChain;
 use pm_types::{Currency, Entry, Pair};
 use rand::Rng;
 

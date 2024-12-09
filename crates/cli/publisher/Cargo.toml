@@ -1,0 +1,27 @@
+[package]
+name = "pm-publisher-cli"
+description = "Pragma-Miden cli for publishers"
+authors.workspace = true
+homepage.workspace = true
+edition.workspace = true
+repository.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+pm-accounts.workspace = true
+pm-types.workspace = true
+pm-utils-cli.workspace = true
+clap.workspace = true
+colored.workspace = true
+thiserror.workspace = true
+miden-client.workspace = true
+miden-tx.workspace = true
+rusqlite.workspace = true
+rand.workspace = true
+tokio.workspace = true
