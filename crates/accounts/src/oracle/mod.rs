@@ -126,7 +126,7 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
         let sec_key = SecretKey::with_rng(&mut rng);
         let pub_key: PublicKey = sec_key.public_key();
 
-        let components = [RpoFalcon512::new(pub_key.into()).into(), oracle_component];
+        let components = [RpoFalcon512::new(pub_key).into(), oracle_component];
 
         let storage_slots: Vec<_> = components
             .iter()

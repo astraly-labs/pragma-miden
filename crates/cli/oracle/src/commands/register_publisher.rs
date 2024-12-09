@@ -2,7 +2,7 @@ use miden_client::crypto::FeltRng;
 use miden_client::transactions::{TransactionKernel, TransactionRequest};
 use miden_client::Client;
 use miden_client::{accounts::AccountId, transactions::TransactionScript};
-use pm_accounts::publisher::PUBLISHER_COMPONENT_LIBRARY;
+use pm_accounts::oracle::ORACLE_COMPONENT_LIBRARY;
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -40,7 +40,7 @@ impl RegisterPublisherCmd {
             tx_script_code,
             [],
             TransactionKernel::testing_assembler()
-                .with_library(PUBLISHER_COMPONENT_LIBRARY.as_ref())
+                .with_library(ORACLE_COMPONENT_LIBRARY.as_ref())
                 .map_err(|e| {
                     anyhow::anyhow!("Error while setting up the component library: {e:?}")
                 })?

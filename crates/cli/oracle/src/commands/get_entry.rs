@@ -10,13 +10,13 @@ use pm_utils_cli::{
 use std::str::FromStr;
 
 #[derive(clap::Parser, Debug, Clone)]
-#[clap(about = "Creates a new Oracle Account")]
-pub struct MedianCmd {
+#[clap(about = "Gets entry")]
+pub struct GetEntryCmd {
     // Input pair (format example: "BTC/USD")
     pair: String,
 }
 
-impl MedianCmd {
+impl GetEntryCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
 
@@ -26,9 +26,9 @@ impl MedianCmd {
 
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
+        let (publisher, _) = client.get_account(publisher_id).await.unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
-
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module
@@ -36,17 +36,20 @@ impl MedianCmd {
     
             begin
                 push.{pair}
-                call.oracle_module::get_median
-                debug.stack
+                push.{publisher_id}
+    
+                call.oracle_module::get_entry
+    
                 exec.sys::truncate_stack
             end
             ",
             pair = word_to_masm(pair.to_word()),
+            publisher_id = publisher_id,
         );
 
         // TODO: Can we pipe stdout to a variable so we can see the stack??
 
-        let median_script = TransactionScript::compile(
+        let get_entry_script = TransactionScript::compile(
             tx_script_code,
             [],
             TransactionKernel::testing_assembler()
@@ -60,10 +63,18 @@ impl MedianCmd {
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
         let transaction_request = TransactionRequest::new()
-            .with_custom_script(median_script)
+            .with_custom_script(get_entry_script)
             .unwrap()
-            .with_public_foreign_accounts([publisher_id])
-            .unwrap();
+            .extend_advice_map(vec![
+                (
+                    publisher.storage().commitment(),
+                    publisher.storage().as_elements(),
+                ),
+                (
+                    publisher.code().commitment(),
+                    publisher.code().as_elements(),
+                ),
+            ]);
 
         let tx_result = client
             .new_transaction(oracle_id, transaction_request)

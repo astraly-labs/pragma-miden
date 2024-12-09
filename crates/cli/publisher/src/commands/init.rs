@@ -1,9 +1,7 @@
 use miden_client::Client;
 use miden_client::{accounts::AccountId, crypto::FeltRng};
 use pm_accounts::publisher::PublisherAccountBuilder;
-use pm_utils_cli::{
-    JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN, PUBLISHER_ACCOUNT_ID,
-};
+use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Publisher Account")]

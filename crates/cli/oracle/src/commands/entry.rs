@@ -1,6 +1,6 @@
 use miden_client::accounts::AccountId;
 use miden_client::crypto::FeltRng;
-use miden_client::{Client, Felt, ZERO};
+use miden_client::Client;
 use pm_types::Pair;
 use std::str::FromStr;
 

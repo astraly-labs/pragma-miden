@@ -4,14 +4,12 @@ use miden_client::{
     accounts::AccountId,
     crypto::FeltRng,
     transactions::{TransactionKernel, TransactionRequest, TransactionScript},
-    Client, Felt, Word, ZERO,
+    Client, Word,
 };
 
 use pm_accounts::{publisher::PUBLISHER_COMPONENT_LIBRARY, utils::word_to_masm};
-use pm_types::{Currency, Entry, Pair};
-use pm_utils_cli::{
-    str_to_felt, JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN,
-};
+use pm_types::{Entry, Pair};
+use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Publish an entry(Callable by the publisher itself)")]
@@ -28,7 +26,7 @@ impl PublishCmd {
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
 
-        let (_, _) = client.get_account(publisher_id).await.unwrap();
+        let (publisher_account, _) = client.get_account(publisher_id).await.unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
 
@@ -50,8 +48,6 @@ impl PublishCmd {
                     push.{entry}
                     push.{pair}
 
-                    debug.stack
-        
                     call.publisher_module::publish_entry
         
                     dropw
@@ -91,6 +87,11 @@ impl PublishCmd {
             .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
 
         println!("Publish entry successful");
+
+        for x in publisher_account.code().procedures().iter() {
+            println!("{}", x.mast_root());
+        }
+
         Ok(())
     }
 }

@@ -10,7 +10,7 @@ pub struct EntryCmd {
     pair: String,
 }
 
-const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 1;
+const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 2;
 
 impl EntryCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
@@ -23,9 +23,13 @@ impl EntryCmd {
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         // TODO: create a pair from str & a to_word
-        let entry = publisher.storage().get_map_item(2, pair.to_word()).unwrap();
+        let entry = publisher
+            .storage()
+            .get_map_item(PUBLISHERS_ENTRIES_STORAGE_SLOT, pair.to_word())
+            .unwrap();
         // TODO: display entry correctly and nicely !
         println!("Entry: {:?}", entry);
+
         Ok(())
     }
 }

@@ -1,4 +1,5 @@
 mod entry;
+mod get_entry;
 mod init;
 mod median;
 mod publishers;
@@ -8,6 +9,7 @@ mod sync;
 use clap::Parser;
 
 use entry::EntryCmd;
+use get_entry::GetEntryCmd;
 use init::InitCmd;
 use median::MedianCmd;
 use publishers::PublishersCmd;
@@ -36,6 +38,10 @@ pub enum SubCommand {
     // Shows the registered publishers
     #[clap(name = "publishers", bin_name = "publishers")]
     Publishers(PublishersCmd),
+    // TO BE REMOVED
+    // Get an entry for a given pair id
+    #[clap(name = "get-entry", bin_name = "get-entry")]
+    GetEntry(GetEntryCmd),
 }
 
 impl SubCommand {
@@ -49,6 +55,7 @@ impl SubCommand {
             Self::Entry(cmd) => cmd.call(&mut client).await?,
             Self::Median(cmd) => cmd.call(&mut client).await?,
             Self::Publishers(cmd) => cmd.call(&mut client).await?,
+            Self::GetEntry(cmd) => cmd.call(&mut client).await?,
         }
 
         Ok(())

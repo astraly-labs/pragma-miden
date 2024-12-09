@@ -1,9 +1,7 @@
 use miden_client::Client;
 use miden_client::{accounts::AccountId, crypto::FeltRng};
 use pm_accounts::oracle::OracleAccountBuilder;
-use pm_utils_cli::{
-    JsonStorage, ORACLE_ACCOUNT_COLUMN, ORACLE_ACCOUNT_ID, PRAGMA_ACCOUNTS_STORAGE_FILE,
-};
+use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Oracle Account")]
