@@ -6,7 +6,12 @@ use miden_client::Client;
 pub struct SyncCmd {}
 
 impl SyncCmd {
-    pub async fn call(&self, _client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+        client
+            .sync_state()
+            .await
+            .map_err(|e| anyhow::anyhow!("Could not sync state: {}", e.to_string()))?;
+        println!("Sync successful.");
         Ok(())
     }
 }

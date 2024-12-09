@@ -28,7 +28,6 @@ impl InitCmd {
         let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         pragma_storage.add_key(PUBLISHER_ACCOUNT_COLUMN, &created_publisher_id.to_string())?;
 
-
         println!("✅ Publisher successfully created with id: {}. State saved at {}", created_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE);
         Ok(())
     }

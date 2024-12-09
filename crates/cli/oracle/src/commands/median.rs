@@ -1,9 +1,11 @@
+use std::str::FromStr;
 use miden_client::transactions::{TransactionKernel, TransactionRequest, TransactionScript};
 use miden_client::{accounts::AccountId, crypto::FeltRng};
 use miden_client::{Client, ZERO,Felt};
 use pm_accounts::publisher::PUBLISHER_COMPONENT_LIBRARY;
 use pm_accounts::utils::word_to_masm;
-use pm_utils_cli::{str_to_felt, JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use pm_types::Pair;
+use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Oracle Account")]
@@ -14,13 +16,15 @@ pub struct MedianCmd {
 
 impl MedianCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
-        let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
+        let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
 
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
 
-        let (oracle_account, _) = client.get_account(oracle_id).await.unwrap();
-        let pair_id_felt: Felt = Felt::new(str_to_felt(&self.pair));
+        let (_, _) = client.get_account(oracle_id).await.unwrap();
+        let pair: Pair = Pair::from_str(&self.pair).unwrap();
+
+        let pair_id_felt: Felt = pair.try_into().unwrap();
 
         let tx_script_code = format!(
             "

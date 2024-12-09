@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use miden_client::{
     accounts::AccountId,
     crypto::FeltRng,
@@ -7,12 +9,11 @@ use miden_client::{
 
 use pm_accounts::{publisher::PUBLISHER_COMPONENT_LIBRARY, utils::word_to_masm};
 use pm_types::{Currency, Entry, Pair};
-use pm_utils_cli::{extract_pair, str_to_felt};
+use pm_utils_cli::{str_to_felt, JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Publish an entry(Callable by the publisher itself)")]
 pub struct PublishCmd {
-    publisher_account_id: String, // BAD, we must find a way to get caller address directly
     pair: String,                 //"BTC/USD"
     price: u64,
     decimals: u32,
@@ -21,21 +22,23 @@ pub struct PublishCmd {
 
 impl PublishCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
-        let publisher_id = AccountId::from_hex(&self.publisher_account_id)
-            .map_err(|e| anyhow::anyhow!("Invalid publisher id: {e:}"))?;
-        let (base, quote) = extract_pair(&self.pair).expect("Invalid pair format");
-        let formatted_pair: Pair = Pair::new(
-            Currency::new(&base).unwrap(),
-            Currency::new(&quote).unwrap(),
-        );
+        let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
+        let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
+        let publisher_id = AccountId::from_hex(publisher_id).unwrap();
+        
+        let (_, _) = client.get_account(publisher_id).await.unwrap();
+
+        let pair: Pair = Pair::from_str(&self.pair).unwrap();
+        
         let entry: Entry = Entry {
-            pair: formatted_pair,
+            pair: pair.clone(),
             price: self.price,
             decimals: self.decimals,
             timestamp: self.timestamp,
         };
+        
         let entry_as_word: Word = entry.try_into().unwrap();
-        let pair_as_word: Word = [Felt::new(str_to_felt(&self.pair)), ZERO, ZERO, ZERO];
+        let pair_as_word: Word = pair.to_word();
         let tx_script_code = format!(
             "
                 use.publisher_component::publisher_module
@@ -56,7 +59,7 @@ impl PublishCmd {
             pair = word_to_masm(pair_as_word),
             entry = word_to_masm(entry_as_word)
         );
-        let register_script = TransactionScript::compile(
+        let publish_script = TransactionScript::compile(
             tx_script_code,
             [],
             TransactionKernel::assembler()
@@ -69,7 +72,7 @@ impl PublishCmd {
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
         let transaction_request = TransactionRequest::new()
-            .with_custom_script(register_script)
+            .with_custom_script(publish_script)
             .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 
         let transaction = client
