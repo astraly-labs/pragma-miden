@@ -13,8 +13,6 @@ use miden_tx::{LocalTransactionProver, ProvingOptions};
 use rand::Rng;
 use std::sync::Arc;
 
-pub const ORACLE_ID: &str = "0x123123124"; // TODO: where should we store this ??
-
 // Client Setup
 // ================================================================================================
 
@@ -47,24 +45,10 @@ pub async fn setup_client() -> Client<impl FeltRng> {
     )
 }
 
-pub fn str_to_felt(input: &str) -> u64 {
-    input
-        .bytes()
-        .fold(0u64, |acc, byte| (acc << 8) | (byte as u64))
-}
-
 pub async fn create_wallet(client: &mut Client<impl FeltRng>) -> (Account, Word) {
     let wallet_template = AccountTemplate::BasicWallet {
         mutable_code: false,
         storage_mode: AccountStorageMode::Public,
     };
     client.new_account(wallet_template).await.unwrap()
-}
-
-pub fn extract_pair(input: &str) -> Option<(String, String)> {
-    let parts: Vec<&str> = input.split('/').collect();
-    match parts.len() {
-        2 => Some((parts[0].to_string(), parts[1].to_string())),
-        _ => None,
-    }
 }

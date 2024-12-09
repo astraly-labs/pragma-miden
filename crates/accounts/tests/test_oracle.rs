@@ -31,7 +31,7 @@ fn test_oracle_get_entry() {
     let publisher_id = 12345_u64;
     let publisher_id_word = [Felt::new(publisher_id), ZERO, ZERO, ZERO];
     let publisher_account_id = AccountId::try_from(publisher_id).unwrap();
-    let publisher_account = PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id)
+    let publisher_account = PublisherAccountBuilder::new(publisher_account_id)
         .with_storage_slots(vec![
             // TODO: We need a leading empty map else indexing goes wrong.
             StorageSlot::empty_map(),
@@ -46,12 +46,12 @@ fn test_oracle_get_entry() {
                 .unwrap(),
             ),
         ])
-        .build();
+        .build_for_test();
 
     let (oracle_pub_key, oracle_auth) = new_pk_and_authenticator([1_u8; 32]);
     let oracle_id = 98765_u64;
     let oracle_account_id = AccountId::try_from(oracle_id).unwrap();
-    let oracle_account = OracleAccountBuilder::new(oracle_pub_key, oracle_account_id)
+    let oracle_account = OracleAccountBuilder::new(oracle_account_id)
         .with_storage_slots(vec![
             // TODO: For some reasons, we have to add this map at index 0.
             StorageSlot::empty_map(),
@@ -168,7 +168,7 @@ fn test_oracle_register_publisher() {
     let (oracle_pub_key, oracle_auth) = new_pk_and_authenticator([1_u8; 32]);
     let oracle_id = 98765_u64;
     let oracle_account_id = AccountId::try_from(oracle_id).unwrap();
-    let mut oracle_account = OracleAccountBuilder::new(oracle_pub_key, oracle_account_id).build();
+    let mut oracle_account = OracleAccountBuilder::new(oracle_account_id).build_for_test();
 
     let mut mock_chain = MockChain::new();
     mock_chain.add_account(oracle_account.clone());
@@ -334,7 +334,7 @@ pub fn generate_publishers_and_median(n: usize) -> (Vec<(Word, Account)>, u64) {
         let publisher_account_id = AccountId::try_from(publisher_id * 10000).unwrap();
 
         let publisher_account =
-            PublisherAccountBuilder::new(publisher_pub_key, publisher_account_id)
+            PublisherAccountBuilder::<FeltRng>::new(publisher_account_id)
                 .with_storage_slots(vec![
                     StorageSlot::empty_map(),
                     StorageSlot::Map(
@@ -342,7 +342,7 @@ pub fn generate_publishers_and_median(n: usize) -> (Vec<(Word, Account)>, u64) {
                             .unwrap(),
                     ),
                 ])
-                .build();
+                .build_for_test();
 
         generated_publishers.push((pair_word, publisher_account));
     }
@@ -407,9 +407,9 @@ pub fn generate_oracle_account(
     }
 
     (
-        OracleAccountBuilder::new(oracle_pub_key, oracle_account_id)
+        OracleAccountBuilder::<FeltRng>::new(oracle_account_id)
             .with_storage_slots(storage_slots)
-            .build(),
+            .build_for_test(),
         oracle_auth,
     )
 }

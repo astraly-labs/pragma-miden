@@ -2,17 +2,21 @@ use miden_assembly::{
     ast::{Module, ModuleKind},
     DefaultSourceManager, LibraryPath,
 };
-use miden_crypto::{dsa::rpo_falcon512::PublicKey, Felt, Word};
+use miden_client::{accounts::AccountStorageMode, auth::AuthSecretKey, crypto::FeltRng, Client};
+use miden_crypto::{dsa::rpo_falcon512::{PublicKey, SecretKey}, Felt, Word};
 use miden_lib::{accounts::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
     accounts::{
-        Account, AccountCode, AccountComponent, AccountId, AccountStorage, AccountType, StorageSlot,
+        Account, AccountBuilder, AccountCode, AccountComponent, AccountId, AccountStorage, AccountType, StorageSlot
     },
     assembly::Library,
     assets::AssetVault,
 };
 
 use std::sync::{Arc, LazyLock};
+
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha20Rng;
 
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 
@@ -32,28 +36,26 @@ pub static PUBLISHER_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
         .expect("assembly should succeed")
 });
 
-pub struct PublisherAccountBuilder {
+pub struct PublisherAccountBuilder<'a, T: FeltRng> {
     account_id: AccountId,
     account_type: AccountType,
-    public_key: Word,
     storage_slots: Vec<StorageSlot>,
     component_library: Library,
+    client: Option<&'a mut Client<T>>,
 }
 
-impl PublisherAccountBuilder {
-    pub fn new(publisher_public_key: Word, publisher_account_id: AccountId) -> Self {
+impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
+    pub fn new(publisher_account_id: AccountId) -> Self {
         let default_storage_slots = vec![
-            // TODO: for some reasons, we need this leading map
             StorageSlot::empty_map(),
-            // Entries map
             StorageSlot::empty_map(),
         ];
         Self {
             account_id: publisher_account_id,
             account_type: AccountType::RegularAccountUpdatableCode,
-            public_key: publisher_public_key,
             storage_slots: default_storage_slots,
             component_library: PUBLISHER_COMPONENT_LIBRARY.clone(),
+            client: None,
         }
     }
 
@@ -67,14 +69,49 @@ impl PublisherAccountBuilder {
         self
     }
 
-    pub fn build(self) -> Account {
+    pub fn with_client(mut self, client: &'a mut Client<T>) -> Self {
+        self.client = Some(client);
+        self
+    }
+
+    pub async fn build(self) -> (Account, Word) {
         let publisher_component = AccountComponent::new(self.component_library, self.storage_slots)
             .unwrap()
             .with_supported_type(self.account_type);
 
+        let client = self.client.expect("build must have a Miden Client!");
+        let client_rng = client.rng();
+        let private_key = SecretKey::with_rng(client_rng);
+        let public_key = private_key.public_key();
+
+        let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into()));
+        
+        let from_seed = client_rng.gen();
+        let (account, account_seed) = AccountBuilder::new()
+            .init_seed(from_seed)
+            .account_type(AccountType::RegularAccountImmutableCode)
+            .storage_mode(AccountStorageMode::Public)
+            .with_component(auth_component)
+            .with_component(publisher_component)
+            .build()
+            .unwrap();
+
+        client.insert_account(&account, Some(account_seed), &AuthSecretKey::RpoFalcon512(private_key)).await.unwrap();
+
+        (account, account_seed)
+    }
+    
+    pub fn build_for_test(self) -> Account {
+        let publisher_component = AccountComponent::new(self.component_library, self.storage_slots)
+            .unwrap()
+            .with_supported_type(self.account_type);
+
+        let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
+        let sec_key = SecretKey::with_rng(&mut rng);
+        let pub_key: PublicKey = sec_key.public_key();
+
         let components = [
-            // If inverted, gives error Not Native account
-            RpoFalcon512::new(PublicKey::new(self.public_key)).into(),
+            RpoFalcon512::new(PublicKey::new(pub_key.into())).into(),
             publisher_component,
         ];
 

@@ -1698,6 +1698,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "miden-assembly",
+ "miden-client",
  "miden-crypto",
  "miden-lib",
  "miden-objects",
@@ -1762,11 +1763,14 @@ dependencies = [
  "clap",
  "colored",
  "miden-client",
+ "miden-objects",
  "miden-tx",
  "pm-accounts",
  "pm-types",
  "rand",
  "rusqlite",
+ "serde",
+ "serde_json",
  "thiserror",
  "tokio",
 ]

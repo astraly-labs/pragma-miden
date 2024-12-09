@@ -14,7 +14,7 @@ use publishers::PublishersCmd;
 use register_publisher::RegisterPublisherCmd;
 use sync::SyncCmd;
 
-use pm_utils_cli::{setup_client, CliCommand};
+use pm_utils_cli::setup_client;
 
 #[derive(Debug, Parser, Clone)]
 pub enum SubCommand {

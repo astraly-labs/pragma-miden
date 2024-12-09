@@ -1,7 +1,7 @@
 use miden_client::crypto::FeltRng;
-use miden_client::Client;
+use miden_client::{Client, Felt};
+use pm_utils_cli::str_to_felt;
 
-use pm_utils_cli::CliCommand;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Retrieve an entry for a given pair and publisher id ")]
@@ -12,9 +12,10 @@ pub struct EntryCmd {
     pair: String,
 }
 
-#[async_trait::async_trait]
-impl CliCommand for EntryCmd {
-    async fn call(&self, _client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+impl EntryCmd {
+    pub async fn call(&self, _client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+        let pair_id_felt: Felt = Felt::new(str_to_felt(&self.pair));
+
         Ok(())
     }
 }
