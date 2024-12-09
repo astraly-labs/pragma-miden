@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use miden_crypto::Felt;
 
 use crate::currency::Currency;
@@ -30,5 +32,22 @@ impl TryFrom<Pair> for Felt {
 
         let value = u64::from(encoded);
         Ok(Felt::new(value))
+    }
+}
+
+impl FromStr for Pair {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split('/').collect();
+        
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!("Invalid pair format. Expected BASE/QUOTE"));
+        }
+
+        let base = Currency::from_str(parts[0])?;
+        let quote = Currency::from_str(parts[1])?;
+
+        Ok(Pair::new(base, quote))
     }
 }
