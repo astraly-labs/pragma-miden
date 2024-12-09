@@ -9,12 +9,14 @@ use miden_client::{
 
 use pm_accounts::{publisher::PUBLISHER_COMPONENT_LIBRARY, utils::word_to_masm};
 use pm_types::{Currency, Entry, Pair};
-use pm_utils_cli::{str_to_felt, JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
+use pm_utils_cli::{
+    str_to_felt, JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN,
+};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Publish an entry(Callable by the publisher itself)")]
 pub struct PublishCmd {
-    pair: String,                 //"BTC/USD"
+    pair: String, //"BTC/USD"
     price: u64,
     decimals: u32,
     timestamp: u64,
@@ -25,18 +27,18 @@ impl PublishCmd {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
-        
+
         let (_, _) = client.get_account(publisher_id).await.unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
-        
+
         let entry: Entry = Entry {
             pair: pair.clone(),
             price: self.price,
             decimals: self.decimals,
             timestamp: self.timestamp,
         };
-        
+
         let entry_as_word: Word = entry.try_into().unwrap();
         let pair_as_word: Word = pair.to_word();
         let tx_script_code = format!(
@@ -47,6 +49,8 @@ impl PublishCmd {
                 begin
                     push.{entry}
                     push.{pair}
+
+                    debug.stack
         
                     call.publisher_module::publish_entry
         
@@ -62,7 +66,8 @@ impl PublishCmd {
         let publish_script = TransactionScript::compile(
             tx_script_code,
             [],
-            TransactionKernel::assembler()
+            TransactionKernel::testing_assembler()
+                .with_debug_mode(true)
                 .with_library(PUBLISHER_COMPONENT_LIBRARY.as_ref())
                 .map_err(|e| {
                     anyhow::anyhow!("Error while setting up the component library: {e:?}")

@@ -333,16 +333,15 @@ pub fn generate_publishers_and_median(n: usize) -> (Vec<(Word, Account)>, u64) {
         let (publisher_pub_key, _) = new_pk_and_authenticator([0_u8; 32]);
         let publisher_account_id = AccountId::try_from(publisher_id * 10000).unwrap();
 
-        let publisher_account =
-            PublisherAccountBuilder::<FeltRng>::new(publisher_account_id)
-                .with_storage_slots(vec![
-                    StorageSlot::empty_map(),
-                    StorageSlot::Map(
-                        StorageMap::with_entries(vec![(RpoDigest::from(pair_word), entry_as_word)])
-                            .unwrap(),
-                    ),
-                ])
-                .build_for_test();
+        let publisher_account = PublisherAccountBuilder::<FeltRng>::new(publisher_account_id)
+            .with_storage_slots(vec![
+                StorageSlot::empty_map(),
+                StorageSlot::Map(
+                    StorageMap::with_entries(vec![(RpoDigest::from(pair_word), entry_as_word)])
+                        .unwrap(),
+                ),
+            ])
+            .build_for_test();
 
         generated_publishers.push((pair_word, publisher_account));
     }
@@ -421,7 +420,7 @@ pub fn setup_mock_chain(publishers: &[(Word, Account)], oracle_account: &Account
         .map(|(_, publisher)| publisher)
         .collect();
     accounts.push(oracle_account.clone());
-    
+
     let mut mock_chain = MockChain::new();
     mock_chain.add_account(oracle_account.clone());
     mock_chain

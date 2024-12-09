@@ -1,7 +1,9 @@
-use miden_client::{accounts::AccountId, crypto::FeltRng};
 use miden_client::Client;
+use miden_client::{accounts::AccountId, crypto::FeltRng};
 use pm_accounts::publisher::PublisherAccountBuilder;
-use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN, PUBLISHER_ACCOUNT_ID};
+use pm_utils_cli::{
+    JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN, PUBLISHER_ACCOUNT_ID,
+};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Publisher Account")]
@@ -22,13 +24,21 @@ impl InitCmd {
 
         // TODO: Check that an oracle id has been provided or that it exists in the storage.
 
-        let (publisher_account, _) = PublisherAccountBuilder::new(AccountId::from_hex(PUBLISHER_ACCOUNT_ID).unwrap()).with_client(client).build().await;
+        let (publisher_account, _) = PublisherAccountBuilder::new(
+            AccountId::from_hex(&format!("0x{:016x}", 2485646)).unwrap(),
+        )
+        .with_client(client)
+        .build()
+        .await;
         let created_publisher_id = publisher_account.id();
-    
+
         let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         pragma_storage.add_key(PUBLISHER_ACCOUNT_COLUMN, &created_publisher_id.to_string())?;
 
-        println!("✅ Publisher successfully created with id: {}. State saved at {}", created_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE);
+        println!(
+            "✅ Publisher successfully created with id: {}. State saved at {}",
+            created_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE
+        );
         Ok(())
     }
 }

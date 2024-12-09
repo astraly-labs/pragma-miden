@@ -27,10 +27,7 @@ impl JsonStorage {
             }
         };
 
-        Ok(Self {
-            file_path,
-            storage,
-        })
+        Ok(Self { file_path, storage })
     }
 
     /// Creates a new storage file, returns error if it already exists
@@ -44,10 +41,7 @@ impl JsonStorage {
             data: HashMap::new(),
         };
 
-        let instance = Self {
-            file_path,
-            storage,
-        };
+        let instance = Self { file_path, storage };
         instance.save()?;
 
         Ok(instance)

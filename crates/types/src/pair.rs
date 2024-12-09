@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
-use miden_crypto::Felt;
-use miden_crypto::ZERO;
-use miden_crypto::Word;
 use crate::currency::Currency;
+use miden_crypto::Felt;
+use miden_crypto::Word;
+use miden_crypto::ZERO;
 
 #[derive(Debug, Clone)]
 pub struct Pair {
@@ -23,7 +23,7 @@ impl Pair {
     }
 
     pub fn to_word(&self) -> Word {
-        [self.try_into().unwrap(), ZERO, ZERO, ZERO]
+        [ZERO, ZERO, ZERO, self.try_into().unwrap()]
     }
 }
 
@@ -58,7 +58,7 @@ impl FromStr for Pair {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split('/').collect();
-        
+
         if parts.len() != 2 {
             return Err(anyhow::anyhow!("Invalid pair format. Expected BASE/QUOTE"));
         }

@@ -1,11 +1,12 @@
-use std::str::FromStr;
 use miden_client::transactions::{TransactionKernel, TransactionRequest, TransactionScript};
 use miden_client::{accounts::AccountId, crypto::FeltRng};
-use miden_client::{Client, ZERO,Felt};
+use miden_client::{Client, Felt, ZERO};
+use pm_accounts::oracle::ORACLE_COMPONENT_LIBRARY;
 use pm_accounts::publisher::PUBLISHER_COMPONENT_LIBRARY;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use std::str::FromStr;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Oracle Account")]
@@ -24,8 +25,6 @@ impl MedianCmd {
         let (_, _) = client.get_account(oracle_id).await.unwrap();
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
 
-        let pair_id_felt: Felt = pair.try_into().unwrap();
-
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module
@@ -35,9 +34,10 @@ impl MedianCmd {
                 push.{pair}
                 call.oracle_module::get_median
                 debug.stack
+                exec.sys::truncate_stack
             end
             ",
-            pair = word_to_masm([pair_id_felt, ZERO, ZERO, ZERO]),
+            pair = word_to_masm(pair.to_word()),
         );
 
         // TODO: Can we pipe stdout to a variable so we can see the stack??
@@ -46,7 +46,8 @@ impl MedianCmd {
             tx_script_code,
             [],
             TransactionKernel::testing_assembler()
-                .with_library(PUBLISHER_COMPONENT_LIBRARY.as_ref())
+                .with_debug_mode(true)
+                .with_library(ORACLE_COMPONENT_LIBRARY.as_ref())
                 .map_err(|e| {
                     anyhow::anyhow!("Error while setting up the component library: {e:?}")
                 })?
@@ -69,7 +70,7 @@ impl MedianCmd {
             .submit_transaction(tx_result.clone())
             .await
             .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
-        
+
         Ok(())
     }
 }

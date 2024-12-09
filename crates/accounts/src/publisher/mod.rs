@@ -3,11 +3,15 @@ use miden_assembly::{
     DefaultSourceManager, LibraryPath,
 };
 use miden_client::{accounts::AccountStorageMode, auth::AuthSecretKey, crypto::FeltRng, Client};
-use miden_crypto::{dsa::rpo_falcon512::{PublicKey, SecretKey}, Felt, Word};
+use miden_crypto::{
+    dsa::rpo_falcon512::{PublicKey, SecretKey},
+    Felt, Word,
+};
 use miden_lib::{accounts::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
     accounts::{
-        Account, AccountBuilder, AccountCode, AccountComponent, AccountId, AccountStorage, AccountType, StorageSlot
+        Account, AccountBuilder, AccountCode, AccountComponent, AccountId, AccountStorage,
+        AccountType, StorageSlot,
     },
     assembly::Library,
     assets::AssetVault,
@@ -46,10 +50,7 @@ pub struct PublisherAccountBuilder<'a, T: FeltRng> {
 
 impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
     pub fn new(publisher_account_id: AccountId) -> Self {
-        let default_storage_slots = vec![
-            StorageSlot::empty_map(),
-            StorageSlot::empty_map(),
-        ];
+        let default_storage_slots = vec![StorageSlot::empty_map(), StorageSlot::empty_map()];
         Self {
             account_id: publisher_account_id,
             account_type: AccountType::RegularAccountUpdatableCode,
@@ -85,22 +86,29 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
         let public_key = private_key.public_key();
 
         let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into()));
-        
+
         let from_seed = client_rng.gen();
         let (account, account_seed) = AccountBuilder::new()
             .init_seed(from_seed)
-            .account_type(AccountType::RegularAccountImmutableCode)
+            .account_type(AccountType::RegularAccountUpdatableCode)
             .storage_mode(AccountStorageMode::Public)
             .with_component(auth_component)
             .with_component(publisher_component)
             .build()
             .unwrap();
 
-        client.insert_account(&account, Some(account_seed), &AuthSecretKey::RpoFalcon512(private_key)).await.unwrap();
+        client
+            .insert_account(
+                &account,
+                Some(account_seed),
+                &AuthSecretKey::RpoFalcon512(private_key),
+            )
+            .await
+            .unwrap();
 
         (account, account_seed)
     }
-    
+
     pub fn build_for_test(self) -> Account {
         let publisher_component = AccountComponent::new(self.component_library, self.storage_slots)
             .unwrap()

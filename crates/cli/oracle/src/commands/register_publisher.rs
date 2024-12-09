@@ -1,7 +1,7 @@
-use miden_client::transactions::{TransactionKernel, TransactionRequest};
-use miden_client::{accounts::AccountId, transactions::TransactionScript};
 use miden_client::crypto::FeltRng;
+use miden_client::transactions::{TransactionKernel, TransactionRequest};
 use miden_client::Client;
+use miden_client::{accounts::AccountId, transactions::TransactionScript};
 use pm_accounts::publisher::PUBLISHER_COMPONENT_LIBRARY;
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
@@ -15,7 +15,7 @@ pub struct RegisterPublisherCmd {
 impl RegisterPublisherCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
-        
+
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
         // just assert that the account exists
@@ -61,7 +61,7 @@ impl RegisterPublisherCmd {
             .submit_transaction(tx_result.clone())
             .await
             .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
-        
+
         Ok(())
     }
 }

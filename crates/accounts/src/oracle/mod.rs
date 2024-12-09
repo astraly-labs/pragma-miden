@@ -8,12 +8,15 @@ use miden_assembly::{
     DefaultSourceManager, LibraryPath,
 };
 use miden_client::{auth::AuthSecretKey, crypto::FeltRng, Client};
-use miden_crypto::{dsa::rpo_falcon512::{PublicKey, SecretKey}, Felt, Word, ZERO};
+use miden_crypto::{
+    dsa::rpo_falcon512::{PublicKey, SecretKey},
+    Felt, Word, ZERO,
+};
 use miden_lib::{accounts::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
     accounts::{
-        Account, AccountCode, AccountComponent, AccountId, AccountStorage, AccountType, StorageSlot,
-        AccountStorageMode, AccountBuilder,
+        Account, AccountBuilder, AccountCode, AccountComponent, AccountId, AccountStorage,
+        AccountStorageMode, AccountType, StorageSlot,
     },
     assembly::Library,
     assets::AssetVault,
@@ -89,7 +92,7 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
         let client_rng = client.rng();
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
-        
+
         let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into()));
 
         let from_seed = client_rng.gen();
@@ -102,7 +105,14 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
             .build()
             .unwrap();
 
-        client.insert_account(&account, Some(account_seed), &AuthSecretKey::RpoFalcon512(private_key)).await.unwrap();
+        client
+            .insert_account(
+                &account,
+                Some(account_seed),
+                &AuthSecretKey::RpoFalcon512(private_key),
+            )
+            .await
+            .unwrap();
 
         (account, account_seed)
     }
@@ -116,10 +126,7 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
         let sec_key = SecretKey::with_rng(&mut rng);
         let pub_key: PublicKey = sec_key.public_key();
 
-        let components = [
-            RpoFalcon512::new(pub_key.into()).into(),
-            oracle_component,
-        ];
+        let components = [RpoFalcon512::new(pub_key.into()).into(), oracle_component];
 
         let storage_slots: Vec<_> = components
             .iter()

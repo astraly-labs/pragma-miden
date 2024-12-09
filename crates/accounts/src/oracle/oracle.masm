@@ -282,6 +282,8 @@ export.get_median
 
     # increments the nonce (anyone should be able to call that function)
     push.1 exec.account::incr_nonce
+
+    exec.sys::truncate_stack
 end
 
 #! Registers a new publishers into the Oracle.

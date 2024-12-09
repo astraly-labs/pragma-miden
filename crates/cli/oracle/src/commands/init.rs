@@ -1,7 +1,9 @@
-use miden_client::{accounts::AccountId, crypto::FeltRng};
 use miden_client::Client;
+use miden_client::{accounts::AccountId, crypto::FeltRng};
 use pm_accounts::oracle::OracleAccountBuilder;
-use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, ORACLE_ACCOUNT_ID, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use pm_utils_cli::{
+    JsonStorage, ORACLE_ACCOUNT_COLUMN, ORACLE_ACCOUNT_ID, PRAGMA_ACCOUNTS_STORAGE_FILE,
+};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Oracle Account")]
@@ -15,13 +17,20 @@ impl InitCmd {
         // }
         client.sync_state().await.unwrap();
 
-        let (oracle_account, _) = OracleAccountBuilder::new(AccountId::from_hex(ORACLE_ACCOUNT_ID).unwrap()).with_client(client).build().await;
+        let (oracle_account, _) =
+            OracleAccountBuilder::new(AccountId::from_hex(&format!("0x{:016x}", 4268564)).unwrap())
+                .with_client(client)
+                .build()
+                .await;
         let created_oracle_id = oracle_account.id();
-    
+
         let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         pragma_storage.add_key(ORACLE_ACCOUNT_COLUMN, &created_oracle_id.to_string())?;
 
-        println!("✅ Oracle successfully created with id: {}. State saved at {}", created_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE);
+        println!(
+            "✅ Oracle successfully created with id: {}. State saved at {}",
+            created_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE
+        );
         Ok(())
     }
 }
