@@ -6,7 +6,7 @@
 
 This repository contains an implementation of the Pragma protocol for the Polygon Miden blockchain. Pragma Miden aims to provide a decentralized oracle solution specifically designed for the Miden network.
 
-![Demo](./.github/pragma-miden-demo.mp4)
+[You can find a demo here.](./.github/pragma-miden-demo.mp4)
 
 ## About Pragma Miden
 
@@ -21,7 +21,6 @@ You can learn more about Miden [here](https://docs.polygon.technology/miden/).
 <p align="center">
   <img src=".github/design.png">
 </p>
-
 
 ### Oracle Account
 
