@@ -1,0 +1,29 @@
+[package]
+name = "pm-utils-cli"
+description = "Pragma-Miden utilities for the CLIs"
+authors.workspace = true
+homepage.workspace = true
+edition.workspace = true
+repository.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+clap.workspace = true
+colored.workspace = true
+miden-client.workspace = true
+miden-objects.workspace = true
+miden-tx.workspace = true
+pm-accounts.workspace = true
+pm-types.workspace = true
+rand.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true

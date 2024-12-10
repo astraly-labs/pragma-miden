@@ -1,7 +1,7 @@
 use miden_crypto::{Felt, Word};
 
 use crate::pair::Pair;
-
+#[derive(Debug, Clone)]
 pub struct Entry {
     pub pair: Pair,
     // TODO(akhercha): We may prefer a u128 for more precision.
@@ -22,5 +22,26 @@ impl TryInto<Word> for Entry {
             Felt::new(self.decimals as u64),
             Felt::new(self.timestamp),
         ])
+    }
+}
+
+impl From<Word> for Entry {
+    fn from(word: Word) -> Self {
+        let [pair_felt, price_felt, decimals_felt, timestamp_felt] = word;
+
+        // Convert pair from Felt
+        let pair = Pair::from(pair_felt);
+
+        // Extract other fields
+        let price = price_felt.as_int();
+        let decimals = decimals_felt.as_int() as u32;
+        let timestamp = timestamp_felt.as_int();
+
+        Entry {
+            pair,
+            price,
+            decimals,
+            timestamp,
+        }
     }
 }

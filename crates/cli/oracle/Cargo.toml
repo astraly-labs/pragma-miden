@@ -1,0 +1,29 @@
+[package]
+name = "pm-oracle-cli"
+description = "Pragma-Miden cli for the oracle"
+authors.workspace = true
+homepage.workspace = true
+edition.workspace = true
+repository.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+clap.workspace = true
+colored.workspace = true
+miden-client.workspace = true
+miden-tx.workspace = true
+pm-accounts.workspace = true
+pm-types.workspace = true
+pm-utils-cli.workspace = true
+prettytable-rs.workspace = true
+rand.workspace = true
+rusqlite.workspace = true
+thiserror.workspace = true
+tokio.workspace = true

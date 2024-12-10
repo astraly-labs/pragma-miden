@@ -1,5 +1,7 @@
+use std::str::FromStr;
+
 #[derive(Debug, Clone)]
-pub struct Currency(String);
+pub struct Currency(pub String);
 
 impl Currency {
     pub fn new(currency: &str) -> anyhow::Result<Self> {
@@ -21,5 +23,13 @@ impl Currency {
         }
 
         Some(result)
+    }
+}
+
+impl FromStr for Currency {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Currency::new(s)
     }
 }
