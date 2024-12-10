@@ -40,7 +40,7 @@ end
 proc.call_publisher_get_entry
     debug.stack
     
-    push.0xddcc5979b4a0bb9f775cba596ed0c54758f5783ad6d70c80569ff308207cbec3
+    push.0x7265839a81d071fafb459de0b524bb854036706515240ea2acbd55e4a72d83ff
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
 
     swapw movdn.3 drop drop drop
@@ -48,7 +48,9 @@ proc.call_publisher_get_entry
 
     debug.stack
 
-    # exec.tx::execute_foreign_procedure
+    exec.tx::execute_foreign_procedure
+
+    push.1 exec.account::incr_nonce
     # => [ENTRY]
 end
 
@@ -309,6 +311,8 @@ export.register_publisher
 
     # Retrieve the next_publisher_slot available from the slot
     push.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
+
+    debug.stack
     # => [NEXT_PUBLISHER_SLOT, PUBLISHER_ID, PUBLISHER_ID]
 
     # Prepare the stack for the set_item and set_map_item calls

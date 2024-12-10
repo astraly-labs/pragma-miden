@@ -1,8 +1,9 @@
 use miden_client::crypto::FeltRng;
 use miden_client::transactions::{TransactionKernel, TransactionRequest};
-use miden_client::Client;
 use miden_client::{accounts::AccountId, transactions::TransactionScript};
+use miden_client::{Client, Felt, ZERO};
 use pm_accounts::oracle::ORACLE_COMPONENT_LIBRARY;
+use pm_accounts::utils::word_to_masm;
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -29,17 +30,23 @@ impl RegisterPublisherCmd {
             use.std::sys
     
             begin
-                push.{publisher_account_id}
+                push.{publisher_id}
                 call.oracle_module::register_publisher
                 exec.sys::truncate_stack
             end
             ",
+            publisher_id = word_to_masm([
+                ZERO,
+                ZERO,
+                ZERO,
+                Felt::new(hex_to_decimal(&self.publisher_id.to_string()).unwrap()),
+            ])
         );
-
         let median_script = TransactionScript::compile(
             tx_script_code,
             [],
             TransactionKernel::testing_assembler()
+                .with_debug_mode(true)
                 .with_library(ORACLE_COMPONENT_LIBRARY.as_ref())
                 .map_err(|e| {
                     anyhow::anyhow!("Error while setting up the component library: {e:?}")
@@ -64,4 +71,12 @@ impl RegisterPublisherCmd {
 
         Ok(())
     }
+}
+
+fn hex_to_decimal(hex_string: &str) -> Result<u64, std::num::ParseIntError> {
+    // Remove "0x" or "0X" prefix if present
+    let hex_without_prefix = hex_string.trim_start_matches("0x").trim_start_matches("0X");
+
+    // Convert to decimal
+    u64::from_str_radix(hex_without_prefix, 16)
 }

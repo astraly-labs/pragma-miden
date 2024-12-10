@@ -1,6 +1,6 @@
-use miden_client::Client;
 use anyhow::Context;
 use miden_client::{accounts::AccountId, crypto::FeltRng};
+use miden_client::{Client, ZERO};
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -9,6 +9,8 @@ pub struct PublishersCmd {}
 
 impl PublishersCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+        client.sync_state().await.unwrap();
+
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
 
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
@@ -23,13 +25,20 @@ impl PublishersCmd {
             .as_int();
 
         println!("Publishers list ({})", publisher_count);
-        for i in 0..publisher_count {
+        for i in 0..publisher_count-3 {
             let publisher_word = oracle
                 .storage()
                 .get_item((4 + i).try_into().context("Invalid publisher index")?)
                 .context("Failed to retrieve publisher details")?;
-            
-            println!("{:?}", publisher_word[0]);
+
+            println!("{}", publisher_word[3].as_int());
+
+            // TESTING
+            let res = oracle
+                .storage()
+                .get_map_item(3, [ZERO,ZERO,ZERO,publisher_word[3]])
+                .unwrap();
+            println!("{:?}", res);
         }
         Ok(())
     }

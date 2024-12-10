@@ -10,7 +10,7 @@ use pm_utils_cli::{
 use std::str::FromStr;
 
 #[derive(clap::Parser, Debug, Clone)]
-#[clap(about = "Creates a new Oracle Account")]
+#[clap(about = "Compute the median for a given pair")]
 pub struct MedianCmd {
     // Input pair (format example: "BTC/USD")
     pair: String,
@@ -23,9 +23,15 @@ impl MedianCmd {
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
         let (oracle, _) = client.get_account(oracle_id).await.unwrap();
-
+        
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
+        
+        let (publisher, _) = client.get_account(publisher_id).await.unwrap();
+
+        for x in publisher.code().procedures().iter() {
+            println!("{}", x.mast_root());
+        }
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
 
