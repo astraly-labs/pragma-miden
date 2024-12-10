@@ -25,3 +25,5 @@ rand.workspace = true
 rusqlite.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+chrono.workspace = true
+prettytable-rs.workspace = true

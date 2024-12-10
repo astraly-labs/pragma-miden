@@ -25,9 +25,9 @@ impl MedianCmd {
 
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
+        let (publisher, _) = client.get_account(publisher_id).await.unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
-
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module
@@ -61,7 +61,7 @@ impl MedianCmd {
         let transaction_request = TransactionRequest::new()
             .with_custom_script(median_script)
             .unwrap()
-            .with_public_foreign_accounts([publisher_id])
+            .with_public_foreign_accounts([publisher.id()])
             .unwrap();
 
         let tx_result = client

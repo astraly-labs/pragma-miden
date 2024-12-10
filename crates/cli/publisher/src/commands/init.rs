@@ -1,3 +1,4 @@
+use colored::*;
 use miden_client::crypto::FeltRng;
 use miden_client::Client;
 use pm_accounts::publisher::PublisherAccountBuilder;
@@ -31,10 +32,96 @@ impl InitCmd {
         let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         pragma_storage.add_key(PUBLISHER_ACCOUNT_COLUMN, &created_publisher_id.to_string())?;
 
+        // Clear screen for better presentation
+        print!("\x1B[2J\x1B[1;1H");
+
         println!(
-            "✅ Publisher successfully created with id: {}. State saved at {}",
-            created_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE
+            "{}",
+            r#"
+        ==============================================================
+        ▗▄▄▖ ▗▄▄▖  ▗▄▖  ▗▄▄▖▗▖  ▗▖ ▗▄▖     ▗▖  ▗▖▗▄▄▄▖▗▄▄▄ ▗▄▄▄▖▗▖  ▗▖
+        ▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌▐▌   ▐▛▚▞▜▌▐▌ ▐▌    ▐▛▚▞▜▌  █  ▐▌  █▐▌   ▐▛▚▖▐▌
+        ▐▛▀▘ ▐▛▀▚▖▐▛▀▜▌▐▌▝▜▌▐▌  ▐▌▐▛▀▜▌    ▐▌  ▐▌  █  ▐▌  █▐▛▀▀▘▐▌ ▝▜▌
+        ▐▌   ▐▌ ▐▌▐▌ ▐▌▝▚▄▞▘▐▌  ▐▌▐▌ ▐▌    ▐▌  ▐▌▗▄█▄▖▐▙▄▄▀▐▙▄▄▖▐▌  ▐▌
+
+        ==============================================================
+
+        "#
+            .bright_cyan()
         );
+
+        println!(
+            "{}",
+            r#"
+            🎉 Welcome to the Pragma Oracle Network! 🎉
+                
+            As a Publisher, you are now an essential part of our decentralized price feed system.
+            Your role is to provide accurate and timely price data to the network.
+            "#
+            .bright_yellow()
+        );
+
+        println!("\n{}", "📝 Your Publisher Details".bright_green());
+        println!(
+            "{}",
+            format!(
+                "
+                ╭────────────────────────────────────────────────────────────╮
+                │ ID: {}
+                │ Storage: {}
+                ╰────────────────────────────────────────────────────────────╯",
+                created_publisher_id.to_string().bright_white(),
+                PRAGMA_ACCOUNTS_STORAGE_FILE.bright_white()
+            )
+            .bright_blue()
+        );
+
+        println!("\n{}", "🚀 Quick Start Guide".bright_green());
+        println!(
+            "{}",
+            r#"To start publishing price data, use the following command format:"#.bright_yellow()
+        );
+
+        println!(
+            "{}",
+            r#"
+                📊 Command Structure:
+                ╭────────────────────────────────────────────────────────────╮
+                │ pm-publisher-cli push [PAIR] [PRICE] [DECIMALS] [TIMESTAMP]│
+                ╰────────────────────────────────────────────────────────────╯
+                "#
+            .bright_blue()
+        );
+
+        println!("{}", "📌 Example:".bright_yellow());
+        println!(
+            "{}",
+            r#"
+                ╭────────────────────────────────────────────────────────────╮
+                │ pm-publisher-cli push BTC/USD 95000 5 1733844099           │
+                ╰────────────────────────────────────────────────────────────╯
+                "#
+            .bright_blue()
+        );
+
+        println!(
+            "{}",
+            r#"
+                💡 Parameters Explained:
+                • PAIR     : Trading pair (e.g., BTC/USD)
+                • PRICE    : Current price (e.g., 95000)
+                • DECIMALS : Number of decimal places (e.g., 5)
+                • TIMESTAMP: Current Unix timestamp
+                "#
+            .bright_yellow()
+        );
+
+        println!(
+            "\n{}",
+            "✨ You're all set! Start publishing price data to contribute to the network! ✨"
+                .bright_green()
+        );
+
         Ok(())
     }
 }

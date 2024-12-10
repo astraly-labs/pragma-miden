@@ -97,6 +97,7 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
             )
             .await
             .unwrap();
+        client.sync_state().await.unwrap();
 
         (account, account_seed)
     }

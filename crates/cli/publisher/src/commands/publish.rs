@@ -26,8 +26,6 @@ impl PublishCmd {
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
 
-        let (publisher_account, _) = client.get_account(publisher_id).await.unwrap();
-
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
 
         let entry: Entry = Entry {
@@ -86,15 +84,7 @@ impl PublishCmd {
             .await
             .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
 
-        println!("Publish entry successful");
-
-        for x in publisher_account.code().procedures().iter() {
-            println!("{}", x.mast_root());
-        }
-        println!("=====");
-        for x in publisher_account.code().procedure_roots() {
-            println!("{}", x);
-        }
+        println!(" Publish successful!");
 
         Ok(())
     }

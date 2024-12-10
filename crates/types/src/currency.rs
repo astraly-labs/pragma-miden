@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
-pub struct Currency(String);
+pub struct Currency(pub String);
 
 impl Currency {
     pub fn new(currency: &str) -> anyhow::Result<Self> {
