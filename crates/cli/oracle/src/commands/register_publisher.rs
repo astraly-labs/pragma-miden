@@ -2,7 +2,7 @@ use miden_client::crypto::FeltRng;
 use miden_client::transactions::{TransactionKernel, TransactionRequest};
 use miden_client::{accounts::AccountId, transactions::TransactionScript};
 use miden_client::{Client, Felt, ZERO};
-use pm_accounts::oracle::ORACLE_COMPONENT_LIBRARY;
+use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
@@ -21,8 +21,6 @@ impl RegisterPublisherCmd {
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
         // just assert that the account exists
         let (_, _) = client.get_account(oracle_id).await.unwrap();
-
-        let publisher_account_id = AccountId::from_hex(&self.publisher_id).unwrap();
 
         let tx_script_code = format!(
             "
@@ -47,7 +45,7 @@ impl RegisterPublisherCmd {
             [],
             TransactionKernel::testing_assembler()
                 .with_debug_mode(true)
-                .with_library(ORACLE_COMPONENT_LIBRARY.as_ref())
+                .with_library(get_oracle_component_library())
                 .map_err(|e| {
                     anyhow::anyhow!("Error while setting up the component library: {e:?}")
                 })?

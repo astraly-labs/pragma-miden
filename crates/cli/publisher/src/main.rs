@@ -3,7 +3,7 @@ pub mod commands;
 use commands::SubCommand;
 
 #[derive(Parser, Debug)]
-#[command(name = "pm-publisher-cli")]
+#[command(name = "pm-publisher")]
 #[command(about = "Pragma Miden publisher CLI")]
 struct Cli {
     #[command(subcommand)]

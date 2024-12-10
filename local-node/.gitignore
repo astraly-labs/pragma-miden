@@ -1,0 +1,8 @@
+accounts/
+blocks/
+genesis.dat
+miden-node.toml
+miden-store.sqlite3
+miden-store.sqlite3-shm
+miden-store.sqlite3-wal
+genesis.toml

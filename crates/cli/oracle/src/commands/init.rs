@@ -1,5 +1,5 @@
+use miden_client::crypto::FeltRng;
 use miden_client::Client;
-use miden_client::{accounts::AccountId, crypto::FeltRng};
 use pm_accounts::oracle::OracleAccountBuilder;
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
@@ -15,11 +15,10 @@ impl InitCmd {
         // }
         client.sync_state().await.unwrap();
 
-        let (oracle_account, _) =
-            OracleAccountBuilder::new(AccountId::from_hex(&format!("0x{:016x}", 4268564)).unwrap())
-                .with_client(client)
-                .build()
-                .await;
+        let (oracle_account, _) = OracleAccountBuilder::new()
+            .with_client(client)
+            .build()
+            .await;
         let created_oracle_id = oracle_account.id();
 
         let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;

@@ -21,6 +21,10 @@ impl EntryCmd {
 
         let (publisher, _) = client.get_account(publisher_id).await.unwrap();
 
+        for x in publisher.code().procedures().iter() {
+            println!("{}", x.mast_root());
+        }
+
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         // TODO: create a pair from str & a to_word
         let entry = publisher

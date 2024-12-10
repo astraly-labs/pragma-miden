@@ -7,7 +7,7 @@ use miden_client::{
     Client, Word,
 };
 
-use pm_accounts::{publisher::PUBLISHER_COMPONENT_LIBRARY, utils::word_to_masm};
+use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use pm_types::{Entry, Pair};
 use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
 
@@ -64,7 +64,7 @@ impl PublishCmd {
             [],
             TransactionKernel::testing_assembler()
                 .with_debug_mode(true)
-                .with_library(PUBLISHER_COMPONENT_LIBRARY.as_ref())
+                .with_library(get_publisher_component_library())
                 .map_err(|e| {
                     anyhow::anyhow!("Error while setting up the component library: {e:?}")
                 })?
@@ -90,6 +90,10 @@ impl PublishCmd {
 
         for x in publisher_account.code().procedures().iter() {
             println!("{}", x.mast_root());
+        }
+        println!("=====");
+        for x in publisher_account.code().procedure_roots() {
+            println!("{}", x);
         }
 
         Ok(())

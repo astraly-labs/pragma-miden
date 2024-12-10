@@ -23,6 +23,7 @@ impl EntryCmd {
 
         // TODO: create a pair from str & a to_word
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
+
         // TODO: display entry correctly and nicely !
         // TODO: 1 => index slot with the entries map for each publisher, create constant
         let entry = publisher.storage().get_map_item(2, pair.to_word()).unwrap();

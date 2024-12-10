@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use rand::Rng;
+
 use miden_assembly::{
     ast::{Module, ModuleKind},
     DefaultSourceManager, LibraryPath,
@@ -5,27 +9,17 @@ use miden_assembly::{
 use miden_client::{accounts::AccountStorageMode, auth::AuthSecretKey, crypto::FeltRng, Client};
 use miden_crypto::{
     dsa::rpo_falcon512::{PublicKey, SecretKey},
-    Felt, Word,
+    Word,
 };
 use miden_lib::{accounts::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
-    accounts::{
-        Account, AccountBuilder, AccountCode, AccountComponent, AccountId, AccountStorage,
-        AccountType, StorageSlot,
-    },
+    accounts::{Account, AccountBuilder, AccountComponent, AccountType, StorageSlot},
     assembly::Library,
-    assets::AssetVault,
 };
-
-use std::sync::{Arc, LazyLock};
-
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha20Rng;
 
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 
-pub static PUBLISHER_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
-    let assembler = TransactionKernel::testing_assembler().with_debug_mode(true);
+pub fn get_publisher_component_library() -> Library {
     let source_manager = Arc::new(DefaultSourceManager::default());
     let publisher_component_module = Module::parser(ModuleKind::Library)
         .parse_str(
@@ -35,28 +29,25 @@ pub static PUBLISHER_COMPONENT_LIBRARY: LazyLock<Library> = LazyLock::new(|| {
         )
         .unwrap();
 
-    assembler
+    TransactionKernel::testing_assembler()
+        .with_debug_mode(true)
         .assemble_library([publisher_component_module])
         .expect("assembly should succeed")
-});
+}
 
 pub struct PublisherAccountBuilder<'a, T: FeltRng> {
-    account_id: AccountId,
+    client: Option<&'a mut Client<T>>,
     account_type: AccountType,
     storage_slots: Vec<StorageSlot>,
-    component_library: Library,
-    client: Option<&'a mut Client<T>>,
 }
 
 impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
-    pub fn new(publisher_account_id: AccountId) -> Self {
+    pub fn new() -> Self {
         let default_storage_slots = vec![StorageSlot::empty_map(), StorageSlot::empty_map()];
         Self {
-            account_id: publisher_account_id,
-            account_type: AccountType::RegularAccountUpdatableCode,
-            storage_slots: default_storage_slots,
-            component_library: PUBLISHER_COMPONENT_LIBRARY.clone(),
             client: None,
+            account_type: AccountType::RegularAccountImmutableCode,
+            storage_slots: default_storage_slots,
         }
     }
 
@@ -76,9 +67,10 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
     }
 
     pub async fn build(self) -> (Account, Word) {
-        let publisher_component = AccountComponent::new(self.component_library, self.storage_slots)
-            .unwrap()
-            .with_supported_type(self.account_type);
+        let publisher_component =
+            AccountComponent::new(get_publisher_component_library(), self.storage_slots)
+                .unwrap()
+                .with_supported_type(self.account_type);
 
         let client = self.client.expect("build must have a Miden Client!");
         let client_rng = client.rng();
@@ -90,7 +82,7 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
         let from_seed = client_rng.gen();
         let (account, account_seed) = AccountBuilder::new()
             .init_seed(from_seed)
-            .account_type(AccountType::RegularAccountUpdatableCode)
+            .account_type(self.account_type)
             .storage_mode(AccountStorageMode::Public)
             .with_component(auth_component)
             .with_component(publisher_component)
@@ -108,33 +100,10 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
 
         (account, account_seed)
     }
+}
 
-    pub fn build_for_test(self) -> Account {
-        let publisher_component = AccountComponent::new(self.component_library, self.storage_slots)
-            .unwrap()
-            .with_supported_type(self.account_type);
-
-        let mut rng = ChaCha20Rng::from_seed([0_u8; 32]);
-        let sec_key = SecretKey::with_rng(&mut rng);
-        let pub_key: PublicKey = sec_key.public_key();
-
-        let components = [
-            RpoFalcon512::new(PublicKey::new(pub_key.into())).into(),
-            publisher_component,
-        ];
-
-        let storage_slots: Vec<_> = components
-            .iter()
-            .flat_map(|component| component.storage_slots())
-            .cloned()
-            .collect();
-
-        Account::from_parts(
-            self.account_id,
-            AssetVault::new(&[]).unwrap(),
-            AccountStorage::new(storage_slots).unwrap(),
-            AccountCode::from_components(&components, self.account_type).unwrap(),
-            Felt::new(1),
-        )
+impl<'a, T: FeltRng> Default for PublisherAccountBuilder<'a, T> {
+    fn default() -> Self {
+        Self::new()
     }
 }

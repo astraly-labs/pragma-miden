@@ -1,12 +1,6 @@
 use.std::sys
 use.miden::account
 
-# ERRORS
-# =================================================================================================
-
-# Raised when we try to read a pair not published.
-const.ERR_PAIR_NOT_FOUND=0x0002004A
-
 # CONSTANTS
 # =================================================================================================
 
@@ -38,8 +32,15 @@ end
 #!
 export.get_entry
     push.ENTRIES_MAP_SLOT
+
+    debug.stack
+
     # => [entries_map_slot, PAIR]
     exec.account::get_map_item
+
+    # increments the nonce (anyone should be able to call that function)
+    push.1 exec.account::incr_nonce
+
     # => [ENTRY]
     exec.sys::truncate_stack
 end

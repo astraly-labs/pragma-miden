@@ -4,7 +4,7 @@ use clap::Parser;
 use commands::SubCommand;
 
 #[derive(Parser, Debug)]
-#[command(name = "pm-oracle-cli")]
+#[command(name = "pm-oracle")]
 #[command(about = "Pragma Miden oracle CLI")]
 struct Cli {
     #[command(subcommand)]

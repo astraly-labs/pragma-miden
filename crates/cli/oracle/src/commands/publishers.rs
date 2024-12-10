@@ -25,7 +25,7 @@ impl PublishersCmd {
             .as_int();
 
         println!("Publishers list ({})", publisher_count);
-        for i in 0..publisher_count-3 {
+        for i in 0..publisher_count - 3 {
             let publisher_word = oracle
                 .storage()
                 .get_item((4 + i).try_into().context("Invalid publisher index")?)
@@ -36,7 +36,7 @@ impl PublishersCmd {
             // TESTING
             let res = oracle
                 .storage()
-                .get_map_item(3, [ZERO,ZERO,ZERO,publisher_word[3]])
+                .get_map_item(3, [ZERO, ZERO, ZERO, publisher_word[3]])
                 .unwrap();
             println!("{:?}", res);
         }

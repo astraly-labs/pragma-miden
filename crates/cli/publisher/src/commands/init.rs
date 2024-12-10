@@ -1,5 +1,5 @@
+use miden_client::crypto::FeltRng;
 use miden_client::Client;
-use miden_client::{accounts::AccountId, crypto::FeltRng};
 use pm_accounts::publisher::PublisherAccountBuilder;
 use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
 
@@ -22,12 +22,10 @@ impl InitCmd {
 
         // TODO: Check that an oracle id has been provided or that it exists in the storage.
 
-        let (publisher_account, _) = PublisherAccountBuilder::new(
-            AccountId::from_hex(&format!("0x{:016x}", 2485646)).unwrap(),
-        )
-        .with_client(client)
-        .build()
-        .await;
+        let (publisher_account, _) = PublisherAccountBuilder::new()
+            .with_client(client)
+            .build()
+            .await;
         let created_publisher_id = publisher_account.id();
 
         let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
