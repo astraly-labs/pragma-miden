@@ -67,3 +67,6 @@ miden-client = { git = "https://github.com/0xPolygonMiden/miden-client", branch 
   "sqlite",
   "tonic",
 ] }
+
+[patch.crates-io]
+miden-node = { git = "https://github.com/0xPolygonMiden/miden-node", branch = "next" }
