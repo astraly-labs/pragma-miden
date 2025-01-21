@@ -9,13 +9,13 @@ use miden_client::{
 
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use pm_types::{Entry, Pair};
-use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
+use pm_utils_cli::{split_u128_to_u64s, JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Publish an entry(Callable by the publisher itself)")]
 pub struct PublishCmd {
     pair: String, //"BTC/USD"
-    price: u64,
+    price: u128,
     decimals: u32,
     timestamp: u64,
 }
@@ -27,10 +27,10 @@ impl PublishCmd {
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
-
+        let (high, low) = split_u128_to_u64s(self.price);
         let entry: Entry = Entry {
-            pair: pair.clone(),
-            price: self.price,
+            price_high: high, 
+            price_low: low, 
             decimals: self.decimals,
             timestamp: self.timestamp,
         };
