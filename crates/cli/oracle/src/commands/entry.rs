@@ -55,7 +55,8 @@ impl EntryCmd {
         ]));
 
         // Format price with proper decimals
-        let price_float = entry.price as f64 / 10f64.powi(entry.decimals as i32);
+        let price_float = (entry.price_high as u128) << 64 | (entry.price_low as u128);
+        let price_float = price_float as f64 / 10f64.powi(entry.decimals as i32);
         let price_formatted = format!("{:.width$}", price_float, width = entry.decimals as usize);
 
         table.add_row(Row::new(vec![
