@@ -1,4 +1,7 @@
-use miden_client::transactions::{TransactionKernel, TransactionRequest, TransactionScript};
+use miden_client::rpc::domain::accounts::AccountStorageRequirements;
+use miden_client::transactions::{
+    ForeignAccount, TransactionKernel, TransactionRequestBuilder, TransactionScript,
+};
 use miden_client::Client;
 use miden_client::{accounts::AccountId, crypto::FeltRng};
 use pm_accounts::oracle::get_oracle_component_library;
@@ -25,7 +28,17 @@ impl MedianCmd {
 
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
-        let (publisher, _) = client.get_account(publisher_id).await.unwrap();
+        let publisher = client
+            .get_account(publisher_id)
+            .await
+            .unwrap()
+            .expect("Publisher account not found");
+
+        let foreign_account = ForeignAccount::public(
+            publisher.account().id(),
+            AccountStorageRequirements::default(),
+        )
+        .unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         let tx_script_code = format!(
@@ -58,11 +71,11 @@ impl MedianCmd {
         )
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
-        let transaction_request = TransactionRequest::new()
+        let transaction_request = TransactionRequestBuilder::new()
             .with_custom_script(median_script)
             .unwrap()
-            .with_public_foreign_accounts([publisher.id()])
-            .unwrap();
+            .with_foreign_accounts([foreign_account])
+            .build();
 
         let tx_result = client
             .new_transaction(oracle_id, transaction_request)

@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
-use miden_client::transactions::{TransactionKernel, TransactionRequest, TransactionScript};
+use miden_client::rpc::domain::accounts::AccountStorageRequirements;
+use miden_client::transactions::{
+    ForeignAccount, TransactionKernel, TransactionRequestBuilder, TransactionScript,
+};
 use miden_client::{accounts::AccountId, crypto::FeltRng};
 use miden_client::{Client, Felt, ZERO};
 
@@ -28,6 +31,8 @@ impl GetEntryCmd {
 
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
+        let foreign_account =
+            ForeignAccount::public(publisher_id, AccountStorageRequirements::default()).unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         let tx_script_code = format!(
@@ -66,11 +71,11 @@ impl GetEntryCmd {
         )
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
-        let transaction_request = TransactionRequest::new()
-            .with_public_foreign_accounts([publisher_id])
-            .unwrap()
+        let transaction_request = TransactionRequestBuilder::new()
+            .with_foreign_accounts([foreign_account])
             .with_custom_script(get_entry_script)
-            .unwrap();
+            .unwrap()
+            .build();
 
         let tx_result = client
             .new_transaction(oracle_id, transaction_request)

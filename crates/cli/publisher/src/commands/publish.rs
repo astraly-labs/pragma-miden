@@ -3,7 +3,7 @@ use std::str::FromStr;
 use miden_client::{
     accounts::AccountId,
     crypto::FeltRng,
-    transactions::{TransactionKernel, TransactionRequest, TransactionScript},
+    transactions::{TransactionKernel, TransactionRequestBuilder, TransactionScript},
     Client, Word,
 };
 
@@ -70,9 +70,10 @@ impl PublishCmd {
         )
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
-        let transaction_request = TransactionRequest::new()
+        let transaction_request = TransactionRequestBuilder::new()
             .with_custom_script(publish_script)
-            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
+            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?
+            .build();
 
         let transaction = client
             .new_transaction(publisher_id, transaction_request)

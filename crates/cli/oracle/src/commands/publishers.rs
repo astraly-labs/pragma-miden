@@ -17,10 +17,15 @@ impl PublishersCmd {
 
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
-        let (oracle, _) = client.get_account(oracle_id).await.unwrap();
+        let oracle = client
+            .get_account(oracle_id)
+            .await
+            .unwrap()
+            .expect("Oracle account not found");
 
         // Retrieve the size of the storage
         let publisher_count = oracle
+            .account()
             .storage()
             .get_item(2)
             .context("Unable to retrieve publisher count")?[0]
@@ -67,6 +72,7 @@ impl PublishersCmd {
         // Add publisher rows
         for i in 0..publisher_count - 3 {
             let publisher_word = oracle
+                .account()
                 .storage()
                 .get_item((4 + i).try_into().context("Invalid publisher index")?)
                 .context("Failed to retrieve publisher details")?;
@@ -75,6 +81,7 @@ impl PublishersCmd {
 
             // Check if publisher is active
             let status = oracle
+                .account()
                 .storage()
                 .get_map_item(3, [ZERO, ZERO, ZERO, publisher_word[3]])
                 .map_or("Inactive ❌", |_| "Active ✅");

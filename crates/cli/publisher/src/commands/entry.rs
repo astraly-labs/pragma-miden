@@ -21,11 +21,15 @@ impl EntryCmd {
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
 
-        let (publisher, _) = client.get_account(publisher_id).await.unwrap();
-
+        let publisher = client
+            .get_account(publisher_id)
+            .await
+            .unwrap()
+            .expect("Publisher account not found");
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         // TODO: create a pair from str & a to_word
         let entry = publisher
+            .account()
             .storage()
             .get_map_item(PUBLISHERS_ENTRIES_STORAGE_SLOT, pair.to_word())
             .unwrap();
