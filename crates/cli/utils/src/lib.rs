@@ -22,7 +22,6 @@ pub fn hex_to_decimal(hex_string: &str) -> anyhow::Result<u64> {
     u64::from_str_radix(hex_without_prefix, 16).context("Converting hex")
 }
 
-
 pub fn split_u128_to_u64s(value: u128) -> (u64, u64) {
     let high = (value >> 64) as u64;
     let low = value as u64;

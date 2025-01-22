@@ -1,9 +1,7 @@
 use miden_crypto::{Felt, Word};
-
-use crate::pair::Pair;
 #[derive(Debug, Clone)]
 pub struct Entry {
-    pub price_low : u64, 
+    pub price_low: u64,
     pub price_high: u64,
     pub decimals: u32,
     pub timestamp: u64,
