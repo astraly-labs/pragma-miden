@@ -1,8 +1,8 @@
 use crate::STORE_FILENAME;
-use miden_client::accounts::BasicWalletComponent;
-use miden_client::accounts::RpoFalcon512Component;
+use miden_client::account::BasicWalletComponent;
+use miden_client::account::RpoFalcon512Component;
 use miden_client::{
-    accounts::{Account, AccountBuilder, AccountStorageMode, AccountType},
+    account::{Account, AccountBuilder, AccountStorageMode, AccountType},
     auth::AuthSecretKey,
     crypto::{FeltRng, RpoRandomCoin, SecretKey},
     rpc::{Endpoint, TonicRpcClient},

@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use miden_client::{
-    accounts::AccountId,
+    account::AccountId,
     crypto::FeltRng,
-    transactions::{TransactionKernel, TransactionRequestBuilder, TransactionScript},
+    transaction::{TransactionKernel, TransactionRequestBuilder, TransactionScript},
     Client, Word,
 };
 

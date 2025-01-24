@@ -1,9 +1,9 @@
-use miden_client::rpc::domain::accounts::AccountStorageRequirements;
-use miden_client::transactions::{
+use miden_client::rpc::domain::account::AccountStorageRequirements;
+use miden_client::transaction::{
     ForeignAccount, TransactionKernel, TransactionRequestBuilder, TransactionScript,
 };
 use miden_client::Client;
-use miden_client::{accounts::AccountId, crypto::FeltRng};
+use miden_client::{account::AccountId, crypto::FeltRng};
 use pm_accounts::publisher::get_publisher_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;

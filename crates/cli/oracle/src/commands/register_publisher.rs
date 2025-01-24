@@ -1,6 +1,6 @@
 use miden_client::crypto::FeltRng;
-use miden_client::transactions::{TransactionKernel, TransactionRequestBuilder};
-use miden_client::{accounts::AccountId, transactions::TransactionScript};
+use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder};
+use miden_client::{account::AccountId, transaction::TransactionScript};
 use miden_client::{Client, Felt, ZERO};
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;

@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
-use miden_client::rpc::domain::accounts::AccountStorageRequirements;
-use miden_client::transactions::{
+use miden_client::rpc::domain::account::AccountStorageRequirements;
+use miden_client::transaction::{
     ForeignAccount, TransactionKernel, TransactionRequestBuilder, TransactionScript,
 };
-use miden_client::{accounts::AccountId, crypto::FeltRng};
+use miden_client::{account::AccountId, crypto::FeltRng};
 use miden_client::{Client, Felt, ZERO};
 
 use pm_accounts::oracle::get_oracle_component_library;

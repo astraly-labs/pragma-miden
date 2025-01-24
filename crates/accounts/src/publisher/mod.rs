@@ -6,14 +6,14 @@ use miden_assembly::{
     ast::{Module, ModuleKind},
     DefaultSourceManager, LibraryPath,
 };
-use miden_client::{accounts::AccountStorageMode, auth::AuthSecretKey, crypto::FeltRng, Client};
+use miden_client::{ auth::AuthSecretKey, crypto::FeltRng, Client, account::{Account,AccountStorageMode, AccountType as ClientAccountType}};
 use miden_crypto::{
     dsa::rpo_falcon512::{PublicKey, SecretKey},
     Word,
 };
-use miden_lib::{accounts::auth::RpoFalcon512, transaction::TransactionKernel};
+use miden_lib::{account::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
-    accounts::{Account, AccountBuilder, AccountComponent, AccountType, StorageSlot},
+    account::{AccountComponent, AccountBuilder,AccountType, StorageSlot},
     assembly::Library,
 };
 
@@ -79,10 +79,14 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
 
         let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into()));
 
+        let auth_component : AccountComponent = AccountComponent::from(auth_component);
+        let publisher_component : AccountComponent = AccountComponent::from(publisher_component);
         let from_seed = client_rng.gen();
+        let account_type: String = self.account_type.to_string();
+        let client_account_type: ClientAccountType= account_type.parse().unwrap(); 
         let (account, account_seed) = AccountBuilder::new(from_seed)
-            .account_type(self.account_type)
-            .storage_mode(AccountStorageMode::Public)
+            .account_type(client_account_type)
+            .storage_mode(AccountStorageMode::Private)
             .with_component(auth_component)
             .with_component(publisher_component)
             .build()
