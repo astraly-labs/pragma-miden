@@ -30,7 +30,38 @@ proc.felt_is_lower
     swap.3
     # => [1, 2, 1, 2]
     gt
-    # => [1, 2]
+    # => [bool, 1, 2]
+end
+
+#! Check if the first u128 of the stack is greater than the following u128
+#! u128 are stored in the stack as 2 u64
+#!
+#! Inputs: [A_high, A_low, B_high, B_low]
+#!
+#! Output: [BOOL] 1 if A < B, else 0
+proc.u128_is_lower
+    dup.2
+    # => [B_high, A_high, A_low, B_high, B_low]
+    dup.1
+     # => [A_high, B_high, A_high, A_low, B_high, B_low]
+    eq 
+    # => [BOOL, A_high, A_low, B_high, B_low]
+    if true
+        # => [A_high, A_low, B_high, B_low]
+        dup.3
+        # => [B_low, A_high, A_low, B_high, B_low]
+        dup.2
+         # => [A_low, B_low, A_high, A_low, B_high, B_low]
+        gt
+        # => [BOOL, A_low, B_low, A_high, B_low]
+    else 
+        # => [A_high, A_low, B_high, B_low]
+        dup.2
+        # => [B_high, A_high, A_low, B_high, B_low]
+        dup.1
+        # => [A_high, B_high, A_high, A_low, B_high, B_low]
+        gt
+        # => [BOOL, A_high, A_low, B_high, B_low]
 end
 
 #! Calls the PUBLISHER_ID get_entry procedure of the provided account.
@@ -76,6 +107,17 @@ proc.entry_to_price
   drop swap.1 drop swap.1 drop
 end
 
+#! Updates the top word on the stack that is an entry to its price(u128)
+#! by selecting its 1st & 2nd element.(representing u128_high and u128_low)
+#! Example:
+#! => [10, 42, B, C]
+#! returns:
+#! => [10,42]
+proc.entry_to_price_u128
+    swap.2 drop swap.2 drop
+end 
+
+
 #! Returns 1 if the element at index i is lower than element at index j.
 #! Example:
 #! => [i, j] for RAM[i] = 42, RAM[i] = 69
@@ -91,6 +133,26 @@ proc.ram_is_lower
   swap.2 movup.2
   # => [BOOL, i, j]
 end
+
+
+#! Returns 1 if the element at index i is lower than element at index j (u128).
+#! Example:
+#! => [i, j] for RAM[i] = [0,42], RAM[i] = [1,69] (u64_high, u64_low)
+#! returns
+#! => [0, i, j]
+proc.ram_is_lower_u128
+  dup push.0.0.0.0 movup.5 mem_loadw exec.entry_to_price_u128
+  # => [mem_i, i, j]
+  movup.2 dup push.0.0.0.0 movup.4 mem_loadw exec.entry_to_price_u128
+  # => [mem_j, j, mem_i, i]
+  movup.2 swap.1 exec.u128_is_lower # we will need to take the opposite of this result
+  # => [BOOL, j, i]
+  not 
+  # => [BOOL, j, i]
+  swap.2 movup.2
+  # => [BOOL, i, j]
+end
+
 
 #! Sort the N entries in the RAM using a Bubble Sort.
 #! All the elements must already be stored on the RAM and the top of
@@ -284,11 +346,6 @@ export.get_median
 
     # increments the nonce (anyone should be able to call that function)
     push.1 exec.account::incr_nonce
-<<<<<<< HEAD
-
-=======
-    
->>>>>>> origin/main
     exec.sys::truncate_stack
 end
 
