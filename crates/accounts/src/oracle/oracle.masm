@@ -47,7 +47,7 @@ proc.u128_is_lower
      # => [A_high, B_high, A_high, A_low, B_high, B_low]
     eq 
     # => [BOOL, A_high, A_low, B_high, B_low]
-    if true
+    if.true
         # => [A_high, A_low, B_high, B_low]
         dup.3
         # => [B_low, A_high, A_low, B_high, B_low]
@@ -63,6 +63,7 @@ proc.u128_is_lower
         # => [A_high, B_high, A_high, A_low, B_high, B_low]
         gt
         # => [BOOL, A_high, A_low, B_high, B_low]
+    end
 end
 
 #! Calls the PUBLISHER_ID get_entry procedure of the provided account.
@@ -140,7 +141,7 @@ end
 #! Example:
 #! => [i, j] for RAM[i] = [0,42], RAM[i] = [1,69] (u64_high, u64_low)
 #! returns
-#! => [0, i, j]
+#! => [bool, i, j]
 proc.ram_is_lower_u128
   dup push.0.0.0.0 movup.5 mem_loadw exec.entry_to_price_u128
   # => [mem_i, i, j]
