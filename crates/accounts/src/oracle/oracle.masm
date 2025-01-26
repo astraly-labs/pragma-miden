@@ -106,7 +106,7 @@ end
 #! returns:
 #! => [42]
 proc.entry_to_price
-  drop swap.1 drop swap.1 drop
+   movup.3 movup.3 drop drop drop
 end
 
 #! Updates the top word on the stack that is an entry to its price(u128)
@@ -144,14 +144,12 @@ end
 #! => [bool, i, j]
 proc.ram_is_lower_u128
   dup push.0.0.0.0 movup.5 mem_loadw exec.entry_to_price_u128
-  # => [mem_i, i, j]
-  movup.2 dup push.0.0.0.0 movup.4 mem_loadw exec.entry_to_price_u128
-  # => [mem_j_high, mem_j_low, j, mem_i, i]
-  movup.3 swap.2 exec.u128_is_lower # we will need to take the opposite of this result
-  # => [BOOL, j, i]
-  not 
-  # => [BOOL, j, i]
-  swap.2 movup.2
+  # => [mem_i_high, mem_i_low, i, j]
+  movup.3 dup push.0.0.0.0 movup.4 mem_loadw exec.entry_to_price_u128
+  # => [mem_j_high, mem_j_low, j, mem_i_high, mem_i_low, i]
+  movup.4 movup.4 exec.u128_is_lower 
+  # => [BOOL, mem_i_high, mem_i_low, mem_j_high, mem_j_low, i, j]
+  movdn.4 dropw swap swap.2 swap
   # => [BOOL, i, j]
 end
 
@@ -395,22 +393,14 @@ proc.ram_get_median_u128
         push.0.0.0.0 movup.4 mem_loadw
         # => [ENTRY_N_MINUS_1, index_to_read]
 
-        push.0.0.0.0 movup.8 mem_loadw
+        exec.entry_to_price_u128
+
+        push.0.0.0.0 movup.6 mem_loadw
 
         exec.entry_to_price_u128
         # => [price_n_high , price_n_low, ENTRY_N_MINUS_1]
 
-        movdn.4 exec.entry_to_price_u128
-        # => [price_n_minus_1, price_n]
-
-        push.0.0 movdn.2
-        # => [0, price_n_minus_1, 0, price_n]
-
-        exec.u64::overflowing_add
-        # => [0, price_sum]
-
-        drop push.2.0 exec.u64::div drop
-        # => [price_median]
+       #TODO(18): Define a function that divide and do the operation on u32
     end
 end
 
