@@ -358,6 +358,14 @@ proc.ram_get_median
 end
 
 
+#! Compute the median of two u64, by dividing it into two u32   
+#! Inputs: [u64a_high, u64a_low, u64b_high, u64b_low]
+proc.compute_median_if_even
+  u32split movup.3 u32split movup.2 add push.2 u32div push.32 pow2 mul
+  swap.2 add push.2 u32div add swap movup.2 u32split movup.2 u32split movup.2 add
+  push.2 u32div push.32 pow2 mul swap.2 add push.2 u32div add swap
+end
+
 
 
 #! Reads from the sorted entries on the RAM and get the median(u128 version ).
@@ -400,7 +408,7 @@ proc.ram_get_median_u128
         exec.entry_to_price_u128
         # => [price_n_high , price_n_low, ENTRY_N_MINUS_1]
 
-       #TODO(18): Define a function that divide and do the operation on u32
+       exec.compute_median_if_even
     end
 end
 
