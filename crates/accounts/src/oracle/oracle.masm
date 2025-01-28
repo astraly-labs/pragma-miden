@@ -2,6 +2,7 @@ use.std::sys
 use.std::math::u64
 use.miden::account
 use.miden::tx
+use.miden::contracts::auth::basic->auth_tx
 
 # CONSTANTS
 # =================================================================================================
@@ -284,11 +285,6 @@ export.get_median
 
     # increments the nonce (anyone should be able to call that function)
     push.1 exec.account::incr_nonce
-<<<<<<< HEAD
-
-=======
-    
->>>>>>> origin/main
     exec.sys::truncate_stack
 end
 
@@ -336,7 +332,7 @@ export.register_publisher
     # => []
 
     # Only the oracle owner should be able to call this
-    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+   call.auth_tx::auth_tx_rpo_falcon512
     drop
 
     exec.sys::truncate_stack

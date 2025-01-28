@@ -83,11 +83,13 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
         let from_seed = client_rng.gen();
         let account_type: String = self.account_type.to_string();
         let client_account_type: ClientAccountType= account_type.parse().unwrap(); 
+        let anchor_block = client.get_latest_epoch_block().await.unwrap();
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Private)
             .with_component(auth_component)
             .with_component(publisher_component)
+            .anchor((&anchor_block).try_into().unwrap())
             .build()
             .unwrap();
 

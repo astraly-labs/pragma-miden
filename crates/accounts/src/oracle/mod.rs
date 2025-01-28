@@ -91,11 +91,13 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
         let public_key = private_key.public_key();
         let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into()));
         let from_seed = client_rng.gen();
+        let anchor_block = client.get_latest_epoch_block().await.unwrap();
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Public)
             .with_component(auth_component)
             .with_component(oracle_component)
+            .anchor((&anchor_block).try_into().unwrap())
             .build()
             .unwrap();
         client

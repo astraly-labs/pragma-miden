@@ -40,6 +40,7 @@ impl PublishCmd {
         let tx_script_code = format!(
             "
                 use.publisher_component::publisher_module
+                use.miden::contracts::auth::basic->auth_tx
                 use.std::sys
         
                 begin
@@ -50,7 +51,7 @@ impl PublishCmd {
         
                     dropw
         
-                    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+                    call.auth_tx::auth_tx_rpo_falcon512
                     exec.sys::truncate_stack
                 end
                 ",
