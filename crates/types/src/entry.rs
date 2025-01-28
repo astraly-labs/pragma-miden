@@ -1,13 +1,9 @@
-use miden_crypto::{Felt, Word};
+use miden_client::{Felt, Word};
 
-use crate::pair::Pair;
 #[derive(Debug, Clone)]
 pub struct Entry {
-    pub pair: Pair,
-    // TODO(akhercha): We may prefer a u128 for more precision.
-    // This can probably done by storing a Price(low, high) struct with two u64s.
-    // We can remove the "pair" field for that? Since it's possible to find it using the mapping?
-    pub price: u64,
+    pub price_low: u64,
+    pub price_high: u64,
     pub decimals: u32,
     pub timestamp: u64,
 }
@@ -17,8 +13,8 @@ impl TryInto<Word> for Entry {
 
     fn try_into(self) -> Result<Word, Self::Error> {
         Ok([
-            Felt::try_from(self.pair)?,
-            Felt::new(self.price),
+            Felt::new(self.price_low),
+            Felt::new(self.price_high),
             Felt::new(self.decimals as u64),
             Felt::new(self.timestamp),
         ])
@@ -27,19 +23,17 @@ impl TryInto<Word> for Entry {
 
 impl From<Word> for Entry {
     fn from(word: Word) -> Self {
-        let [pair_felt, price_felt, decimals_felt, timestamp_felt] = word;
-
-        // Convert pair from Felt
-        let pair = Pair::from(pair_felt);
+        let [price_low_felt, price_high_felt, decimals_felt, timestamp_felt] = word;
 
         // Extract other fields
-        let price = price_felt.as_int();
+        let price_low = price_low_felt.as_int();
+        let price_high = price_high_felt.as_int();
         let decimals = decimals_felt.as_int() as u32;
         let timestamp = timestamp_felt.as_int();
 
         Entry {
-            pair,
-            price,
+            price_low,
+            price_high,
             decimals,
             timestamp,
         }

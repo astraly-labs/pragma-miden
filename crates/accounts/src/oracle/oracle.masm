@@ -2,6 +2,7 @@ use.std::sys
 use.std::math::u64
 use.miden::account
 use.miden::tx
+use.miden::contracts::auth::basic->auth_tx
 
 # CONSTANTS
 # =================================================================================================
@@ -30,7 +31,39 @@ proc.felt_is_lower
     swap.3
     # => [1, 2, 1, 2]
     gt
-    # => [1, 2]
+    # => [bool, 1, 2]
+end
+
+#! Check if the first u128 of the stack is greater than the following u128
+#! u128 are stored in the stack as 2 u64
+#!
+#! Inputs: [A_high, A_low, B_high, B_low]
+#!
+#! Output: [BOOL] 1 if A < B, else 0
+proc.u128_is_lower
+    dup.2
+    # => [B_high, A_high, A_low, B_high, B_low]
+    dup.1
+     # => [A_high, B_high, A_high, A_low, B_high, B_low]
+    eq 
+    # => [BOOL, A_high, A_low, B_high, B_low]
+    if.true
+        # => [A_high, A_low, B_high, B_low]
+        dup.3
+        # => [B_low, A_high, A_low, B_high, B_low]
+        dup.2
+         # => [A_low, B_low, A_high, A_low, B_high, B_low]
+        gt
+        # => [BOOL, A_low, B_low, A_high, B_low]
+    else 
+        # => [A_high, A_low, B_high, B_low]
+        dup.2
+        # => [B_high, A_high, A_low, B_high, B_low]
+        dup.1
+        # => [A_high, B_high, A_high, A_low, B_high, B_low]
+        gt
+        # => [BOOL, A_high, A_low, B_high, B_low]
+    end
 end
 
 #! Calls the PUBLISHER_ID get_entry procedure of the provided account.
@@ -73,8 +106,19 @@ end
 #! returns:
 #! => [42]
 proc.entry_to_price
-  drop swap.1 drop swap.1 drop
+   movup.3 movup.3 drop drop drop
 end
+
+#! Updates the top word on the stack that is an entry to its price(u128)
+#! by selecting its 1st & 2nd element.(representing u128_high and u128_low)
+#! Example:
+#! => [10, 42, B, C]
+#! returns:
+#! => [10,42]
+proc.entry_to_price_u128
+    swap.2 drop swap.2 drop
+end 
+
 
 #! Returns 1 if the element at index i is lower than element at index j.
 #! Example:
@@ -91,6 +135,24 @@ proc.ram_is_lower
   swap.2 movup.2
   # => [BOOL, i, j]
 end
+
+
+#! Returns 1 if the element at index i is lower than element at index j (u128).
+#! Example:
+#! => [i, j] for RAM[i] = [0,42], RAM[i] = [1,69] (u64_high, u64_low)
+#! returns
+#! => [bool, i, j]
+proc.ram_is_lower_u128
+  dup push.0.0.0.0 movup.5 mem_loadw exec.entry_to_price_u128
+  # => [mem_i_high, mem_i_low, i, j]
+  movup.3 dup push.0.0.0.0 movup.4 mem_loadw exec.entry_to_price_u128
+  # => [mem_j_high, mem_j_low, j, mem_i_high, mem_i_low, i]
+  movup.4 movup.4 exec.u128_is_lower 
+  # => [BOOL, mem_i_high, mem_i_low, mem_j_high, mem_j_low, i, j]
+  movdn.4 dropw swap swap.2 swap
+  # => [BOOL, i, j]
+end
+
 
 #! Sort the N entries in the RAM using a Bubble Sort.
 #! All the elements must already be stored on the RAM and the top of
@@ -167,6 +229,83 @@ proc.ram_bubble_sort
 end
 
 
+
+#! Sort the N entries in the RAM using a Bubble Sort (u128 version).
+#! All the elements must already be stored on the RAM and the top of
+#! the stack must include the length of the entries.
+#!
+#! Inputs:  [nb_of_entries]
+#! Output:  []
+proc.ram_bubble_sort_u128
+    # This is the outer counter
+    dup
+    # => [N, N]
+    sub.1 dup
+    # => [N-1(i), N-1(i), N]
+    push.1
+    # => [1, N-1(i), N-1(i), N]
+    gt
+    while.true
+        # => [N-1(i), N]
+        dup
+        # => [N-1(i), N-1(i), N]
+        # => Inner index
+        push.0
+        # => [0(j), N-1(i), N-1(i), N]
+        dup 
+        # => [0(j), 0(j), N-1(i), N-1(i), N]
+        swap.2
+        # => [N-1(i), 0(j), 0(j), N-1(i), N]
+        # We exit this loop if j > i-1
+        lte
+        # => [bool, N-1(i), 0(j), N]
+        while.true
+            # => [0(j), N-1(i), N]
+            dup
+            # => [0(j), 0(j), N-1(i), N]
+            add.1
+            # => [0(j)+1, 0(j), N-1(i), N]
+            swap
+            # => [0(j), 0(j)+1, N-1(i), N]
+            exec.ram_is_lower_u128
+            # => [bool,  0(j), 0(j)+1, N-1(i), N]
+            if.true
+            else
+                dup 
+                # => [0(j), 0(j), 0(j)+1, N-1(i), N]
+                dup.2
+                # => [0(j)+1, 0(j), 0(j), 0(j)+1, N-1(i), N]
+                swap
+                # => [0(j), 0(j)+1, 0(j), 0(j)+1, N-1(i), N]
+                exec.ram_swap
+                # => [0(j), 0(j)+1, N-1(i), N]
+            end
+            drop
+            # => [0(j)+1, N-1(i), N]
+            dup
+            # => [0(j)+1, 0(j)+1, N-1(i), N]
+            dup.2
+            # => [N-1(i), 0(j)+1, 0(j)+1, N-1(i), N]
+            lt
+            # => [bool, 0(j)+1, N-1(i), N]
+        end 
+        # => [0(j)+1, N-1(i), N]
+        drop
+        # => [N-1(i), N]
+        sub.1
+        # => [N-2(i-1), N]
+        dup
+        # => [N-2(i-1), N-2(i-1), N]
+        push.1
+        # => [1, N-2(i-1), N-2(i-1), N]
+        gte
+        # => [bool, N-2(i-1), N]
+    end
+    drop
+end
+
+
+
 #! Reads from the sorted entries on the RAM and get the median.
 #! ⚠ The RAM must be sorted before!
 #! The input will be the number of elements on top of the stack.
@@ -215,6 +354,61 @@ proc.ram_get_median
 
         drop push.2.0 exec.u64::div drop
         # => [price_median]
+    end
+end
+
+
+#! Compute the median of two u64, by dividing it into two u32   
+#! Inputs: [u64a_high, u64a_low, u64b_high, u64b_low]
+proc.compute_median_if_even
+  u32split movup.3 u32split movup.2 add push.2 u32div push.32 pow2 mul
+  swap.2 add push.2 u32div add swap movup.2 u32split movup.2 u32split movup.2 add
+  push.2 u32div push.32 pow2 mul swap.2 add push.2 u32div add swap
+end
+
+
+
+#! Reads from the sorted entries on the RAM and get the median(u128 version ).
+#! ⚠ The RAM must be sorted before!
+#! Since we cannot operate the sum of two u64 without risk of overflowing, we might need to divide it further
+#! The input will be the number of elements on top of the stack.
+#! 
+#! Inputs:  [nb_of_entries]
+#! Output:  [median_price]
+proc.ram_get_median_u128
+    dup is_odd
+    # => [nb_of_entries]
+
+    if.true
+        push.0.2.0
+        exec.u64::div drop
+        # => [index_to_read]
+        # = nb_of_entries / 2
+
+        push.0.0.0.0 movup.4 mem_loadw
+        # => [MEDIAN_ENTRY]
+
+        exec.entry_to_price_u128
+        # => [price_median_high, price_median_low]
+    else
+        push.0.2.0
+        exec.u64::div drop
+        # => [index_to_read]
+        
+        dup sub.1
+        # => [index_to_read - 1, index_to_read]
+
+        push.0.0.0.0 movup.4 mem_loadw
+        # => [ENTRY_N_MINUS_1, index_to_read]
+
+        exec.entry_to_price_u128
+
+        push.0.0.0.0 movup.6 mem_loadw
+
+        exec.entry_to_price_u128
+        # => [price_n_high , price_n_low, ENTRY_N_MINUS_1]
+
+       exec.compute_median_if_even
     end
 end
 
@@ -284,11 +478,6 @@ export.get_median
 
     # increments the nonce (anyone should be able to call that function)
     push.1 exec.account::incr_nonce
-<<<<<<< HEAD
-
-=======
-    
->>>>>>> origin/main
     exec.sys::truncate_stack
 end
 
@@ -336,7 +525,7 @@ export.register_publisher
     # => []
 
     # Only the oracle owner should be able to call this
-    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+   call.auth_tx::auth_tx_rpo_falcon512
     drop
 
     exec.sys::truncate_stack
