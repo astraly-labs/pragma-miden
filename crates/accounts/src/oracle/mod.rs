@@ -7,14 +7,12 @@ use miden_assembly::{
     DefaultSourceManager, LibraryPath,
 };
 use miden_client::{auth::AuthSecretKey, crypto::FeltRng, Client, account::{Account, AccountBuilder, AccountType as ClientAccountType, AccountStorageMode}};
-use miden_crypto::{
-    dsa::rpo_falcon512::{PublicKey, SecretKey},
-    Felt, Word, ZERO,
-};
+use miden_client::{Felt, Word, ZERO, crypto::SecretKey};
 use miden_lib::{account::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
     account::{ AccountComponent,AccountType as ObjectAccountType,StorageSlot},
     assembly::Library,
+    crypto::dsa::rpo_falcon512::PublicKey
 };
 
 

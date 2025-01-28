@@ -6,15 +6,14 @@ use miden_assembly::{
     ast::{Module, ModuleKind},
     DefaultSourceManager, LibraryPath,
 };
-use miden_client::{ auth::AuthSecretKey, crypto::FeltRng, Client, account::{Account,AccountStorageMode, AccountType as ClientAccountType}};
-use miden_crypto::{
-    dsa::rpo_falcon512::{PublicKey, SecretKey},
-    Word,
-};
+use miden_client::{ auth::AuthSecretKey, crypto::{FeltRng, SecretKey},Word, Client, account::{Account,AccountStorageMode, AccountType as ClientAccountType}};
+
+
 use miden_lib::{account::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
     account::{AccountComponent, AccountBuilder,AccountType, StorageSlot},
     assembly::Library,
+    crypto::dsa::rpo_falcon512::PublicKey
 };
 
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
@@ -77,7 +76,7 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into()));
+        let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into())).into();
 
         let auth_component : AccountComponent = AccountComponent::from(auth_component);
         let publisher_component : AccountComponent = AccountComponent::from(publisher_component);

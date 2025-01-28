@@ -14,3 +14,4 @@ workspace = true
 [dependencies]
 anyhow.workspace = true
 miden-crypto.workspace = true
+miden-client.workspace = true

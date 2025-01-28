@@ -1,4 +1,4 @@
-use miden_crypto::Word;
+use miden_client::Word;
 
 /// Word to MASM
 pub fn word_to_masm(word: Word) -> String {

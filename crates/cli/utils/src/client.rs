@@ -1,8 +1,6 @@
 use crate::STORE_FILENAME;
-use miden_client::account::BasicWalletComponent;
-use miden_client::account::RpoFalcon512Component;
 use miden_client::{
-    account::{Account, AccountBuilder, AccountStorageMode, AccountType},
+    account::{component::{BasicWallet, RpoFalcon512}, Account, AccountBuilder, AccountStorageMode, AccountType},
     auth::AuthSecretKey,
     crypto::{FeltRng, RpoRandomCoin, SecretKey},
     rpc::{Endpoint, TonicRpcClient},
@@ -50,8 +48,8 @@ pub async fn create_wallet(
         .anchor((&anchor_block).try_into().unwrap())
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(storage_mode)
-        .with_component(RpoFalcon512Component::new(key_pair.public_key()))
-        .with_component(BasicWalletComponent)
+        .with_component(RpoFalcon512::new(key_pair.public_key()))
+        .with_component(BasicWallet)
         .build()
         .unwrap();
 

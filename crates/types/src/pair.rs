@@ -1,9 +1,7 @@
 use std::str::FromStr;
 
 use crate::currency::Currency;
-use miden_crypto::Felt;
-use miden_crypto::Word;
-use miden_crypto::ZERO;
+use miden_client::{Felt, Word, ZERO};
 
 #[derive(Debug, Clone)]
 pub struct Pair {
