@@ -23,11 +23,12 @@ impl RegisterPublisherCmd {
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
         // just assert that the account exists
         client
-            .get_account(oracle_id)
-            .await
-            .unwrap()
-            .expect("Oracle account not found");
-
+        .get_account(oracle_id)
+        .await
+        .unwrap()
+        .expect("Oracle account not found");
+    
+        let split_oracle_id  : [Felt; 2] = oracle_id.into();
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module
@@ -42,8 +43,8 @@ impl RegisterPublisherCmd {
             publisher_id = word_to_masm([
                 ZERO,
                 ZERO,
-                ZERO,
-                Felt::new(hex_to_decimal(&self.publisher_id.to_string()).unwrap()),
+                split_oracle_id[1],
+                split_oracle_id[0]
             ])
         );
         let median_script = TransactionScript::compile(
