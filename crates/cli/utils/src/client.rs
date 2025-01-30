@@ -1,6 +1,9 @@
 use crate::STORE_FILENAME;
 use miden_client::{
-    account::{component::{BasicWallet, RpoFalcon512}, Account, AccountBuilder, AccountStorageMode, AccountType},
+    account::{
+        component::{BasicWallet, RpoFalcon512},
+        Account, AccountBuilder, AccountStorageMode, AccountType,
+    },
     auth::AuthSecretKey,
     crypto::{FeltRng, RpoRandomCoin, SecretKey},
     rpc::{Endpoint, TonicRpcClient},
@@ -13,27 +16,30 @@ use std::{path::PathBuf, sync::Arc};
 // Client Setup
 // ================================================================================================
 
-pub async fn setup_client() -> Client<impl FeltRng> {
+pub async fn setup_client() -> Result<Client<RpoRandomCoin>, ClientError> {
     let exec_dir = PathBuf::new();
     let store_config = exec_dir.join(STORE_FILENAME);
-    let store = SqliteStore::new(store_config).await.unwrap();
-    let store = Arc::new(store);
+    // RPC endpoint and timeout
+    let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57291));
+    let timeout_ms = 10_000;
 
-    let mut rng = rand::thread_rng();
-    let coin_seed: [u64; 4] = rng.gen();
+    let rpc_api = Box::new(TonicRpcClient::new(endpoint, timeout_ms));
+
+    let mut seed_rng = rand::thread_rng();
+    let coin_seed: [u64; 4] = seed_rng.gen();
 
     let rng = RpoRandomCoin::new(coin_seed.map(Felt::new));
-    let authenticator = StoreAuthenticator::new_with_rng(store.clone(), rng);
 
-    let in_debug_mode = true;
+    let store = SqliteStore::new(store_config.into())
+        .await
+        .map_err(ClientError::StoreError)?;
+    let arc_store = Arc::new(store);
 
-    Client::new(
-        Box::new(TonicRpcClient::new(Endpoint::default(), 10000)),
-        rng,
-        store,
-        Arc::new(authenticator),
-        in_debug_mode,
-    )
+    let authenticator = StoreAuthenticator::new_with_rng(arc_store.clone(), rng.clone());
+
+    let client = Client::new(rpc_api, rng, arc_store, Arc::new(authenticator), true);
+
+    Ok(client)
 }
 
 pub async fn create_wallet(

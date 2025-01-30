@@ -6,14 +6,18 @@ use miden_assembly::{
     ast::{Module, ModuleKind},
     DefaultSourceManager, LibraryPath,
 };
-use miden_client::{ auth::AuthSecretKey, crypto::{FeltRng, SecretKey},Word, Client, account::{Account,AccountStorageMode, AccountType as ClientAccountType}};
-
+use miden_client::{
+    account::{Account, AccountStorageMode, AccountType as ClientAccountType},
+    auth::AuthSecretKey,
+    crypto::{FeltRng, SecretKey},
+    Client, Word,
+};
 
 use miden_lib::{account::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
-    account::{AccountComponent, AccountBuilder,AccountType, StorageSlot},
+    account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
     assembly::Library,
-    crypto::dsa::rpo_falcon512::PublicKey
+    crypto::dsa::rpo_falcon512::PublicKey,
 };
 
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
@@ -76,13 +80,14 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into())).into();
+        let auth_component: RpoFalcon512 =
+            RpoFalcon512::new(PublicKey::new(public_key.into())).into();
 
-        let auth_component : AccountComponent = AccountComponent::from(auth_component);
-        let publisher_component : AccountComponent = AccountComponent::from(publisher_component);
+        let auth_component: AccountComponent = AccountComponent::from(auth_component);
+        let publisher_component: AccountComponent = AccountComponent::from(publisher_component);
         let from_seed = client_rng.gen();
         let account_type: String = self.account_type.to_string();
-        let client_account_type: ClientAccountType= account_type.parse().unwrap(); 
+        let client_account_type: ClientAccountType = account_type.parse().unwrap();
         let anchor_block = client.get_latest_epoch_block().await.unwrap();
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)

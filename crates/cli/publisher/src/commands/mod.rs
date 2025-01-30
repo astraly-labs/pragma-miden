@@ -33,7 +33,7 @@ pub enum SubCommand {
 
 impl SubCommand {
     pub async fn call(&self) -> anyhow::Result<()> {
-        let mut client = setup_client().await;
+        let mut client = setup_client().await.unwrap();
 
         match self {
             Self::Init(cmd) => cmd.call(&mut client).await?,

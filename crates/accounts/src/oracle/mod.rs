@@ -6,18 +6,19 @@ use miden_assembly::{
     ast::{Module, ModuleKind},
     DefaultSourceManager, LibraryPath,
 };
-use miden_client::{auth::AuthSecretKey, crypto::FeltRng, Client, account::{Account, AccountBuilder, AccountType as ClientAccountType, AccountStorageMode}};
-use miden_client::{Felt, Word, ZERO, crypto::SecretKey};
+use miden_client::{
+    account::{Account, AccountBuilder, AccountStorageMode, AccountType as ClientAccountType},
+    auth::AuthSecretKey,
+    crypto::FeltRng,
+    Client,
+};
+use miden_client::{crypto::SecretKey, Felt, Word, ZERO};
 use miden_lib::{account::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
-    account::{ AccountComponent,AccountType as ObjectAccountType,StorageSlot},
+    account::{AccountComponent, AccountType as ObjectAccountType, StorageSlot},
     assembly::Library,
-    crypto::dsa::rpo_falcon512::PublicKey
+    crypto::dsa::rpo_falcon512::PublicKey,
 };
-
-
-
-
 
 pub const ORACLE_ACCOUNT_MASM: &str = include_str!("oracle.masm");
 
@@ -39,7 +40,7 @@ pub fn get_oracle_component_library() -> Library {
 
 pub struct OracleAccountBuilder<'a, T: FeltRng> {
     client: Option<&'a mut Client<T>>,
-    account_type: String,  // Temporary fix, because AccountType is not consistent between the Client and the Object
+    account_type: String, // Temporary fix, because AccountType is not consistent between the Client and the Object
     storage_slots: Vec<StorageSlot>,
 }
 
@@ -78,7 +79,7 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
     }
 
     pub async fn build(self) -> (Account, Word) {
-        let object_account_type : ObjectAccountType = self.account_type.parse().unwrap();
+        let object_account_type: ObjectAccountType = self.account_type.parse().unwrap();
         let client_account_type: ClientAccountType = self.account_type.parse().unwrap();
         let oracle_component =
             AccountComponent::new(get_oracle_component_library(), self.storage_slots)
