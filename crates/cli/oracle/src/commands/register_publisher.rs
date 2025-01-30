@@ -1,6 +1,6 @@
 use miden_client::crypto::FeltRng;
-use miden_client::transactions::{TransactionKernel, TransactionRequest};
-use miden_client::{accounts::AccountId, transactions::TransactionScript};
+use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder};
+use miden_client::{account::AccountId, transaction::TransactionScript};
 use miden_client::{Client, Felt, ZERO};
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
@@ -22,7 +22,11 @@ impl RegisterPublisherCmd {
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
         // just assert that the account exists
-        let (_, _) = client.get_account(oracle_id).await.unwrap();
+        client
+            .get_account(oracle_id)
+            .await
+            .unwrap()
+            .expect("Oracle account not found");
 
         let tx_script_code = format!(
             "
@@ -55,9 +59,11 @@ impl RegisterPublisherCmd {
         )
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
-        let transaction_request = TransactionRequest::new()
+        let transaction_request = TransactionRequestBuilder::new()
             .with_custom_script(median_script)
-            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
+            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))
+            .unwrap()
+            .build();
 
         let tx_result = client
             .new_transaction(oracle_id, transaction_request)

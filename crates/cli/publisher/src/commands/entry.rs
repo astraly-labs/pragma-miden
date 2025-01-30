@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use miden_client::{accounts::AccountId, crypto::FeltRng, Client};
+use miden_client::{account::AccountId, crypto::FeltRng, Client};
 use pm_types::{Entry, Pair};
 use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
 use prettytable::{Cell, Row, Table};
@@ -21,11 +21,15 @@ impl EntryCmd {
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
 
-        let (publisher, _) = client.get_account(publisher_id).await.unwrap();
-
+        let publisher = client
+            .get_account(publisher_id)
+            .await
+            .unwrap()
+            .expect("Publisher account not found");
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         // TODO: create a pair from str & a to_word
         let entry = publisher
+            .account()
             .storage()
             .get_map_item(PUBLISHERS_ENTRIES_STORAGE_SLOT, pair.to_word())
             .unwrap();
@@ -48,7 +52,8 @@ impl EntryCmd {
         ]));
 
         // Format price with proper decimals
-        let price_float = entry.price as f64 / 10f64.powi(entry.decimals as i32);
+        let price_float = (entry.price_high as u128) << 64 | (entry.price_low as u128);
+        let price_float = price_float as f64 / 10f64.powi(entry.decimals as i32);
         let price_formatted = format!("{:.width$}", price_float, width = entry.decimals as usize);
 
         table.add_row(Row::new(vec![

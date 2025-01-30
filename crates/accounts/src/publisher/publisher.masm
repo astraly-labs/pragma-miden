@@ -28,7 +28,7 @@ end
 #! Get the published entry for a pair.
 #!
 #! Inputs:  [PAIR]
-#! Outputs: [ENTRY] ; Word being [pair, price, decimals, timestamp]
+#! Outputs: [ENTRY] ; Word being [price.high, price.low, decimals, timestamp] 
 #!
 export.get_entry
     push.ENTRIES_MAP_SLOT
