@@ -14,6 +14,8 @@ use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Publish an entry(Callable by the publisher itself)")]
 pub struct PublishCmd {
+    // The publisher (to be removed)
+    publisher: String,
     pair: String, //"BTC/USD"
     price: u64,
     decimals: u32,
@@ -23,7 +25,8 @@ pub struct PublishCmd {
 impl PublishCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
-        let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
+        // let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
+        let publisher_id = &self.publisher;
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();

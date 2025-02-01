@@ -33,8 +33,6 @@ end
 export.get_entry
     push.ENTRIES_MAP_SLOT
 
-    debug.stack
-
     # => [entries_map_slot, PAIR]
     exec.account::get_map_item
 

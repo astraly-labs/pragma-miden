@@ -23,29 +23,25 @@ impl RegisterPublisherCmd {
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
         // just assert that the account exists
         client
-        .get_account(oracle_id)
-        .await
-        .unwrap()
-        .expect("Oracle account not found");
-    
-        let split_oracle_id  : [Felt; 2] = oracle_id.into();
+            .get_account(oracle_id)
+            .await
+            .unwrap()
+            .expect("Oracle account not found");
+
+        let publisher_id = AccountId::from_hex(&self.publisher_id).unwrap();
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module
             use.std::sys
     
             begin
-                push.{publisher_id}
+                push.{id_first_felt} push.{id_second_felt}
                 call.oracle_module::register_publisher
                 exec.sys::truncate_stack
             end
-            ",
-            publisher_id = word_to_masm([
-                ZERO,
-                ZERO,
-                split_oracle_id[1],
-                split_oracle_id[0]
-            ])
+            ", 
+            id_first_felt = publisher_id.prefix().as_u64(),
+            id_second_felt = publisher_id.suffix(),
         );
         let median_script = TransactionScript::compile(
             tx_script_code,
@@ -82,12 +78,4 @@ impl RegisterPublisherCmd {
 
         Ok(())
     }
-}
-
-fn hex_to_decimal(hex_string: &str) -> Result<u64, std::num::ParseIntError> {
-    // Remove "0x" or "0X" prefix if present
-    let hex_without_prefix = hex_string.trim_start_matches("0x").trim_start_matches("0X");
-
-    // Convert to decimal
-    u64::from_str_radix(hex_without_prefix, 16)
 }

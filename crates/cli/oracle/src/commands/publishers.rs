@@ -76,8 +76,7 @@ impl PublishersCmd {
                 .storage()
                 .get_item((4 + i).try_into().context("Invalid publisher index")?)
                 .context("Failed to retrieve publisher details")?;
-
-            let publisher_id = publisher_word[3].as_int();
+            let publisher_id = AccountId::new_unchecked([publisher_word[2], publisher_word[3]]);
 
             // Check if publisher is active
             let status = oracle
@@ -88,7 +87,7 @@ impl PublishersCmd {
 
             table.add_row(Row::new(vec![
                 Cell::new(&format!("{}", i + 1)).style_spec("Fg"),
-                Cell::new(&format!("0x{:016x}", publisher_id)).style_spec("Fy"),
+                Cell::new(&format!("{}", publisher_id.to_hex())).style_spec("Fy"),
                 Cell::new(status).style_spec("Fw"),
             ]));
         }

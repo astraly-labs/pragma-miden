@@ -32,7 +32,7 @@ pub fn get_oracle_component_library() -> Library {
         )
         .unwrap();
 
-    TransactionKernel::testing_assembler()
+    TransactionKernel::assembler()
         .with_debug_mode(true)
         .assemble_library([oracle_component_module])
         .expect("assembly should succeed")
@@ -95,7 +95,7 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
         let anchor_block = client.get_latest_epoch_block().await.unwrap();
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
-            .storage_mode(AccountStorageMode::Public)
+            .storage_mode(AccountStorageMode::Private)
             .with_component(auth_component)
             .with_component(oracle_component)
             .anchor((&anchor_block).try_into().unwrap())

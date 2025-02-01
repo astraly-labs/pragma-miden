@@ -27,3 +27,4 @@ rand.workspace = true
 rusqlite.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+miden-objects.workspace = true
