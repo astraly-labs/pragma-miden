@@ -17,7 +17,7 @@ pub struct GetEntryCmd {
     pair: String,
 }
 
-// This CLI command is used to call the get_entry getter function from the publisher, and output it in the stack. 
+// This CLI command is used to call the get_entry getter function from the publisher, and output it in the stack.
 // This is useful for debugging purposes, but it's better to call the entry command to get a more user-friendly output.
 impl GetEntryCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {

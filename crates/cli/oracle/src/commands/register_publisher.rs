@@ -35,13 +35,13 @@ impl RegisterPublisherCmd {
             use.std::sys
     
             begin
-                push.{id_first_felt} push.{id_second_felt}
+                push.{account_id_suffix} push.{account_id_prefix}
                 call.oracle_module::register_publisher
                 exec.sys::truncate_stack
             end
-            ", 
-            id_first_felt = publisher_id.prefix().as_u64(),
-            id_second_felt = publisher_id.suffix(),
+            ",
+            account_id_prefix = publisher_id.prefix().as_u64(),
+            account_id_suffix = publisher_id.suffix(),
         );
         let median_script = TransactionScript::compile(
             tx_script_code,

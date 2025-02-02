@@ -32,7 +32,7 @@ pub fn get_publisher_component_library() -> Library {
         )
         .unwrap();
 
-    TransactionKernel::testing_assembler()
+    TransactionKernel::assembler()
         .with_debug_mode(true)
         .assemble_library([publisher_component_module])
         .expect("assembly should succeed")
@@ -73,7 +73,7 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
         let publisher_component =
             AccountComponent::new(get_publisher_component_library(), self.storage_slots)
                 .unwrap()
-                .with_supported_type(self.account_type);
+                .with_supports_all_types();
 
         let client = self.client.expect("build must have a Miden Client!");
         let client_rng = client.rng();

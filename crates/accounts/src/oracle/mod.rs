@@ -79,12 +79,11 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
     }
 
     pub async fn build(self) -> (Account, Word) {
-        let object_account_type: ObjectAccountType = self.account_type.parse().unwrap();
         let client_account_type: ClientAccountType = self.account_type.parse().unwrap();
         let oracle_component =
             AccountComponent::new(get_oracle_component_library(), self.storage_slots)
                 .unwrap()
-                .with_supported_type(object_account_type);
+                .with_supports_all_types();
 
         let client = self.client.expect("build must have a Miden Client!");
         let client_rng = client.rng();

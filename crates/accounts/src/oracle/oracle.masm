@@ -43,7 +43,7 @@ proc.call_publisher_get_entry
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
 
 
-    swapw swap.2 drop swap.2 drop swap
+    swapw swap.2 drop swap.2 drop
     # => [publisher_id,publisher_id,  GET_ENTRY_HASH, PAIR]
 
     debug.stack

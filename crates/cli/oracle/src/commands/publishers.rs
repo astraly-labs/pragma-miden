@@ -76,14 +76,19 @@ impl PublishersCmd {
                 .storage()
                 .get_item((4 + i).try_into().context("Invalid publisher index")?)
                 .context("Failed to retrieve publisher details")?;
-            let publisher_id = AccountId::new_unchecked([publisher_word[2], publisher_word[3]]);
-
+            let publisher_id = AccountId::new_unchecked([publisher_word[3], publisher_word[2]]);
             // Check if publisher is active
             let status = oracle
-                .account()
-                .storage()
-                .get_map_item(3, [ZERO, ZERO, ZERO, publisher_word[3]])
-                .map_or("Inactive ❌", |_| "Active ✅");
+            .account()
+            .storage()
+            .get_map_item(3, [ZERO, ZERO, publisher_word[2], publisher_word[3]])
+            .map_or("Inactive ❌", |value| {
+                if value == [ZERO, ZERO, ZERO, ZERO] {
+                    "Inactive ❌"
+                } else {
+                    "Active ✅"
+                }
+            });
 
             table.add_row(Row::new(vec![
                 Cell::new(&format!("{}", i + 1)).style_spec("Fg"),
