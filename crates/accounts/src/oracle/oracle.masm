@@ -39,12 +39,11 @@ end
 #! Inputs: [PUBLISHER_ID, PAIR]
 #! Output: [ENTRY]
 proc.call_publisher_get_entry
-    push.0xd6537f6c21c1dc13487f0f5ea088743cc1c4335f6aa118b602354cf3c09097d9
+    push.0x2d1ea4fa1203adfd3c7d00f0961a8d29f459a59768bbe3cf12dcc80b488e1b89
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
     swapw swap.2 drop swap.2 drop
     # => [publisher_id,publisher_id,  GET_ENTRY_HASH, PAIR]
-    debug.stack 
-
+    
     exec.tx::execute_foreign_procedure
     # => [ENTRY]
 end
