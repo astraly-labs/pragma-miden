@@ -51,17 +51,6 @@ impl GetEntryCmd {
         let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
-        println!(
-            "publisher prefix: {:?}, publisher_suffix: {:?}",
-            publisher_id.prefix().as_u64(),
-            publisher_id.suffix()
-        );
-        let procedures = publisher.account().code().procedure_roots();
-        let procedures_vec: Vec<RpoDigest> = procedures.collect();
-        for (index, procedure) in procedures_vec.iter().enumerate() {
-            println!("Procedure {}: {:?}", index + 1, procedure.to_hex());
-        }
-        println!("number of procedures: {}", procedures_vec.len());
 
         let tx_script_code = format!(
             "
