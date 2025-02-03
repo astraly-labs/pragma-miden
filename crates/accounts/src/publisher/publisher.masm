@@ -36,9 +36,6 @@ export.get_entry
     # => [entries_map_slot, PAIR]
     exec.account::get_map_item
 
-    # increments the nonce (anyone should be able to call that function)
-    push.1 exec.account::incr_nonce
-
     # => [ENTRY]
     exec.sys::truncate_stack
 end
