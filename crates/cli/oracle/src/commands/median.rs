@@ -30,7 +30,12 @@ impl MedianCmd {
 
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
-        let map_key = [ZERO, ZERO, publisher_id.prefix().into(),publisher_id.suffix()];
+        let map_key = [
+            ZERO,
+            ZERO,
+            publisher_id.prefix().into(),
+            publisher_id.suffix(),
+        ];
         let publisher = client
             .get_account(publisher_id)
             .await

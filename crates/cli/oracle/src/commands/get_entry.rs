@@ -2,7 +2,8 @@ use std::str::FromStr;
 
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{
-    ForeignAccount, ForeignAccountInputs, TransactionKernel, TransactionRequestBuilder, TransactionScript
+    ForeignAccount, ForeignAccountInputs, TransactionKernel, TransactionRequestBuilder,
+    TransactionScript,
 };
 use miden_client::{account::AccountId, crypto::FeltRng};
 use miden_client::{Client, Felt, ZERO};
@@ -29,10 +30,15 @@ impl GetEntryCmd {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
-        
+
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
-        let map_key = [ZERO, ZERO, publisher_id.prefix().into(),publisher_id.suffix()];
+        let map_key = [
+            ZERO,
+            ZERO,
+            publisher_id.prefix().into(),
+            publisher_id.suffix(),
+        ];
         let publisher = client
             .get_account(publisher_id)
             .await
@@ -45,7 +51,11 @@ impl GetEntryCmd {
         let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
-        println!("publisher prefix: {:?}, publisher_suffix: {:?}", publisher_id.prefix().as_u64(),  publisher_id.suffix());
+        println!(
+            "publisher prefix: {:?}, publisher_suffix: {:?}",
+            publisher_id.prefix().as_u64(),
+            publisher_id.suffix()
+        );
         let procedures = publisher.account().code().procedure_roots();
         let procedures_vec: Vec<RpoDigest> = procedures.collect();
         for (index, procedure) in procedures_vec.iter().enumerate() {
