@@ -12,7 +12,7 @@ pub struct EntryCmd {
     pair: String,
 }
 
-const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 2;
+const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 1;
 
 impl EntryCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
