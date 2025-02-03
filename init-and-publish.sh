@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Build 
+cargo build --release
+
 # Initialize the oracle
 ./target/release/pm-oracle-cli init
 
