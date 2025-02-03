@@ -46,7 +46,7 @@ pub struct PublisherAccountBuilder<'a, T: FeltRng> {
 
 impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
     pub fn new() -> Self {
-        let default_storage_slots = vec![StorageSlot::empty_map(), StorageSlot::empty_map()];
+        let default_storage_slots = vec![StorageSlot::empty_map()];
         Self {
             client: None,
             account_type: AccountType::RegularAccountImmutableCode,

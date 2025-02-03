@@ -9,11 +9,11 @@ use.miden::contracts::auth::basic->auth_tx
 
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
-const.NEXT_PUBLISHER_INDEX_SLOT=1
+const.NEXT_PUBLISHER_INDEX_SLOT=0
 
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
-const.PUBLISHER_REGISTRY_MAP_SLOT=2
+const.PUBLISHER_REGISTRY_MAP_SLOT=1
 
 # INTERNAL PROCEDURES (utilities)
 # =================================================================================================
@@ -39,11 +39,10 @@ end
 #! Inputs: [PUBLISHER_ID, PAIR]
 #! Output: [ENTRY]
 proc.call_publisher_get_entry
-    push.0x56e783ad59eea0eaba909e457f2415af0fde76f6caf9531b1233e92c40ae5c9c
+    push.0xd6537f6c21c1dc13487f0f5ea088743cc1c4335f6aa118b602354cf3c09097d9
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
     swapw swap.2 drop swap.2 drop
     # => [publisher_id,publisher_id,  GET_ENTRY_HASH, PAIR]
-    swap swap # To instantiate debug stack (to be removed)
     debug.stack 
 
     exec.tx::execute_foreign_procedure

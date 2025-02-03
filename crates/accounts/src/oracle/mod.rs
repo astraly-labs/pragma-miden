@@ -48,11 +48,10 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
     pub fn new() -> Self {
         let default_storage_slots = {
             let mut slots = vec![
-                StorageSlot::empty_map(),
-                StorageSlot::Value([Felt::new(3), ZERO, ZERO, ZERO]),
+                StorageSlot::Value([Felt::new(2), ZERO, ZERO, ZERO]),
                 StorageSlot::empty_map(),
             ];
-            slots.extend((0..251).map(|_| StorageSlot::empty_value()));
+            slots.extend((0..252).map(|_| StorageSlot::empty_value()));
             slots
         };
 

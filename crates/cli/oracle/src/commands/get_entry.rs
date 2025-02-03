@@ -7,6 +7,7 @@ use miden_client::transaction::{
 use miden_client::{account::AccountId, crypto::FeltRng};
 use miden_client::{Client, Felt, ZERO};
 
+use miden_objects::crypto::hash::rpo::RpoDigest;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::publisher;
 use pm_accounts::utils::word_to_masm;
@@ -45,6 +46,13 @@ impl GetEntryCmd {
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         println!("publisher prefix: {:?}, publisher_suffix: {:?}", publisher_id.prefix().as_u64(),  publisher_id.suffix());
+        let procedures = publisher.account().code().procedure_roots();
+        let procedures_vec: Vec<RpoDigest> = procedures.collect();
+        for (index, procedure) in procedures_vec.iter().enumerate() {
+            println!("Procedure {}: {:?}", index + 1, procedure.to_hex());
+        }
+        println!("number of procedures: {}", procedures_vec.len());
+
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module

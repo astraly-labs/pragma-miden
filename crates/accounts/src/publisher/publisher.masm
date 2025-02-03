@@ -5,7 +5,7 @@ use.miden::account
 # =================================================================================================
 
 #! Mapping containing the prices published for the fetcher.
-const.ENTRIES_MAP_SLOT=1
+const.ENTRIES_MAP_SLOT=0
 
 #! Writes a new entry.
 #! Must be called by the publisher.
