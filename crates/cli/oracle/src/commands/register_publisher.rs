@@ -47,7 +47,7 @@ impl RegisterPublisherCmd {
         let median_script = TransactionScript::compile(
             tx_script_code,
             [],
-            TransactionKernel::testing_assembler()
+            TransactionKernel::assembler()
                 .with_debug_mode(true)
                 .with_library(get_oracle_component_library())
                 .map_err(|e| {

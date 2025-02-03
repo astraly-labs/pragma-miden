@@ -64,7 +64,7 @@ impl PublishCmd {
         let publish_script = TransactionScript::compile(
             tx_script_code,
             [],
-            TransactionKernel::testing_assembler()
+            TransactionKernel::assembler()
                 .with_debug_mode(true)
                 .with_library(get_publisher_component_library())
                 .map_err(|e| {

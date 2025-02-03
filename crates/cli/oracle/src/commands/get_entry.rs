@@ -44,6 +44,7 @@ impl GetEntryCmd {
         let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
+        println!("publisher prefix: {:?}, publisher_suffix: {:?}", publisher_id.prefix().as_u64(),  publisher_id.suffix());
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module
