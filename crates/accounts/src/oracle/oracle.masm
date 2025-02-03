@@ -41,12 +41,10 @@ end
 proc.call_publisher_get_entry
     push.0x56e783ad59eea0eaba909e457f2415af0fde76f6caf9531b1233e92c40ae5c9c
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
-
-
     swapw swap.2 drop swap.2 drop
     # => [publisher_id,publisher_id,  GET_ENTRY_HASH, PAIR]
-
-    debug.stack
+    swap swap # To instantiate debug stack (to be removed)
+    debug.stack 
 
     exec.tx::execute_foreign_procedure
     # => [ENTRY]

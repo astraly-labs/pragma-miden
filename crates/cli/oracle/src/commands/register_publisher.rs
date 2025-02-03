@@ -35,6 +35,7 @@ impl RegisterPublisherCmd {
             use.std::sys
     
             begin
+                push.0.0
                 push.{account_id_suffix} push.{account_id_prefix}
                 call.oracle_module::register_publisher
                 exec.sys::truncate_stack

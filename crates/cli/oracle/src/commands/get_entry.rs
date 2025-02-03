@@ -1,13 +1,14 @@
 use std::str::FromStr;
 
-use miden_client::rpc::domain::account::AccountStorageRequirements;
+use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{
-    ForeignAccount, TransactionKernel, TransactionRequestBuilder, TransactionScript,
+    ForeignAccount, ForeignAccountInputs, TransactionKernel, TransactionRequestBuilder, TransactionScript
 };
 use miden_client::{account::AccountId, crypto::FeltRng};
 use miden_client::{Client, Felt, ZERO};
 
 use pm_accounts::oracle::get_oracle_component_library;
+use pm_accounts::publisher;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
 use pm_utils_cli::{
@@ -25,14 +26,22 @@ pub struct GetEntryCmd {
 impl GetEntryCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
-
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
-
+        
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
-        let foreign_account =
-            ForeignAccount::public(publisher_id, AccountStorageRequirements::default()).unwrap();
+        let map_key = [ZERO, ZERO, publisher_id.prefix().into(),publisher_id.suffix()];
+        let publisher = client
+            .get_account(publisher_id)
+            .await
+            .unwrap()
+            .expect("Publisher account not found");
+        let foreign_account_inputs = ForeignAccountInputs::from_account(
+            publisher.account().clone(),
+            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(map_key)])]),
+        )?;
+        let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         let tx_script_code = format!(
@@ -42,20 +51,15 @@ impl GetEntryCmd {
     
             begin
                 push.{pair}
-                push.{publisher_id}
-
+                push.0.0
+                push.{account_id_suffix} push.{account_id_prefix}
                 call.oracle_module::get_entry
-    
                 exec.sys::truncate_stack
             end
             ",
             pair = word_to_masm(pair.to_word()),
-            publisher_id = word_to_masm([
-                ZERO,
-                ZERO,
-                ZERO,
-                Felt::new(hex_to_decimal(&publisher_id.to_string())?),
-            ])
+            account_id_prefix = publisher_id.prefix().as_u64(),
+            account_id_suffix = publisher_id.suffix(),
         );
 
         // TODO: Can we pipe stdout to a variable so we can see the stack??
