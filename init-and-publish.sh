@@ -13,7 +13,7 @@ cargo build --release
 PUBLISHER_ADDRESS=$(jq -r '.data.publisher_account_id' ./pragma_miden.json)
 
 # Publish using the extracted address
-./target/release/pm-publisher-cli publish "$PUBLISHER_ADDRESS" BTC/USD 9620050534537 8 1738593825
+./target/release/pm-publisher-cli publish "$PUBLISHER_ADDRESS" BTC/USD 9620050 2 1738593825
 
 # Register the publisher
 ./target/release/pm-oracle-cli register-publisher "$PUBLISHER_ADDRESS" 
@@ -22,7 +22,7 @@ PUBLISHER_ADDRESS=$(jq -r '.data.publisher_account_id' ./pragma_miden.json)
 
 ./target/release/pm-publisher-cli init
 PUBLISHER_ADDRESS=$(jq -r '.data.publisher_account_id' ./pragma_miden.json)
-./target/release/pm-publisher-cli publish "$PUBLISHER_ADDRESS" BTC/USD 9630050534537 8 1738593825
+./target/release/pm-publisher-cli publish "$PUBLISHER_ADDRESS" BTC/USD 9640050 2 1738593825
 ./target/release/pm-oracle-cli register-publisher "$PUBLISHER_ADDRESS" 
 
 

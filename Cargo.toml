@@ -47,7 +47,7 @@ serde = "1.0.215"
 tokio = { version = "1.40.0", features = ["rt-multi-thread", "net", "macros"] }
 chrono = "0.4"
 prettytable-rs = "0.10"
-
+futures = "0.3.31"
 miden-processor = "0.12.0"
 miden-assembly = { version="0.12.0",default-features = false, features = [
   "testing", "std",

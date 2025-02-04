@@ -90,10 +90,6 @@ impl GetEntryCmd {
             .new_transaction(oracle_id, transaction_request)
             .await
             .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
-        println!(
-            "here is the ex tx stack{:?}",
-            tx_result.executed_transaction().advice_witness().stack()
-        );
         Ok(())
     }
 }

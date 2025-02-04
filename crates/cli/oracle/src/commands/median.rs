@@ -1,4 +1,4 @@
-use miden_client::account::StorageSlot;
+use anyhow::Context;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{
     ForeignAccount, ForeignAccountInputs, TransactionKernel, TransactionRequestBuilder,
@@ -28,20 +28,48 @@ impl MedianCmd {
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
 
-        let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
-        let publisher_id = AccountId::from_hex(publisher_id).unwrap();
-        let publisher = client
-            .get_account(publisher_id)
+        let oracle = client
+            .get_account(oracle_id)
             .await
             .unwrap()
-            .expect("Publisher account not found");
-
+            .expect("Oracle account not found");
+        // We need to fetch all the oracle registered publishers
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
-        let foreign_account_inputs = ForeignAccountInputs::from_account(
-            publisher.account().clone(),
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
-        )?;
-        let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
+
+        let storage = oracle.account().storage();
+
+        // Get publisher count from storage
+        let publisher_count = storage
+            .get_item(1)
+            .context("Unable to retrieve publisher count")?[0]
+            .as_int();
+
+        // Collect publishers into array
+        let publisher_array: Vec<AccountId> = (1..publisher_count - 1)
+            .map(|i| {
+                storage
+                    .get_item(2 + i as u8)
+                    .context("Failed to retrieve publisher details")
+                    .map(|words| AccountId::new_unchecked([words[3], words[2]]))
+            })
+            .collect::<Result<_, _>>()
+            .context("Failed to collect publisher array")?;
+
+        let mut foreign_accounts: Vec<ForeignAccount> = vec![];
+        for publisher_id in publisher_array {
+            let publisher = client
+                .get_account(publisher_id)
+                .await
+                .unwrap()
+                .expect("Publisher account not found");
+
+            let foreign_account_inputs = ForeignAccountInputs::from_account(
+                publisher.account().clone(),
+                AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+            )?;
+            let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
+            foreign_accounts.push(foreign_account);
+        }
 
         let tx_script_code = format!(
             "
@@ -51,6 +79,7 @@ impl MedianCmd {
             begin
                 push.{pair}
                 call.oracle_module::get_median
+                debug.stack
                 exec.sys::truncate_stack
             end
             ",
@@ -58,13 +87,6 @@ impl MedianCmd {
         );
 
         // TODO: Can we pipe stdout to a variable so we can see the stack??
-
-        let foreign_accounts = client
-            .test_store()
-            .get_foreign_account_code(vec![publisher.account().id()])
-            .await
-            .unwrap();
-        assert!(foreign_accounts.is_empty());
 
         let median_script = TransactionScript::compile(
             tx_script_code.clone(),
@@ -83,7 +105,7 @@ impl MedianCmd {
             .with_custom_script(median_script)
             .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))
             .unwrap()
-            .with_foreign_accounts([foreign_account]);
+            .with_foreign_accounts(foreign_accounts);
 
         let transaction_request = transaction_request.build();
 
