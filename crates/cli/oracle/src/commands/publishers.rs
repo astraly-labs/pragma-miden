@@ -27,7 +27,7 @@ impl PublishersCmd {
         let publisher_count = oracle
             .account()
             .storage()
-            .get_item(2)
+            .get_item(1)
             .context("Unable to retrieve publisher count")?[0]
             .as_int();
 
@@ -44,10 +44,10 @@ impl PublishersCmd {
         println!("{}", format!("🔍 Oracle ID: {}", oracle_id).bright_yellow());
         println!(
             "{}",
-            format!("📊 Total Publishers: {}\n", publisher_count - 3).bright_yellow()
+            format!("📊 Total Publishers: {}\n", publisher_count - 2).bright_yellow()
         );
 
-        if publisher_count <= 3 {
+        if publisher_count <= 2 {
             println!(
                 "{}",
                 r#"
@@ -70,18 +70,18 @@ impl PublishersCmd {
         ]));
 
         // Add publisher rows
-        for i in 0..publisher_count - 3 {
+        for i in 1..publisher_count - 1 {
             let publisher_word = oracle
                 .account()
                 .storage()
-                .get_item((4 + i).try_into().context("Invalid publisher index")?)
+                .get_item((2 + i).try_into().context("Invalid publisher index")?)
                 .context("Failed to retrieve publisher details")?;
             let publisher_id = AccountId::new_unchecked([publisher_word[3], publisher_word[2]]);
             // Check if publisher is active
             let status = oracle
                 .account()
                 .storage()
-                .get_map_item(3, [ZERO, ZERO, publisher_word[2], publisher_word[3]])
+                .get_map_item(2, [ZERO, ZERO, publisher_word[2], publisher_word[3]])
                 .map_or("Inactive ❌", |value| {
                     if value == [ZERO, ZERO, ZERO, ZERO] {
                         "Inactive ❌"

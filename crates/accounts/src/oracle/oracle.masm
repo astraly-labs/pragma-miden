@@ -15,6 +15,9 @@ const.NEXT_PUBLISHER_INDEX_SLOT=0
 # so we can assign it a slot.
 const.PUBLISHER_REGISTRY_MAP_SLOT=1
 
+# The beginning of the storage slots for the publishers.
+const.PUBLISHERS_STORAGE_SLOT=2
+
 # INTERNAL PROCEDURES (utilities)
 # =================================================================================================
 
@@ -246,8 +249,8 @@ export.get_median
     push.0.0.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item drop drop drop
     # => [next_publisher_slot, 0, 0, PAIR]
 
-    push.3 exec.felt_is_lower
-    # => [3, next_publisher_slot, 0, 0, PAIR]
+    push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
+    # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, PAIR]
 
     while.true
         # Get the publisher id at slot [top of the stack]
@@ -262,8 +265,8 @@ export.get_median
         # => [ENTRY, 3, next_publisher_slot, PAIR]
 
         # Store the entry in the RAM from index 0 to index N
-        dup.4 push.3 sub mem_storew dropw
-        # => [3, next_publisher_slot, PAIR]
+        dup.4 push.PUBLISHERS_STORAGE_SLOT sub mem_storew dropw
+        # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, PAIR]
 
         # Increment the next index and check if there's still publishers to process
         add.1 exec.felt_is_lower
@@ -279,11 +282,9 @@ export.get_median
     # => [4]
 
     # Retrieves the median from the sorted RAM entries
-    exec.ram_get_median
+    #exec.ram_get_median
     # => [median_price]
 
-    # increments the nonce (anyone should be able to call that function)
-    push.1 exec.account::incr_nonce
     exec.sys::truncate_stack
 end
 

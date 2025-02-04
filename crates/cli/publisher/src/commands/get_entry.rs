@@ -62,7 +62,6 @@ impl GetEntryCmd {
             .with_custom_script(get_entry_script)
             .unwrap()
             .build();
-
         let tx_result = client
             .new_transaction(publisher_id, transaction_request)
             .await

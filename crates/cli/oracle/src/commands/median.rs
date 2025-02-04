@@ -30,25 +30,19 @@ impl MedianCmd {
 
         let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();
-        let map_key = [
-            ZERO,
-            ZERO,
-            publisher_id.prefix().into(),
-            publisher_id.suffix(),
-        ];
         let publisher = client
             .get_account(publisher_id)
             .await
             .unwrap()
             .expect("Publisher account not found");
 
+        let pair: Pair = Pair::from_str(&self.pair).unwrap();
         let foreign_account_inputs = ForeignAccountInputs::from_account(
             publisher.account().clone(),
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(map_key)])]),
+            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
         )?;
         let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
 
-        let pair: Pair = Pair::from_str(&self.pair).unwrap();
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module
@@ -91,28 +85,12 @@ impl MedianCmd {
             .unwrap()
             .with_foreign_accounts([foreign_account]);
 
-        // for slot in publisher.account().storage().slots() {
-        //     if let StorageSlot::Map(map) = slot {
-        //         transaction_request = transaction_request
-        //             .extend_merkle_store(map.inner_nodes())
-        //             .extend_advice_map(
-        //                 map.leaves()
-        //                     .map(|(_, leaf)| (leaf.hash(), leaf.to_elements())),
-        //             );
-        //     }
-        // }
-
         let transaction_request = transaction_request.build();
 
-        let tx_result = client
+        client
             .new_transaction(oracle_id, transaction_request)
             .await
             .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
-
-        client
-            .submit_transaction(tx_result.clone())
-            .await
-            .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
 
         Ok(())
     }

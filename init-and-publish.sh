@@ -18,8 +18,16 @@ PUBLISHER_ADDRESS=$(jq -r '.data.publisher_account_id' ./pragma_miden.json)
 # Register the publisher
 ./target/release/pm-oracle-cli register-publisher "$PUBLISHER_ADDRESS" 
 
+# Reproduce this step for the second publisher
+
+./target/release/pm-publisher-cli init
+PUBLISHER_ADDRESS=$(jq -r '.data.publisher_account_id' ./pragma_miden.json)
+./target/release/pm-publisher-cli publish "$PUBLISHER_ADDRESS" BTC/USD 9630050534537 8 1738593825
+./target/release/pm-oracle-cli register-publisher "$PUBLISHER_ADDRESS" 
+
+
 # Wait for registration to complete
-sleep 3
+sleep 5
 
 # Query the BTC/USD entry
-./target/release/pm-oracle-cli get-entry BTC/USD
+./target/release/pm-oracle-cli median BTC/USD
