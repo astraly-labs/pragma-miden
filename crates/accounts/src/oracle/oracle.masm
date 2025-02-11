@@ -7,6 +7,10 @@ use.miden::contracts::auth::basic->auth_tx
 # CONSTANTS
 # =================================================================================================
 
+
+const.MAX_U32=0x0000000100000000
+
+
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
 const.NEXT_PUBLISHER_INDEX_SLOT=0
@@ -95,6 +99,27 @@ proc.ram_is_lower
   # => [BOOL, i, j]
 end
 
+#! Computes the avarage of two elements
+#! Inputs:  [a, b]
+#! Output : [avg]
+proc.compute_average
+    u32split
+    # => [a_high, a_low, b]
+    movup.2
+    # => [b, a_high, a_low]
+    u32split
+    # => [b_high, b_low, a_high, a_low]
+    exec.u64::wrapping_add
+    # => [c_high, c_low]
+    push.2.0
+     # => [0,2,c_high, c_low]
+    exec.u64::div
+    # => [avg_high, avg_low]
+    push.MAX_U32
+    # => [MAX_U32,avg_high, avg_low]
+    mul add
+    # => [avg]
+end
 #! Sort the N entries in the RAM using a Bubble Sort.
 #! All the elements must already be stored on the RAM and the top of
 #! the stack must include the length of the entries.
@@ -210,14 +235,7 @@ proc.ram_get_median
         movdn.4 exec.entry_to_price
         # => [price_n_minus_1, price_n]
 
-        push.0.0 movdn.2
-        # => [0, price_n_minus_1, 0, price_n]
-
-        exec.u64::overflowing_add
-        # => [0, price_sum]
-
-        drop push.2.0 exec.u64::div drop
-        # => [price_median]
+       exec.compute_average
     end
 end
 
