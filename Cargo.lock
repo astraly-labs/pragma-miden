@@ -1805,8 +1805,10 @@ dependencies = [
  "miden-objects",
  "miden-tx",
  "pm-types",
+ "pm-utils-cli",
  "rand",
  "rand_chacha",
+ "tokio",
 ]
 
 [[package]]
@@ -1873,7 +1875,6 @@ dependencies = [
  "miden-client",
  "miden-objects",
  "miden-tx",
- "pm-accounts",
  "pm-types",
  "rand",
  "rusqlite",

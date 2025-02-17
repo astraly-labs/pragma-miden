@@ -4,7 +4,7 @@ use rand::Rng;
 
 use miden_assembly::{
     ast::{Module, ModuleKind},
-    DefaultSourceManager, LibraryPath,
+    Assembler, DefaultSourceManager, LibraryPath,
 };
 use miden_client::{
     account::{Account, AccountStorageMode, AccountType as ClientAccountType},

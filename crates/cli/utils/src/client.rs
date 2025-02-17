@@ -16,9 +16,9 @@ use std::{path::PathBuf, sync::Arc};
 // Client Setup
 // ================================================================================================
 
-pub async fn setup_client() -> Result<Client<RpoRandomCoin>, ClientError> {
+pub async fn setup_client(path: PathBuf) -> Result<Client<RpoRandomCoin>, ClientError> {
     let exec_dir = PathBuf::new();
-    let store_config = exec_dir.join(STORE_FILENAME);
+    let store_config = exec_dir.join(path);
     // RPC endpoint and timeout
     let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57291));
     let timeout_ms = 10_000;
@@ -37,6 +37,43 @@ pub async fn setup_client() -> Result<Client<RpoRandomCoin>, ClientError> {
 
     let authenticator = StoreAuthenticator::new_with_rng(arc_store.clone(), rng.clone());
 
+    let client = Client::new(rpc_api, rng, arc_store, Arc::new(authenticator), true);
+
+    Ok(client)
+}
+
+pub async fn initialize_testnet_client() -> Result<Client<RpoRandomCoin>, ClientError> {
+    // RPC endpoint and timeout
+    let endpoint = Endpoint::new(
+        "https".to_string(),
+        "rpc.testnet.miden.io".to_string(),
+        Some(443),
+    );
+    let timeout_ms = 10_000;
+
+    // Build RPC client
+    let rpc_api = Box::new(TonicRpcClient::new(endpoint, timeout_ms));
+
+    // Seed RNG
+    let mut seed_rng = rand::thread_rng();
+    let coin_seed: [u64; 4] = seed_rng.gen();
+
+    // Create random coin instance
+    let rng = RpoRandomCoin::new(coin_seed.map(Felt::new));
+
+    // SQLite path
+    let store_path = "store.sqlite3";
+
+    // Initialize SQLite store
+    let store = SqliteStore::new(store_path.into())
+        .await
+        .map_err(ClientError::StoreError)?;
+    let arc_store = Arc::new(store);
+
+    // Create authenticator referencing the store and RNG
+    let authenticator = StoreAuthenticator::new_with_rng(arc_store.clone(), rng.clone());
+
+    // Instantiate client (toggle debug mode as needed)
     let client = Client::new(rpc_api, rng, arc_store, Arc::new(authenticator), true);
 
     Ok(client)
