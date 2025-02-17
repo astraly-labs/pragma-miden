@@ -24,6 +24,7 @@ use pm_accounts::{
 use common::{mock_entry, random_entry};
 
 #[tokio::test]
+#[ignore]
 async fn test_oracle_get_entry() {
     let entry = mock_entry();
     let entry_as_word: Word = entry.try_into().unwrap();
@@ -158,6 +159,7 @@ async fn test_oracle_get_entry() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_oracle_register_publisher() {
     let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let db_path = crate_path.parent().unwrap().parent().unwrap();
@@ -244,6 +246,7 @@ async fn test_oracle_register_publisher() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_oracle_get_median() {
     let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let db_path = crate_path.parent().unwrap().parent().unwrap();

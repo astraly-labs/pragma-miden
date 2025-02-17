@@ -1277,7 +1277,8 @@ dependencies = [
 [[package]]
 name = "miden-client"
 version = "0.7.0"
-source = "git+https://github.com/0xPolygonMiden/miden-client?branch=main#555b344d99726ecdf5eeeb99d478546b558b10e7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88c1887cfa9300b4b14643efa19dc582416fe17fbe8d7e579ccd51905732b00f"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1795,7 +1796,7 @@ checksum = "953ec861398dccce10c670dfeaf3ec4911ca479e9c02154b3a215178c5f566f2"
 
 [[package]]
 name = "pm-accounts"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "anyhow",
  "miden-assembly",
@@ -1804,7 +1805,7 @@ dependencies = [
  "miden-lib",
  "miden-objects",
  "miden-tx",
- "pm-types",
+ "pm-types 0.1.0-alpha.1",
  "pm-utils-cli",
  "rand",
  "rand_chacha",
@@ -1813,7 +1814,7 @@ dependencies = [
 
 [[package]]
 name = "pm-oracle-cli"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1825,7 +1826,7 @@ dependencies = [
  "miden-objects",
  "miden-tx",
  "pm-accounts",
- "pm-types",
+ "pm-types 0.1.0-alpha.1",
  "pm-utils-cli",
  "prettytable-rs",
  "rand",
@@ -1836,7 +1837,7 @@ dependencies = [
 
 [[package]]
 name = "pm-publisher-cli"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1846,7 +1847,7 @@ dependencies = [
  "miden-client",
  "miden-tx",
  "pm-accounts",
- "pm-types",
+ "pm-types 0.1.0-alpha.1",
  "pm-utils-cli",
  "prettytable-rs",
  "rand",
@@ -1857,7 +1858,18 @@ dependencies = [
 
 [[package]]
 name = "pm-types"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "anyhow",
+ "miden-client",
+ "miden-crypto",
+]
+
+[[package]]
+name = "pm-types"
+version = "0.1.0-alpha.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa7c5b513de543e42a71e551b19855565031920e3f41cea4e8c5a856623ad7be"
 dependencies = [
  "anyhow",
  "miden-client",
@@ -1866,7 +1878,7 @@ dependencies = [
 
 [[package]]
 name = "pm-utils-cli"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1875,7 +1887,7 @@ dependencies = [
  "miden-client",
  "miden-objects",
  "miden-tx",
- "pm-types",
+ "pm-types 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand",
  "rusqlite",
  "serde",
