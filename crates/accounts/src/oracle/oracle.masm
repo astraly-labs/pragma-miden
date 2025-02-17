@@ -2,17 +2,25 @@ use.std::sys
 use.std::math::u64
 use.miden::account
 use.miden::tx
+use.miden::contracts::auth::basic->auth_tx
 
 # CONSTANTS
 # =================================================================================================
 
-# Holds the next storage slot index available. Will be used when we register a publisher,
-# so we can assign it a slot.
-const.NEXT_PUBLISHER_INDEX_SLOT=1
+
+const.MAX_U32=0x0000000100000000
+
 
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
-const.PUBLISHER_REGISTRY_MAP_SLOT=2
+const.NEXT_PUBLISHER_INDEX_SLOT=0
+
+# Holds the next storage slot index available. Will be used when we register a publisher,
+# so we can assign it a slot.
+const.PUBLISHER_REGISTRY_MAP_SLOT=1
+
+# The beginning of the storage slots for the publishers.
+const.PUBLISHERS_STORAGE_SLOT=2
 
 # INTERNAL PROCEDURES (utilities)
 # =================================================================================================
@@ -38,12 +46,11 @@ end
 #! Inputs: [PUBLISHER_ID, PAIR]
 #! Output: [ENTRY]
 proc.call_publisher_get_entry
-    push.0xee4fb9d80910f394144cbbce928cdb99d4e8bbc8310f43e387f5f3ddc6ead85d
+    push.0x2d1ea4fa1203adfd3c7d00f0961a8d29f459a59768bbe3cf12dcc80b488e1b89
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
-
-    swapw movdn.3 drop drop drop
-    # => [publisher_id, GET_ENTRY_HASH, PAIR]
-
+    swapw swap.2 drop swap.2 drop
+    # => [publisher_id,publisher_id,  GET_ENTRY_HASH, PAIR]
+    
     exec.tx::execute_foreign_procedure
     # => [ENTRY]
 end
@@ -56,13 +63,13 @@ end
 proc.ram_swap
   dup
   # => [i, i, j]
-  push.0.0.0.0 movup.4 mem_loadw
+  push.0.0.0.0 movup.4 mul.4 mem_loadw
   # => [mem_i, i, j]
-  movup.5 dup push.0.0.0.0 movup.4 mem_loadw
+  movup.5 dup push.0.0.0.0 movup.4 mul.4 mem_loadw
   # => [mem_j, j, mem_i, i]
   movup.9
   # => [i, mem_j, j, mem_i]
-  mem_storew dropw mem_storew dropw
+  mul.4 mem_storew dropw mul.4 mem_storew dropw
 end
 
 
@@ -73,7 +80,7 @@ end
 #! returns:
 #! => [42]
 proc.entry_to_price
-  drop swap.1 drop swap.1 drop
+  drop drop swap drop
 end
 
 #! Returns 1 if the element at index i is lower than element at index j.
@@ -82,9 +89,9 @@ end
 #! returns
 #! => [0, i, j]
 proc.ram_is_lower
-  dup push.0.0.0.0 movup.5 mem_loadw exec.entry_to_price
+  dup push.0.0.0.0 movup.5 mul.4 mem_loadw exec.entry_to_price
   # => [mem_i, i, j]
-  movup.2 dup push.0.0.0.0 movup.4 mem_loadw exec.entry_to_price
+  movup.2 dup push.0.0.0.0 movup.4 mul.4 mem_loadw exec.entry_to_price
   # => [mem_j, j, mem_i, i]
   movup.2 swap.1 lt
   # => [BOOL, j, i]
@@ -92,6 +99,27 @@ proc.ram_is_lower
   # => [BOOL, i, j]
 end
 
+#! Computes the avarage of two elements
+#! Inputs:  [a, b]
+#! Output : [avg]
+proc.compute_average
+    u32split
+    # => [a_high, a_low, b]
+    movup.2
+    # => [b, a_high, a_low]
+    u32split
+    # => [b_high, b_low, a_high, a_low]
+    exec.u64::wrapping_add
+    # => [c_high, c_low]
+    push.2.0
+     # => [0,2,c_high, c_low]
+    exec.u64::div
+    # => [avg_high, avg_low]
+    push.MAX_U32
+    # => [MAX_U32,avg_high, avg_low]
+    mul add
+    # => [avg]
+end
 #! Sort the N entries in the RAM using a Bubble Sort.
 #! All the elements must already be stored on the RAM and the top of
 #! the stack must include the length of the entries.
@@ -101,6 +129,7 @@ end
 proc.ram_bubble_sort
     # This is the outer counter
     dup
+
     # => [N, N]
     sub.1 dup
     # => [N-1(i), N-1(i), N]
@@ -176,14 +205,13 @@ end
 proc.ram_get_median
     dup is_odd
     # => [nb_of_entries]
-
     if.true
         push.0.2.0
         exec.u64::div drop
         # => [index_to_read]
         # = nb_of_entries / 2
 
-        push.0.0.0.0 movup.4 mem_loadw
+        push.0.0.0.0 movup.4 mul.4 mem_loadw
         # => [MEDIAN_ENTRY]
 
         exec.entry_to_price
@@ -196,10 +224,10 @@ proc.ram_get_median
         dup sub.1
         # => [index_to_read - 1, index_to_read]
 
-        push.0.0.0.0 movup.4 mem_loadw
+        push.0.0.0.0 movup.4 mul.4 mem_loadw
         # => [ENTRY_N_MINUS_1, index_to_read]
 
-        push.0.0.0.0 movup.8 mem_loadw
+        push.0.0.0.0 movup.8 mul.4 mem_loadw
 
         exec.entry_to_price
         # => [price_n, ENTRY_N_MINUS_1]
@@ -207,14 +235,7 @@ proc.ram_get_median
         movdn.4 exec.entry_to_price
         # => [price_n_minus_1, price_n]
 
-        push.0.0 movdn.2
-        # => [0, price_n_minus_1, 0, price_n]
-
-        exec.u64::overflowing_add
-        # => [0, price_sum]
-
-        drop push.2.0 exec.u64::div drop
-        # => [price_median]
+       exec.compute_average
     end
 end
 
@@ -246,49 +267,49 @@ export.get_median
     push.0.0.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item drop drop drop
     # => [next_publisher_slot, 0, 0, PAIR]
 
-    push.3 exec.felt_is_lower
-    # => [3, next_publisher_slot, 0, 0, PAIR]
+    push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
+    # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, PAIR]
 
     while.true
         # Get the publisher id at slot [top of the stack]
         dup exec.account::get_item
-        # => [PUBLISHER_ID, 3, next_publisher_slot, 0, 0, PAIR]
+        # => [PUBLISHER_ID, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, PAIR]
 
         dupw.2 swapw.1
-        # => [PUBLISHER_ID, PAIR, 3, next_publisher_slot, 0, 0, PAIR]
+        # => [PUBLISHER_ID, PAIR, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, PAIR]
 
         # Call get_entry
         exec.call_publisher_get_entry
-        # => [ENTRY, 3, next_publisher_slot, PAIR]
-
+        # => [ENTRY, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, PAIR]
+          
         # Store the entry in the RAM from index 0 to index N
-        dup.4 push.3 sub mem_storew dropw
-        # => [3, next_publisher_slot, PAIR]
-
+        dup.4 push.PUBLISHERS_STORAGE_SLOT sub mul.4  # we multiplied the result by 4 because se can store with % 4!=0 addresses
+        mem_storew dropw
+        # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, PAIR]
         # Increment the next index and check if there's still publishers to process
         add.1 exec.felt_is_lower
-        # => [4, next_publisher_slot, PAIR]
+        # => [PUBLISHERS_STORAGE_SLOT +1 , next_publisher_slot, PAIR]
     end
-
     # Drop the utilities used to get all the entries - only keep the length on the ram.
+
     swap drop movdn.4 dropw
     # => [4]
+    
+    push.PUBLISHERS_STORAGE_SLOT
+    # =>  [PUBLISHER_STORAGE_SLOT, 4]
 
+    sub 
+    # => [Number of entries]
     # Sort the entries stored on the RAM
-    dup exec.ram_bubble_sort
+    exec.ram_bubble_sort
     # => [4]
-
+    
     # Retrieves the median from the sorted RAM entries
     exec.ram_get_median
     # => [median_price]
 
-    # increments the nonce (anyone should be able to call that function)
-    push.1 exec.account::incr_nonce
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> origin/main
+
     exec.sys::truncate_stack
 end
 
@@ -336,7 +357,7 @@ export.register_publisher
     # => []
 
     # Only the oracle owner should be able to call this
-    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+   call.auth_tx::auth_tx_rpo_falcon512
     drop
 
     exec.sys::truncate_stack

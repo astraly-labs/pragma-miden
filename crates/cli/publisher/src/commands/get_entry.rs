@@ -1,6 +1,6 @@
-use miden_client::transactions::{TransactionKernel, TransactionRequest, TransactionScript};
+use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder, TransactionScript};
 use miden_client::Client;
-use miden_client::{accounts::AccountId, crypto::FeltRng};
+use miden_client::{account::AccountId, crypto::FeltRng};
 use pm_accounts::publisher::get_publisher_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
@@ -14,6 +14,8 @@ pub struct GetEntryCmd {
     pair: String,
 }
 
+// This CLI command is used to call the get_entry getter function from the publisher, and output it in the stack.
+// This is useful for debugging purposes, but it's better to call the entry command to get a more user-friendly output.
 impl GetEntryCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
@@ -31,7 +33,7 @@ impl GetEntryCmd {
                 push.{pair}
 
                 call.publisher_module::get_entry
-    
+                debug.stack
                 exec.sys::truncate_stack
             end
             ",
@@ -43,7 +45,7 @@ impl GetEntryCmd {
         let get_entry_script = TransactionScript::compile(
             tx_script_code,
             [],
-            TransactionKernel::testing_assembler()
+            TransactionKernel::assembler()
                 .with_debug_mode(true)
                 .with_library(get_publisher_component_library())
                 .map_err(|e| {
@@ -53,12 +55,10 @@ impl GetEntryCmd {
         )
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
-        let transaction_request = TransactionRequest::new()
+        let transaction_request = TransactionRequestBuilder::new()
             .with_custom_script(get_entry_script)
             .unwrap()
-            .with_public_foreign_accounts([publisher_id])
-            .unwrap();
-
+            .build();
         let tx_result = client
             .new_transaction(publisher_id, transaction_request)
             .await

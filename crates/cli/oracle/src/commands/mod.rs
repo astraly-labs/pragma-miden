@@ -6,6 +6,8 @@ mod publishers;
 mod register_publisher;
 mod sync;
 
+use std::path::PathBuf;
+
 use clap::Parser;
 
 use entry::EntryCmd;
@@ -16,7 +18,7 @@ use publishers::PublishersCmd;
 use register_publisher::RegisterPublisherCmd;
 use sync::SyncCmd;
 
-use pm_utils_cli::setup_client;
+use pm_utils_cli::{setup_client, STORE_FILENAME};
 
 #[derive(Debug, Parser, Clone)]
 pub enum SubCommand {
@@ -46,7 +48,9 @@ pub enum SubCommand {
 
 impl SubCommand {
     pub async fn call(&self) -> anyhow::Result<()> {
-        let mut client = setup_client().await;
+        let exec_dir = PathBuf::new();
+        let store_config = exec_dir.join(STORE_FILENAME);
+        let mut client = setup_client(store_config).await.unwrap();
 
         match self {
             Self::Init(cmd) => cmd.call(&mut client).await?,

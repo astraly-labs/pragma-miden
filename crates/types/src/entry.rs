@@ -1,4 +1,4 @@
-use miden_crypto::{Felt, Word};
+use miden_client::{Felt, Word};
 
 use crate::pair::Pair;
 #[derive(Debug, Clone)]

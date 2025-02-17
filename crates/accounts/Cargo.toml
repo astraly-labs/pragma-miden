@@ -19,7 +19,8 @@ miden-lib.workspace = true
 miden-objects.workspace = true
 miden-tx.workspace = true
 pm-types.workspace = true
-
+tokio.workspace = true
+pm-utils-cli.workspace = true
 anyhow.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true

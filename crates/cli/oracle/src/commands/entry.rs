@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
-use miden_client::accounts::AccountId;
+use miden_client::account::AccountId;
 use miden_client::crypto::FeltRng;
 use miden_client::Client;
 use prettytable::{Cell, Row, Table};
@@ -22,10 +22,18 @@ impl EntryCmd {
         client.sync_state().await.unwrap();
 
         let publisher_id = AccountId::from_hex(&self.publisher_id).unwrap();
-        let (publisher, _) = client.get_account(publisher_id).await.unwrap();
+        let publisher = client
+            .get_account(publisher_id)
+            .await
+            .unwrap()
+            .expect("Publisher account not found");
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
-        let word = publisher.storage().get_map_item(2, pair.to_word()).unwrap();
+        let word = publisher
+            .account()
+            .storage()
+            .get_map_item(2, pair.to_word())
+            .unwrap();
 
         // Convert Word to Entry
         let entry = Entry::from(word);

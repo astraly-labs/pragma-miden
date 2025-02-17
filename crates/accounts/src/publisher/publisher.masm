@@ -5,7 +5,7 @@ use.miden::account
 # =================================================================================================
 
 #! Mapping containing the prices published for the fetcher.
-const.ENTRIES_MAP_SLOT=1
+const.ENTRIES_MAP_SLOT=0
 
 #! Writes a new entry.
 #! Must be called by the publisher.
@@ -33,13 +33,8 @@ end
 export.get_entry
     push.ENTRIES_MAP_SLOT
 
-    debug.stack
-
     # => [entries_map_slot, PAIR]
     exec.account::get_map_item
-
-    # increments the nonce (anyone should be able to call that function)
-    push.1 exec.account::incr_nonce
 
     # => [ENTRY]
     exec.sys::truncate_stack

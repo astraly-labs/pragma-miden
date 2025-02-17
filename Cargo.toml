@@ -44,26 +44,16 @@ thiserror = "1.0.61"
 rusqlite = { version = "0.32" }
 serde_json = "1.0.133"
 serde = "1.0.215"
-tokio = { version = "1.42.0", features = ["rt-multi-thread", "net", "macros"] }
+tokio = { version = "1.40.0", features = ["rt-multi-thread", "net", "macros"] }
 chrono = "0.4"
 prettytable-rs = "0.10"
-
-miden-assembly = { version = "0.11", default-features = false, features = [
-  "testing",
+futures = "0.3.31"
+miden-processor = "0.12.0"
+miden-assembly = { version="0.12.0",default-features = false, features = [
+  "testing", "std",
 ] }
-miden-crypto = { version = "0.12", default-features = false }
-miden-lib = { version = "0.6.2", default-features = false, features = [
-  "concurrent",
-  "testing",
-] }
-miden-objects = { version = "0.6.2", default-features = false, features = [
-  "concurrent",
-  "testing",
-] }
-miden-tx = { version = "0.6.2", features = ["concurrent", "testing"] }
-miden-client = { git = "https://github.com/0xPolygonMiden/miden-client", branch = "main", features = [
-  "concurrent",
-  "testing",
-  "sqlite",
-  "tonic",
-] }
+miden-crypto = { version="0.13.2", default-features = false, features = ["executable"] }
+miden-lib = {  version="0.7", default-features = false, features = ["testing"] }
+miden-objects = {version ="0.7", default-features = false,features = ["testing"]  }
+miden-tx = { version ="0.7", default-features = false, features = ["async", "concurrent"] }
+miden-client = { git = "https://github.com/0xPolygonMiden/miden-client", branch="main", features=["tonic", "sqlite", "concurrent","testing"]}
