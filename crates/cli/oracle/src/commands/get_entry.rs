@@ -5,15 +5,14 @@ use miden_client::transaction::{
     ForeignAccount, ForeignAccountInputs, TransactionKernel, TransactionRequestBuilder,
     TransactionScript,
 };
-use miden_client::{account::AccountId, crypto::FeltRng};
 use miden_client::Client;
+use miden_client::{account::AccountId, crypto::FeltRng};
 
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
 use pm_utils_cli::{
-    JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE,
-    PUBLISHER_ACCOUNT_COLUMN,
+    JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN,
 };
 
 #[derive(clap::Parser, Debug, Clone)]

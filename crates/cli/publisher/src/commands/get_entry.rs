@@ -1,6 +1,4 @@
-use miden_client::transaction::{
-    TransactionKernel, TransactionRequestBuilder, TransactionScript,
-};
+use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder, TransactionScript};
 use miden_client::Client;
 use miden_client::{account::AccountId, crypto::FeltRng};
 use pm_accounts::publisher::get_publisher_component_library;

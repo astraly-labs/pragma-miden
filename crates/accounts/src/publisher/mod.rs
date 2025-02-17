@@ -3,7 +3,8 @@ use std::sync::Arc;
 use rand::Rng;
 
 use miden_assembly::{
-    ast::{Module, ModuleKind}, DefaultSourceManager, LibraryPath,
+    ast::{Module, ModuleKind},
+    DefaultSourceManager, LibraryPath,
 };
 use miden_client::{
     account::{Account, AccountStorageMode, AccountType as ClientAccountType},

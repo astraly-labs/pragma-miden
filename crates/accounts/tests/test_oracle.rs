@@ -6,10 +6,7 @@ mod common;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{ForeignAccount, ForeignAccountInputs, TransactionRequestBuilder};
 use miden_client::Client;
-use miden_client::{
-    account::AccountId,
-    crypto::RpoRandomCoin,
-};
+use miden_client::{account::AccountId, crypto::RpoRandomCoin};
 use miden_crypto::{hash::rpo::RpoDigest, Felt, Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
@@ -33,11 +30,7 @@ async fn test_oracle_get_entry() {
     let pair: Felt = entry_as_word[0];
     let pair_word: Word = [pair, ZERO, ZERO, ZERO];
     let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let db_path = crate_path
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
+    let db_path = crate_path.parent().unwrap().parent().unwrap();
     let store_config = db_path.join(STORE_FILENAME);
     let mut client = setup_client(store_config).await.unwrap();
 
@@ -66,7 +59,7 @@ async fn test_oracle_get_entry() {
         ZERO,
         ZERO,
     ];
- 
+
     // let (oracle_pub_key, oracle_auth) = get_new_pk_and_authenticator();
     // let oracle_id = 98765_u64;
     tokio::time::sleep(Duration::from_secs(10)).await;
@@ -167,11 +160,7 @@ async fn test_oracle_get_entry() {
 #[tokio::test]
 async fn test_oracle_register_publisher() {
     let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let db_path = crate_path
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
+    let db_path = crate_path.parent().unwrap().parent().unwrap();
     let store_config = db_path.join(STORE_FILENAME);
     let mut client = setup_client(store_config).await.unwrap();
 
@@ -257,11 +246,7 @@ async fn test_oracle_register_publisher() {
 #[tokio::test]
 async fn test_oracle_get_median() {
     let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let db_path = crate_path
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
+    let db_path = crate_path.parent().unwrap().parent().unwrap();
     let store_config = db_path.join(STORE_FILENAME);
     println!("Database path: {:?}", store_config);
     let mut client = setup_client(store_config).await.unwrap();
