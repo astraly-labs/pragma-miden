@@ -1,15 +1,6 @@
-use std::{
-    path::PathBuf,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use miden_client::{
-    rpc::{Endpoint, TonicRpcClient},
-    store::{sqlite_store::SqliteStore, StoreAuthenticator},
-    Client, ClientError,
-};
-use miden_crypto::{rand::RpoRandomCoin, Felt, ZERO};
+use miden_crypto::ZERO;
 use miden_objects::{
     account::{Account, StorageSlot},
     vm::AdviceInputs,

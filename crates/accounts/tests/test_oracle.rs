@@ -1,19 +1,14 @@
 // pub mod common;
 
-use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Duration;
 use std::vec;
 mod common;
-use miden_assembly::diagnostics::miette::set_panic_hook;
-use miden_assembly::Assembler;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
-use miden_client::testing::account_component::AccountMockComponent;
 use miden_client::transaction::{ForeignAccount, ForeignAccountInputs, TransactionRequestBuilder};
 use miden_client::Client;
 use miden_client::{
-    account::{AccountBuilder, AccountId},
-    crypto::{FeltRng, RpoRandomCoin},
+    account::AccountId,
+    crypto::RpoRandomCoin,
 };
 use miden_crypto::{hash::rpo::RpoDigest, Felt, Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
@@ -21,19 +16,15 @@ use miden_objects::{
     account::{Account, StorageMap, StorageSlot},
     transaction::TransactionScript,
 };
-use pm_utils_cli::{initialize_testnet_client, setup_client, STORE_FILENAME, STORE_TEST_FILENAME};
-use rand::Rng;
-use rand::SeedableRng;
+use pm_utils_cli::{setup_client, STORE_FILENAME};
 
-use miden_tx::{auth::TransactionAuthenticator, testing::MockChain, TransactionExecutor};
 use pm_accounts::{
     oracle::{get_oracle_component_library, OracleAccountBuilder},
     publisher::PublisherAccountBuilder,
-    utils::{get_new_pk_and_authenticator, word_to_masm},
+    utils::word_to_masm,
 };
 
-use common::{mock_entry, random_entry, FpiAdviceBuilder};
-use rand_chacha::ChaCha20Rng;
+use common::{mock_entry, random_entry};
 
 #[tokio::test]
 async fn test_oracle_get_entry() {
@@ -184,7 +175,7 @@ async fn test_oracle_register_publisher() {
     let store_config = db_path.join(STORE_FILENAME);
     let mut client = setup_client(store_config).await.unwrap();
 
-    let (mut oracle_account, _) = OracleAccountBuilder::<RpoRandomCoin>::new()
+    let (oracle_account, _) = OracleAccountBuilder::<RpoRandomCoin>::new()
         .with_storage_slots(vec![StorageSlot::Value([Felt::new(3), ZERO, ZERO, ZERO])])
         .with_client(&mut client)
         .build()

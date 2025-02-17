@@ -1,4 +1,3 @@
-use crate::STORE_FILENAME;
 use miden_client::{
     account::{
         component::{BasicWallet, RpoFalcon512},

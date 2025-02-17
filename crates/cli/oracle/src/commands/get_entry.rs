@@ -6,15 +6,13 @@ use miden_client::transaction::{
     TransactionScript,
 };
 use miden_client::{account::AccountId, crypto::FeltRng};
-use miden_client::{Client, Felt, ZERO};
+use miden_client::Client;
 
-use miden_objects::crypto::hash::rpo::RpoDigest;
 use pm_accounts::oracle::get_oracle_component_library;
-use pm_accounts::publisher;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
 use pm_utils_cli::{
-    hex_to_decimal, JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE,
+    JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE,
     PUBLISHER_ACCOUNT_COLUMN,
 };
 

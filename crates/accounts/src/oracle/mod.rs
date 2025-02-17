@@ -9,13 +9,13 @@ use miden_assembly::{
 use miden_client::{
     account::{Account, AccountBuilder, AccountStorageMode, AccountType as ClientAccountType},
     auth::AuthSecretKey,
-    crypto::{FeltRng, RpoRandomCoin},
+    crypto::FeltRng,
     Client,
 };
 use miden_client::{crypto::SecretKey, Felt, Word, ZERO};
 use miden_lib::{account::auth::RpoFalcon512, transaction::TransactionKernel};
 use miden_objects::{
-    account::{AccountComponent, AccountType as ObjectAccountType, StorageSlot},
+    account::{AccountComponent, StorageSlot},
     assembly::Library,
     crypto::dsa::rpo_falcon512::PublicKey,
 };

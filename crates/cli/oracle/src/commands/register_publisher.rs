@@ -1,9 +1,8 @@
 use miden_client::crypto::FeltRng;
 use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder};
 use miden_client::{account::AccountId, transaction::TransactionScript};
-use miden_client::{Client, Felt, ZERO};
+use miden_client::Client;
 use pm_accounts::oracle::get_oracle_component_library;
-use pm_accounts::utils::word_to_masm;
 use pm_utils_cli::{
     JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN,
 };

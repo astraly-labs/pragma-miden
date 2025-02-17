@@ -10,7 +10,7 @@ use clap::Parser;
 use entry::EntryCmd;
 use get_entry::GetEntryCmd;
 use init::InitCmd;
-use pm_utils_cli::{initialize_testnet_client, setup_client, STORE_FILENAME};
+use pm_utils_cli::{setup_client, STORE_FILENAME};
 use publish::PublishCmd;
 use sync::SyncCmd;
 

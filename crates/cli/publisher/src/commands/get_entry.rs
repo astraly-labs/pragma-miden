@@ -1,6 +1,5 @@
-use miden_client::rpc::domain::account::AccountStorageRequirements;
 use miden_client::transaction::{
-    ForeignAccount, TransactionKernel, TransactionRequestBuilder, TransactionScript,
+    TransactionKernel, TransactionRequestBuilder, TransactionScript,
 };
 use miden_client::Client;
 use miden_client::{account::AccountId, crypto::FeltRng};
