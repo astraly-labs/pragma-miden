@@ -11,7 +11,7 @@ use pm_utils_cli::{
 #[clap(about = "Registers a publisher id into the Oracle")]
 pub struct RegisterPublisherCmd {
     // The id of the publisher
-    publisher_id: String,
+    pub publisher_id: String,
 }
 
 impl RegisterPublisherCmd {

@@ -10,7 +10,7 @@ pub struct InitCmd {
     // TODO: We may want to create ONLY a publisher. And assume the Oracle was created by someone else.
     // In this case, just store the oracle id in the storage.
     // If not provided and the oracle_id is empty in the storage, error!
-    oracle_id: Option<String>,
+    pub oracle_id: Option<String>,
 }
 
 impl InitCmd {

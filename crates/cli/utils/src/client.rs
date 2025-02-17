@@ -16,8 +16,8 @@ use std::{path::PathBuf, sync::Arc};
 // ================================================================================================
 
 pub async fn setup_client(path: PathBuf) -> Result<Client<RpoRandomCoin>, ClientError> {
-    let exec_dir = PathBuf::new();
-    let store_config = exec_dir.join(path);
+    // let exec_dir = PathBuf::new();
+    // let store_config = exec_dir.join(path);
     // RPC endpoint and timeout
     let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57291));
     let timeout_ms = 10_000;
@@ -29,7 +29,7 @@ pub async fn setup_client(path: PathBuf) -> Result<Client<RpoRandomCoin>, Client
 
     let rng = RpoRandomCoin::new(coin_seed.map(Felt::new));
 
-    let store = SqliteStore::new(store_config.into())
+    let store = SqliteStore::new(path.into())
         .await
         .map_err(ClientError::StoreError)?;
     let arc_store = Arc::new(store);

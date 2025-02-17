@@ -12,9 +12,9 @@ use pm_types::{Entry, Pair};
 #[clap(about = "Retrieve an entry for a given pair and publisher id ")]
 pub struct EntryCmd {
     // The id of the publisher
-    publisher_id: String,
+    pub publisher_id: String,
     // Input pair (format example: "BTC/USD")
-    pair: String,
+    pub pair: String,
 }
 
 impl EntryCmd {

@@ -11,6 +11,11 @@ license.workspace = true
 [lints]
 workspace = true
 
+[lib]
+name = "pm_publisher"
+crate-type = ["cdylib"] 
+
+
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
@@ -21,10 +26,13 @@ miden-client.workspace = true
 miden-tx.workspace = true
 pm-accounts = "0.1.0-alpha.1"
 pm-types = "0.1.0-alpha.1"
-pm-utils-cli = "0.1.0-alpha.1"
+pm-utils-cli.workspace = true
 prettytable-rs.workspace = true
 rand.workspace = true
 rusqlite.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+pyo3.workspace = true
 
+[build-dependencies]
+pyo3-build-config = "0.20.0"

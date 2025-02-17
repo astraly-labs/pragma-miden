@@ -11,17 +11,18 @@ use std::str::FromStr;
 #[clap(about = "Gets entry")]
 pub struct GetEntryCmd {
     // Input pair (format example: "BTC/USD")
-    pair: String,
+    pub publisher_id: String,
+    pub pair: String,
 }
 
 // This CLI command is used to call the get_entry getter function from the publisher, and output it in the stack.
 // This is useful for debugging purposes, but it's better to call the entry command to get a more user-friendly output.
 impl GetEntryCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
-        let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
+        // let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
 
-        let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
-        let publisher_id = AccountId::from_hex(publisher_id).unwrap();
+        // let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
+        let publisher_id = AccountId::from_hex(&self.publisher_id).unwrap();
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         let tx_script_code = format!(

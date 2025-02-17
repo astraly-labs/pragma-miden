@@ -1,10 +1,10 @@
-mod entry;
-mod get_entry;
-mod init;
-mod median;
-mod publishers;
-mod register_publisher;
-mod sync;
+pub mod entry;
+pub mod get_entry;
+pub mod init;
+pub mod median;
+pub mod publishers;
+pub mod register_publisher;
+pub mod sync;
 
 use std::path::PathBuf;
 

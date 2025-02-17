@@ -9,7 +9,8 @@ use std::str::FromStr;
 #[clap(about = "Retrieve an entry for a given pair (published by this publisher)")]
 pub struct EntryCmd {
     // Input pair (format example: "BTC/USD")
-    pair: String,
+    pub publisher_id: String, // TODO: remove
+    pub pair: String,
 }
 
 const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 1;
@@ -17,9 +18,9 @@ const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 1;
 impl EntryCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
         client.sync_state().await.unwrap();
-        let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
-        let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
-        let publisher_id = AccountId::from_hex(publisher_id).unwrap();
+        // let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
+        // let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
+        let publisher_id = AccountId::from_hex(&self.publisher_id).unwrap();
 
         let publisher = client
             .get_account(publisher_id)

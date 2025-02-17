@@ -11,11 +11,12 @@ license.workspace = true
 [lints]
 workspace = true
 
+
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
-clap.workspace = true
+clap = { workspace = true, features = ["derive"] }
 colored.workspace = true
 miden-client.workspace = true
 miden-tx.workspace = true
@@ -29,3 +30,4 @@ thiserror.workspace = true
 tokio.workspace = true
 miden-objects.workspace = true
 futures.workspace = true
+pyo3.workspace = true

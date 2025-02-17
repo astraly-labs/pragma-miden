@@ -10,13 +10,15 @@ use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use std::fmt::Write; // Changed from io::Write to fmt::Write
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Compute the median for a given pair")]
 pub struct MedianCmd {
     // Input pair (format example: "BTC/USD")
-    pair: String,
+    pub pair: String,
 }
 
 impl MedianCmd {
@@ -85,7 +87,6 @@ impl MedianCmd {
         );
 
         // TODO: Can we pipe stdout to a variable so we can see the stack??
-
         let median_script = TransactionScript::compile(
             tx_script_code.clone(),
             [],
@@ -107,7 +108,7 @@ impl MedianCmd {
 
         let transaction_request = transaction_request.build();
 
-        client
+        let result = client
             .new_transaction(oracle_id, transaction_request)
             .await
             .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;

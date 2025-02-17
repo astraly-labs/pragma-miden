@@ -15,11 +15,11 @@ use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE};
 #[clap(about = "Publish an entry(Callable by the publisher itself)")]
 pub struct PublishCmd {
     // The publisher (to be removed)
-    publisher: String,
-    pair: String, //"BTC/USD"
-    price: u64,
-    decimals: u32,
-    timestamp: u64,
+    pub publisher: String,
+    pub pair: String, //"BTC/USD"
+    pub price: u64,
+    pub decimals: u32,
+    pub timestamp: u64,
 }
 
 impl PublishCmd {

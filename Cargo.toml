@@ -57,3 +57,4 @@ miden-lib = {  version="0.7", default-features = false, features = ["testing"] }
 miden-objects = {version ="0.7", default-features = false,features = ["testing"]  }
 miden-tx = { version ="0.7", default-features = false, features = ["async", "concurrent"] }
 miden-client = { version="0.7.0", features=["tonic", "sqlite", "concurrent","testing"]}
+pyo3 = { version = "0.20.0", features = ["extension-module",  "abi3-py37"] }
