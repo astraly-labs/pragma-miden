@@ -20,9 +20,9 @@ clap = { workspace = true, features = ["derive"] }
 colored.workspace = true
 miden-client.workspace = true
 miden-tx.workspace = true
-pm-accounts= "0.1.0-alpha.1"
-pm-types="0.1.0-alpha.1"
-pm-utils-cli="0.1.0-alpha.1"
+pm-accounts.workspace = true
+pm-types.workspace = true
+pm-utils-cli.workspace = true
 prettytable-rs.workspace = true
 rand.workspace = true
 rusqlite.workspace = true

@@ -1826,28 +1826,8 @@ dependencies = [
  "miden-lib",
  "miden-objects",
  "miden-tx",
- "pm-types 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "pm-utils-cli 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand",
- "rand_chacha",
- "tokio",
-]
-
-[[package]]
-name = "pm-accounts"
-version = "0.1.0-alpha.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f94fb4f95a323500646f4f315d5b4b5dd5b237b0ee7b9e679dc84aa757f873c2"
-dependencies = [
- "anyhow",
- "miden-assembly",
- "miden-client",
- "miden-crypto",
- "miden-lib",
- "miden-objects",
- "miden-tx",
- "pm-types 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "pm-utils-cli 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pm-types",
+ "pm-utils-cli",
  "rand",
  "rand_chacha",
  "tokio",
@@ -1866,9 +1846,9 @@ dependencies = [
  "miden-client",
  "miden-objects",
  "miden-tx",
- "pm-accounts 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "pm-types 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "pm-utils-cli 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pm-accounts",
+ "pm-types",
+ "pm-utils-cli",
  "prettytable-rs",
  "pyo3",
  "rand",
@@ -1888,9 +1868,9 @@ dependencies = [
  "colored",
  "miden-client",
  "miden-tx",
- "pm-accounts 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "pm-types 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "pm-utils-cli 0.1.0-alpha.1",
+ "pm-accounts",
+ "pm-types",
+ "pm-utils-cli",
  "prettytable-rs",
  "pyo3",
  "pyo3-build-config",
@@ -1910,17 +1890,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pm-types"
-version = "0.1.0-alpha.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa7c5b513de543e42a71e551b19855565031920e3f41cea4e8c5a856623ad7be"
-dependencies = [
- "anyhow",
- "miden-client",
- "miden-crypto",
-]
-
-[[package]]
 name = "pm-utils-cli"
 version = "0.1.0-alpha.1"
 dependencies = [
@@ -1931,29 +1900,7 @@ dependencies = [
  "miden-client",
  "miden-objects",
  "miden-tx",
- "pm-types 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand",
- "rusqlite",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
- "tokio",
-]
-
-[[package]]
-name = "pm-utils-cli"
-version = "0.1.0-alpha.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd59e7f6c30b7ce6b1b383884c4bfcfddc13cb763a210bf71b4d1316af5a8933"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "colored",
- "miden-client",
- "miden-objects",
- "miden-tx",
- "pm-types 0.1.0-alpha.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pm-types",
  "rand",
  "rusqlite",
  "serde",
