@@ -10,9 +10,7 @@ use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
-use std::fmt::Write; // Changed from io::Write to fmt::Write
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Compute the median for a given pair")]
@@ -27,7 +25,7 @@ impl MedianCmd {
 
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
-
+        client.sync_state().await.unwrap();
         let oracle = client
             .get_account(oracle_id)
             .await
@@ -54,7 +52,6 @@ impl MedianCmd {
             })
             .collect::<Result<_, _>>()
             .context("Failed to collect publisher array")?;
-
         let mut foreign_accounts: Vec<ForeignAccount> = vec![];
         for publisher_id in publisher_array {
             let publisher = client
@@ -108,7 +105,7 @@ impl MedianCmd {
 
         let transaction_request = transaction_request.build();
 
-        let result = client
+        let _ = client
             .new_transaction(oracle_id, transaction_request)
             .await
             .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;

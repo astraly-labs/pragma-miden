@@ -41,7 +41,7 @@ pub async fn setup_client(path: PathBuf) -> Result<Client<RpoRandomCoin>, Client
     Ok(client)
 }
 
-pub async fn initialize_testnet_client() -> Result<Client<RpoRandomCoin>, ClientError> {
+pub async fn setup_testnet_client() -> Result<Client<RpoRandomCoin>, ClientError> {
     // RPC endpoint and timeout
     let endpoint = Endpoint::new(
         "https".to_string(),

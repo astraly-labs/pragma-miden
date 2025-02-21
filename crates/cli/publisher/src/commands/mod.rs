@@ -10,7 +10,7 @@ use clap::Parser;
 use entry::EntryCmd;
 use get_entry::GetEntryCmd;
 use init::InitCmd;
-use pm_utils_cli::{setup_client, STORE_FILENAME};
+use pm_utils_cli::{setup_client, setup_testnet_client, STORE_FILENAME};
 use publish::PublishCmd;
 use sync::SyncCmd;
 
@@ -35,8 +35,8 @@ pub enum SubCommand {
 
 impl SubCommand {
     pub async fn call(&self) -> anyhow::Result<()> {
-        let exec_dir = PathBuf::new();
-        let store_config = exec_dir.join(STORE_FILENAME);
+        let crate_path = PathBuf::new();
+        let store_config = crate_path.join(STORE_FILENAME);
         let mut client = setup_client(store_config).await.unwrap();
 
         match self {

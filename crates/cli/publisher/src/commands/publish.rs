@@ -9,7 +9,6 @@ use miden_client::{
 
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use pm_types::{Entry, Pair};
-use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Publish an entry(Callable by the publisher itself)")]
@@ -24,7 +23,7 @@ pub struct PublishCmd {
 
 impl PublishCmd {
     pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
-        let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
+        // let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         // let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = &self.publisher;
         let publisher_id = AccountId::from_hex(publisher_id).unwrap();

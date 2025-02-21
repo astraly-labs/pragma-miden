@@ -19,6 +19,7 @@ use pm_utils_cli::{
 #[clap(about = "Gets entry")]
 pub struct GetEntryCmd {
     // Input pair (format example: "BTC/USD")
+    publisher_id: String, // TO REMOVE
     pair: String,
 }
 
@@ -28,14 +29,14 @@ impl GetEntryCmd {
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
 
-        let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
-        let publisher_id = AccountId::from_hex(publisher_id).unwrap();
+        // let publisher_id: &String = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
+        let publisher_id = AccountId::from_hex(&self.publisher_id).unwrap();
         let publisher = client
             .get_account(publisher_id)
             .await
             .unwrap()
             .expect("Publisher account not found");
-        let oracle = client
+        let _ = client
             .get_account(oracle_id)
             .await
             .unwrap()
@@ -83,7 +84,7 @@ impl GetEntryCmd {
             .with_custom_script(get_entry_script)
             .unwrap()
             .build();
-        let tx_result = client
+        let _ = client
             .new_transaction(oracle_id, transaction_request)
             .await
             .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;

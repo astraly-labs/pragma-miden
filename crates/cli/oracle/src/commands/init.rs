@@ -104,11 +104,11 @@ impl InitCmd {
         println!(
             "{}",
             r#"
-        ╭────────────────────────────────────────────────────────────╮
-        │ pm-oracle-cli register-publisher 0x12345678                │
-        │ pm-oracle-cli entry 0x12345678 BTC/USD                     │
-        │ pm-oracle-cli median BTC/USD                               │
-        ╰────────────────────────────────────────────────────────────╯
+        ╭────────────────────────────────────────────────────────────────────╮
+        │ pm-oracle-cli register-publisher 0x64cbfe4bc88cfe00000556901757eb  │
+        │ pm-oracle-cli entry 96310150000 BTC/USD                            │
+        │ pm-oracle-cli median BTC/USD                                       │
+        ╰────────────────────────────────────────────────────────────────────╯
         "#
             .bright_blue()
         );

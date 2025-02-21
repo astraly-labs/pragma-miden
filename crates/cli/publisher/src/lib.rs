@@ -5,7 +5,7 @@ mod commands;
 use crate::commands::{
     entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, publish::PublishCmd, sync::SyncCmd,
 };
-use pm_utils_cli::setup_client;
+use pm_utils_cli::setup_testnet_client;
 
 pub const STORE_SIMPLE_FILENAME: &str = "store.sqlite3";
 
@@ -19,7 +19,7 @@ fn py_init(oracle_id: Option<String>) -> PyResult<String> {
         let exec_dir = PathBuf::new();
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
         println!("store_config: {:?}", store_config);
-        let mut client = setup_client(store_config).await.unwrap();
+        let mut client = setup_testnet_client().await.unwrap();
 
         let cmd = InitCmd { oracle_id };
         cmd.call(&mut client)
@@ -45,7 +45,7 @@ fn py_publish(
     rt.block_on(async {
         let exec_dir = PathBuf::new();
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
-        let mut client = setup_client(store_config).await.unwrap();
+        let mut client = setup_testnet_client().await.unwrap();
 
         let cmd = PublishCmd {
             publisher,
@@ -71,7 +71,7 @@ fn py_get_entry(publisher_id: String, pair: String) -> PyResult<String> {
     rt.block_on(async {
         let exec_dir = PathBuf::new();
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
-        let mut client = setup_client(store_config).await.unwrap();
+        let mut client = setup_testnet_client().await.unwrap();
 
         let cmd = GetEntryCmd { publisher_id, pair };
         cmd.call(&mut client)
@@ -91,7 +91,7 @@ fn py_entry(publisher_id: String, pair: String) -> PyResult<String> {
     rt.block_on(async {
         let exec_dir = PathBuf::new();
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
-        let mut client = setup_client(store_config).await.unwrap();
+        let mut client = setup_testnet_client().await.unwrap();
 
         let cmd = EntryCmd { publisher_id, pair };
         cmd.call(&mut client)
@@ -111,7 +111,7 @@ fn py_sync() -> PyResult<String> {
     rt.block_on(async {
         let exec_dir = PathBuf::new();
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
-        let mut client = setup_client(store_config).await.unwrap();
+        let mut client = setup_testnet_client().await.unwrap();
 
         let cmd = SyncCmd {};
         cmd.call(&mut client)
@@ -124,7 +124,7 @@ fn py_sync() -> PyResult<String> {
 
 /// Python module
 #[pymodule]
-fn pm_publisher(py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn pm_publisher(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(py_init))?;
     m.add_wrapped(wrap_pyfunction!(py_publish))?;
     m.add_wrapped(wrap_pyfunction!(py_get_entry))?;

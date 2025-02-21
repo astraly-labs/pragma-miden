@@ -4,7 +4,6 @@ use miden_client::{account::AccountId, crypto::FeltRng};
 use pm_accounts::publisher::get_publisher_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
-use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
 use std::str::FromStr;
 
 #[derive(clap::Parser, Debug, Clone)]

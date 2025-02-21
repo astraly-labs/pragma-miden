@@ -1,0 +1,35 @@
+[package]
+name = "pm-demo"
+description = "Pragma-Miden demo"
+authors.workspace = true
+homepage.workspace = true
+edition.workspace = true
+repository.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+name = "pm_demo"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pm-demo"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+miden-assembly.workspace = true
+miden-client.workspace = true
+miden-crypto.workspace = true
+miden-lib.workspace = true
+miden-objects.workspace = true
+miden-tx.workspace = true
+pm-types.workspace = true
+tokio.workspace = true
+pm-utils-cli.workspace = true
+anyhow.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+pm-accounts.workspace = true
