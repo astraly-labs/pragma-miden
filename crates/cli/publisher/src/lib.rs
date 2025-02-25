@@ -7,21 +7,29 @@ use crate::commands::{
 };
 use pm_utils_cli::setup_testnet_client;
 
-pub const STORE_SIMPLE_FILENAME: &str = "store.sqlite3";
+pub const STORE_SIMPLE_FILENAME: &str = "miden_storage/store.sqlite3";
 
 /// Initialize publisher
 #[pyfunction]
 #[pyo3(name = "init")]
-fn py_init(oracle_id: Option<String>) -> PyResult<String> {
+fn py_init(oracle_id: Option<String>, storage_path: Option<String>) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
-        let exec_dir = PathBuf::new();
+        // Convert storage_path to PathBuf, default to current dir if None
+        let exec_dir = match storage_path {
+            Some(path) => PathBuf::from(path),
+            None => PathBuf::new(),
+        };
+
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
-        println!("store_config: {:?}", store_config);
-        let mut client = setup_testnet_client().await.unwrap();
+
+        let mut client = setup_testnet_client(Option::Some(store_config))
+            .await
+            .unwrap();
 
         let cmd = InitCmd { oracle_id };
+
         cmd.call(&mut client)
             .await
             .map_err(|e| PyValueError::new_err(format!("Init failed: {}", e)))?;
@@ -29,7 +37,6 @@ fn py_init(oracle_id: Option<String>) -> PyResult<String> {
         Ok("Initialization successful!".to_string())
     })
 }
-
 /// Publish price
 #[pyfunction]
 #[pyo3(name = "publish")]
@@ -39,13 +46,21 @@ fn py_publish(
     price: u64,
     decimals: u32,
     timestamp: u64,
+    storage_path: Option<String>,
 ) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
-        let exec_dir = PathBuf::new();
+        let exec_dir = match storage_path {
+            Some(path) => PathBuf::from(path),
+            None => PathBuf::new(),
+        };
+
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
-        let mut client = setup_testnet_client().await.unwrap();
+
+        let mut client = setup_testnet_client(Option::Some(store_config))
+            .await
+            .unwrap();
 
         let cmd = PublishCmd {
             publisher,
@@ -65,14 +80,24 @@ fn py_publish(
 /// Get entry
 #[pyfunction]
 #[pyo3(name = "get_entry")]
-fn py_get_entry(publisher_id: String, pair: String) -> PyResult<String> {
+fn py_get_entry(
+    publisher_id: String,
+    pair: String,
+    storage_path: Option<String>,
+) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
-        let exec_dir = PathBuf::new();
-        let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
-        let mut client = setup_testnet_client().await.unwrap();
+        let exec_dir = match storage_path {
+            Some(path) => PathBuf::from(path),
+            None => PathBuf::new(),
+        };
 
+        let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
+
+        let mut client = setup_testnet_client(Option::Some(store_config))
+            .await
+            .unwrap();
         let cmd = GetEntryCmd { publisher_id, pair };
         cmd.call(&mut client)
             .await
@@ -85,13 +110,20 @@ fn py_get_entry(publisher_id: String, pair: String) -> PyResult<String> {
 /// Get entry details
 #[pyfunction]
 #[pyo3(name = "entry")]
-fn py_entry(publisher_id: String, pair: String) -> PyResult<String> {
+fn py_entry(publisher_id: String, pair: String, storage_path: Option<String>) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
-        let exec_dir = PathBuf::new();
+        let exec_dir = match storage_path {
+            Some(path) => PathBuf::from(path),
+            None => PathBuf::new(),
+        };
+
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
-        let mut client = setup_testnet_client().await.unwrap();
+
+        let mut client = setup_testnet_client(Option::Some(store_config))
+            .await
+            .unwrap();
 
         let cmd = EntryCmd { publisher_id, pair };
         cmd.call(&mut client)
@@ -105,14 +137,20 @@ fn py_entry(publisher_id: String, pair: String) -> PyResult<String> {
 /// Sync state
 #[pyfunction]
 #[pyo3(name = "sync")]
-fn py_sync() -> PyResult<String> {
+fn py_sync(storage_path: Option<String>) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
-        let exec_dir = PathBuf::new();
-        let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
-        let mut client = setup_testnet_client().await.unwrap();
+        let exec_dir = match storage_path {
+            Some(path) => PathBuf::from(path),
+            None => PathBuf::new(),
+        };
 
+        let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
+
+        let mut client = setup_testnet_client(Option::Some(store_config))
+            .await
+            .unwrap();
         let cmd = SyncCmd {};
         cmd.call(&mut client)
             .await

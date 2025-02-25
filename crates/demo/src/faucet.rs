@@ -205,21 +205,27 @@ pub async fn mint_tokens(
 
     // Consume all minted notes in a single transaction
     let consumable_notes = client
-    .get_consumable_notes(Some(target_account_id))
-    .await.unwrap();
-let list_of_note_ids: Vec<_> = consumable_notes.iter().map(|(note, _)| note.id()).collect();
+        .get_consumable_notes(Some(target_account_id))
+        .await
+        .unwrap();
+    let list_of_note_ids: Vec<_> = consumable_notes.iter().map(|(note, _)| note.id()).collect();
 
-if !list_of_note_ids.is_empty() {
-    println!("Found {} consumable notes. Consuming them now...", list_of_note_ids.len());
-    let transaction_request = TransactionRequestBuilder::consume_notes(list_of_note_ids).build();
-    
-    let tx_result = client
-        .new_transaction(target_account_id, transaction_request)
-        .await.unwrap();
+    if !list_of_note_ids.is_empty() {
+        println!(
+            "Found {} consumable notes. Consuming them now...",
+            list_of_note_ids.len()
+        );
+        let transaction_request =
+            TransactionRequestBuilder::consume_notes(list_of_note_ids).build();
 
-    client.submit_transaction(tx_result).await.unwrap();
-    println!("✅ Notes consumed successfully");
-} else {
-    println!("No consumable notes found");
-}
+        let tx_result = client
+            .new_transaction(target_account_id, transaction_request)
+            .await
+            .unwrap();
+
+        client.submit_transaction(tx_result).await.unwrap();
+        println!("✅ Notes consumed successfully");
+    } else {
+        println!("No consumable notes found");
+    }
 }

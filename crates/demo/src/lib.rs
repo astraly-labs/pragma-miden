@@ -76,7 +76,9 @@ pub async fn main() {
     let faucet_id = AccountId::from_hex("0x03d42012d7b4802000005956c99cb6").unwrap();
     let user1 = AccountId::from_hex("0x64673caf0193d9100000856dd83750").unwrap();
     let reference_price = Felt::new(9123123);
-    set_reference_price(&mut client, bet_account.id()).await.unwrap();
+    set_reference_price(&mut client, bet_account.id())
+        .await
+        .unwrap();
     println!("---------Reference price set----------");
     check_result(&mut client, bet_account.id(), user1)
         .await

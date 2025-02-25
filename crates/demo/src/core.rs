@@ -21,7 +21,6 @@ pub async fn check_result(
     bet_account_id: AccountId,
     sender_account_id: AccountId,
 ) -> anyhow::Result<()> {
-
     let oracle_id = AccountId::from_hex(ORACLE_ACCOUNT_ID).unwrap();
     client.sync_state().await.unwrap();
     let oracle = client
@@ -120,69 +119,74 @@ pub async fn check_result(
         .new_transaction(bet_account_id, transaction_request)
         .await
         .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
-   
-        Ok(())
+
+    Ok(())
 }
 
-
-
-pub async fn set_reference_price(client: &mut Client<impl FeltRng>, bet_account_id: AccountId) -> anyhow::Result<()> {
+pub async fn set_reference_price(
+    client: &mut Client<impl FeltRng>,
+    bet_account_id: AccountId,
+) -> anyhow::Result<()> {
     let oracle_id = AccountId::from_hex(ORACLE_ACCOUNT_ID).unwrap();
 
     let oracle = client
-    .get_account(oracle_id)
-    .await
-    .unwrap()
-    .expect("Oracle account not found");
-// We need to fetch all the oracle registered publishers
-let pair: Pair = Pair::from_str("BTC/USD").unwrap();
-
-let storage = oracle.account().storage();
-
-// Get publisher count from storage
-let publisher_count = storage
-    .get_item(1)
-    .context("Unable to retrieve publisher count")?[0]
-    .as_int();
-
-// Collect publishers into array
-let publisher_array: Vec<AccountId> = (1..publisher_count - 1)
-    .map(|i| {
-        storage
-            .get_item(2 + i as u8)
-            .context("Failed to retrieve publisher details")
-            .map(|words| AccountId::new_unchecked([words[3], words[2]]))
-    })
-    .collect::<Result<_, _>>()
-    .context("Failed to collect publisher array")?;
-let mut foreign_accounts: Vec<ForeignAccount> = vec![];
-for publisher_id in publisher_array {
-    let publisher = client
-        .get_account(publisher_id)
+        .get_account(oracle_id)
         .await
         .unwrap()
-        .expect("Publisher account not found");
+        .expect("Oracle account not found");
+    // We need to fetch all the oracle registered publishers
+    let pair: Pair = Pair::from_str("BTC/USD").unwrap();
 
-    let foreign_account_inputs = ForeignAccountInputs::from_account(
-        publisher.account().clone(),
-        AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
-    )?;
-    let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
+    let storage = oracle.account().storage();
+
+    // Get publisher count from storage
+    let publisher_count = storage
+        .get_item(1)
+        .context("Unable to retrieve publisher count")?[0]
+        .as_int();
+
+    // Collect publishers into array
+    let publisher_array: Vec<AccountId> = (1..publisher_count - 1)
+        .map(|i| {
+            storage
+                .get_item(2 + i as u8)
+                .context("Failed to retrieve publisher details")
+                .map(|words| AccountId::new_unchecked([words[3], words[2]]))
+        })
+        .collect::<Result<_, _>>()
+        .context("Failed to collect publisher array")?;
+    let mut foreign_accounts: Vec<ForeignAccount> = vec![];
+    for publisher_id in publisher_array {
+        let publisher = client
+            .get_account(publisher_id)
+            .await
+            .unwrap()
+            .expect("Publisher account not found");
+
+        let foreign_account_inputs = ForeignAccountInputs::from_account(
+            publisher.account().clone(),
+            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+        )?;
+        let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
+        foreign_accounts.push(foreign_account);
+    }
+
+    let foreign_account =
+        ForeignAccount::public(oracle.account().id(), AccountStorageRequirements::default())
+            .unwrap();
+
     foreign_accounts.push(foreign_account);
-}
-
-let foreign_account =
-    ForeignAccount::public(oracle.account().id(), AccountStorageRequirements::default())
-        .unwrap();
-
-foreign_accounts.push(foreign_account);
 
     client
         .get_account(bet_account_id)
         .await
         .unwrap()
         .expect("Bet account not found");
-    println!("Oracle:{:?}, {:?} ", oracle_id.prefix().as_u64(), oracle_id.suffix());
+    println!(
+        "Oracle:{:?}, {:?} ",
+        oracle_id.prefix().as_u64(),
+        oracle_id.suffix()
+    );
     let tx_script_code = format!(
         "
             use.bet_component::bet_module
@@ -196,11 +200,10 @@ foreign_accounts.push(foreign_account);
                 call.bet_module::set_reference_price
                 exec.sys::truncate_stack
             end
-        ", 
-            pair = word_to_masm(pair.to_word()),
-            oracle_prefix = oracle_id.prefix().as_u64(),
-            oracle_suffix = oracle_id.suffix(),
-
+        ",
+        pair = word_to_masm(pair.to_word()),
+        oracle_prefix = oracle_id.prefix().as_u64(),
+        oracle_suffix = oracle_id.suffix(),
     );
     let median_script = TransactionScript::compile(
         tx_script_code,
