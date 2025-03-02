@@ -1,14 +1,41 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    path::PathBuf,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
-use miden_crypto::ZERO;
+use anyhow::{Context, Result};
+use miden_client::{
+    account::AccountId,
+    rpc::{
+        domain::account::{AccountStorageRequirements, StorageMapKey},
+        RpcError,
+    },
+    store::TransactionFilter,
+    sync::SyncSummary,
+    transaction::{
+        ExecutedTransaction, ForeignAccount, ForeignAccountInputs, TransactionId,
+        TransactionRequest, TransactionRequestBuilder, TransactionResult, TransactionScript,
+    },
+    Client, ClientError,
+};
+use miden_crypto::{hash::rpo::RpoDigest, rand::RpoRandomCoin, Felt, Word, ZERO};
+use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
-    account::{Account, StorageSlot},
+    account::{Account, StorageMap, StorageSlot},
     vm::AdviceInputs,
     Digest,
 };
 use miden_tx::testing::MockChain;
+use pm_accounts::{
+    oracle::{get_oracle_component_library, OracleAccountBuilder},
+    publisher::PublisherAccountBuilder,
+    utils::word_to_masm,
+};
 use pm_types::{Currency, Entry, Pair};
+use pm_utils_cli::{setup_client, STORE_FILENAME};
 use rand::Rng;
+
+pub type TestClient = Client<RpoRandomCoin>;
 
 /// Mocks [Entry] representing price feeds for use in tests.
 pub fn mock_entry() -> Entry {
@@ -45,79 +72,279 @@ pub fn random_entry() -> Entry {
     }
 }
 
-/// Builder for constructing FPI (Foreign Procedure Invocation) advice inputs
-pub struct FpiAdviceBuilder<'a> {
-    chain: &'a MockChain,
-    accounts: Vec<&'a Account>,
+pub async fn wait_for_node(client: &mut TestClient) {
+    const NODE_TIME_BETWEEN_ATTEMPTS: u64 = 5;
+    const NUMBER_OF_NODE_ATTEMPTS: u64 = 60;
+
+    println!("Waiting for Node to be up. Checking every {NODE_TIME_BETWEEN_ATTEMPTS}s for {NUMBER_OF_NODE_ATTEMPTS} tries...");
+
+    for _try_number in 0..NUMBER_OF_NODE_ATTEMPTS {
+        match client.sync_state().await {
+            Err(ClientError::RpcError(RpcError::ConnectionError(_))) => {
+                std::thread::sleep(Duration::from_secs(NODE_TIME_BETWEEN_ATTEMPTS));
+            }
+            Err(other_error) => {
+                panic!("Unexpected error: {other_error}");
+            }
+            _ => return,
+        }
+    }
+
+    panic!("Unable to connect to node");
 }
 
-impl<'a> FpiAdviceBuilder<'a> {
-    pub fn new(chain: &'a MockChain) -> Self {
-        Self {
-            chain,
-            accounts: Vec::new(),
-        }
-    }
+pub async fn execute_tx(
+    client: &mut Client<RpoRandomCoin>,
+    account_id: AccountId,
+    tx_request: TransactionRequest,
+) -> Result<TransactionId> {
+    println!("Executing transaction...");
+    let transaction_execution_result = client
+        .new_transaction(account_id, tx_request)
+        .await
+        .context("Failed to create new transaction")?;
+        
+    let transaction_id = transaction_execution_result.executed_transaction().id();
 
-    /// Adds an account to the builder
-    pub fn with_account(&mut self, account: &'a Account) -> &mut Self {
-        self.accounts.push(account);
-        self
-    }
+    println!("Sending transaction to node");
+    client
+        .submit_transaction(transaction_execution_result)
+        .await
+        .context("Failed to submit transaction")?;
 
-    /// Builds the AdviceInputs with all the configured accounts
-    pub fn build(&self) -> AdviceInputs {
-        let mut advice_map = Vec::new();
-        let mut inputs = AdviceInputs::default().with_merkle_store(self.chain.accounts().into());
+    Ok(transaction_id)
+}
 
-        for account in &self.accounts {
-            let foreign_id_root = Digest::from([
-                account.id().prefix().as_felt(),
-                account.id().suffix(),
-                ZERO,
-                ZERO,
-            ]);
-            let foreign_id_and_nonce = [
-                account.id().prefix().as_felt(),
-                account.id().suffix(),
-                ZERO,
-                account.nonce(),
-            ];
-            let foreign_vault_root = account.vault().commitment();
-            let foreign_storage_root = account.storage().commitment();
-            let foreign_code_root = account.code().commitment();
+pub async fn execute_tx_and_sync(
+    client: &mut Client<RpoRandomCoin>,
+    account_id: AccountId,
+    tx_request: TransactionRequest,
+) -> Result<()> {
+    let transaction_id = execute_tx(client, account_id, tx_request).await?;
+    wait_for_tx(client, transaction_id).await?;
+    Ok(())
+}
 
-            // Add account information to advice map
-            advice_map.push((
-                foreign_id_root,
-                [
-                    &foreign_id_and_nonce,
-                    foreign_vault_root.as_elements(),
-                    foreign_storage_root.as_elements(),
-                    foreign_code_root.as_elements(),
-                ]
-                .concat(),
-            ));
+pub async fn wait_for_tx(client: &mut Client<RpoRandomCoin>, transaction_id: TransactionId) -> Result<()> {
+    // wait until tx is committed
+    let mut attempts = 0;
+    const MAX_ATTEMPTS: u32 = 60;
+    const SLEEP_DURATION: Duration = Duration::from_millis(500);
+    
+    loop {
+        println!("Syncing State...");
+        client.sync_state().await
+            .context("Failed to sync state while waiting for transaction")?;
 
-            // Add storage and code roots
-            advice_map.push((foreign_storage_root, account.storage().as_elements()));
-            advice_map.push((foreign_code_root, account.code().as_elements()));
+        // Check if executed transaction got committed by the node
+        let uncommited_transactions = client
+            .get_transactions(TransactionFilter::Uncomitted)
+            .await
+            .context("Failed to get uncommitted transactions")?;
+            
+        let is_tx_committed = uncommited_transactions
+            .iter()
+            .all(|uncommited_tx| uncommited_tx.id != transaction_id);
 
-            // Process storage slots
-            for slot in account.storage().slots() {
-                if let StorageSlot::Map(map) = slot {
-                    // extend the merkle store and map with the storage maps
-                    inputs.extend_merkle_store(map.inner_nodes());
-                    // populate advice map with Sparse Merkle Tree leaf nodes
-                    inputs.extend_map(
-                        map.leaves()
-                            .map(|(_, leaf)| (leaf.hash(), leaf.to_elements())),
-                    );
-                }
-            }
+        if is_tx_committed {
+            println!("Tx has been commmited!");
+            return Ok(());
         }
 
-        // Add all collected advice map entries
-        inputs.with_map(advice_map)
+        attempts += 1;
+        if attempts >= MAX_ATTEMPTS {
+            return Err(anyhow::anyhow!("Transaction not committed after {} attempts", MAX_ATTEMPTS));
+        }
+
+        std::thread::sleep(SLEEP_DURATION);
     }
+}
+// Syncs until `amount_of_blocks` have been created onchain compared to client's sync height
+pub async fn wait_for_blocks(client: &mut TestClient, amount_of_blocks: u32) -> SyncSummary {
+    let current_block = client.get_sync_height().await.unwrap();
+    let final_block = current_block + amount_of_blocks;
+    println!("Syncing until block {}...", final_block);
+    loop {
+        let summary = client.sync_state().await.unwrap();
+        println!(
+            "Synced to block {} (syncing until {})...",
+            summary.block_num, final_block
+        );
+
+        if summary.block_num >= final_block {
+            return summary;
+        }
+
+        // 500_000_000 ns = 0.5s
+        std::thread::sleep(std::time::Duration::new(0, 500_000_000));
+    }
+}
+
+pub async fn setup_test_environment() -> (Client<RpoRandomCoin>, PathBuf) {
+    let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let db_path = crate_path.parent().unwrap().parent().unwrap();
+    let store_config = db_path.join(STORE_FILENAME);
+    let mut client = setup_client(store_config.clone()).await.unwrap();
+    wait_for_node(&mut client).await;
+
+    (client, store_config)
+}
+
+/// Creates and deploys a publisher account with the given entry data
+pub async fn create_and_deploy_publisher_account(
+    client: &mut Client<RpoRandomCoin>,
+    pair_word: Word,
+    entry_as_word: Word,
+) -> Result<Account> {
+    // Create publisher account
+    let (publisher_account, _) = PublisherAccountBuilder::<RpoRandomCoin>::new()
+        .with_storage_slots(vec![StorageSlot::Map(StorageMap::with_entries(vec![(
+            RpoDigest::from(pair_word),
+            entry_as_word,
+        )]))])
+        .with_client(client)
+        .build()
+        .await;
+
+    // Deploy publisher account
+    let deployment_tx = create_deployment_transaction(client, publisher_account.id()).await?;
+    let tx_id = deployment_tx.executed_transaction().id();
+    client.submit_transaction(deployment_tx).await.context("Failed to submit deployment transaction for publisher account")?;
+    wait_for_tx(client, tx_id).await;
+
+    Ok(publisher_account)
+}
+
+/// Creates and deploys an oracle account
+pub async fn create_and_deploy_oracle_account(
+    client: &mut Client<RpoRandomCoin>,
+    storage_slots: Option<Vec<StorageSlot>>,
+) -> Result<Account> {
+    // Create oracle account builder
+    let mut builder = OracleAccountBuilder::<RpoRandomCoin>::new().with_client(client);
+
+    // Add storage slots if provided
+    if let Some(slots) = storage_slots {
+        builder = builder.with_storage_slots(slots);
+    }
+
+    // Build the account
+    let (oracle_account, _) = builder.build().await;
+
+    // Deploy oracle account
+    let deployment_tx = create_deployment_transaction(client, oracle_account.id()).await
+        .context("Failed to create deployment transaction for oracle account")?;
+    
+    let tx_id = deployment_tx.executed_transaction().id();
+    client.submit_transaction(deployment_tx).await
+        .context("Failed to submit deployment transaction for oracle account")?;
+    
+    wait_for_tx(client, tx_id).await
+        .context("Failed to wait for oracle account deployment transaction")?;
+
+    Ok(oracle_account)
+}
+
+/// Creates a deployment transaction for the given account
+async fn create_deployment_transaction(
+    client: &mut Client<RpoRandomCoin>,
+    account_id: AccountId,
+) -> Result<TransactionResult> {
+    let deployment_tx_script = TransactionScript::compile(
+        "begin 
+            call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512 
+        end",
+        vec![],
+        TransactionKernel::assembler(),
+    )
+    .context("Failed to compile deployment transaction script")?;
+
+    client
+        .new_transaction(
+            account_id,
+            TransactionRequestBuilder::new()
+                .with_custom_script(deployment_tx_script)
+                .context("Failed to build deployment transaction request")?
+                .build(),
+        )
+        .await
+        .context("Failed to create new deployment transaction")
+}
+
+/// Executes a get_entry transaction
+pub async fn execute_get_entry_transaction(
+    client: &mut Client<RpoRandomCoin>,
+    oracle_id: AccountId,
+    publisher_id: AccountId,
+    pair_word: Word,
+) -> anyhow::Result<()> {
+    // Sync state
+    client.sync_state().await.unwrap();
+
+    // Get the publisher account from the node
+    let publisher = client
+        .get_account(publisher_id)
+        .await
+        .unwrap()
+        .expect("Publisher account not found");
+
+    // Create transaction script
+    let tx_script_code = format!(
+        "
+        use.oracle_component::oracle_module
+        use.std::sys
+
+        begin
+            push.{pair}
+            push.0.0
+            push.{publisher_id_suffix} push.{publisher_id_prefix}
+            call.oracle_module::get_entry
+            exec.sys::truncate_stack
+            debug.stack
+        end
+        ",
+        pair = word_to_masm(pair_word),
+        publisher_id_suffix = publisher.account().id().suffix(),
+        publisher_id_prefix = publisher.account().id().prefix().as_felt(),
+    );
+
+    let get_entry_script = TransactionScript::compile(
+        tx_script_code,
+        [],
+        TransactionKernel::assembler()
+            .with_debug_mode(true)
+            .with_library(get_oracle_component_library())
+            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
+            .clone(),
+    )
+    .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
+
+    // Create foreign account
+    let storage_requirements =
+        AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]);
+
+    let foreign_account = ForeignAccount::private(
+        ForeignAccountInputs::from_account(publisher.account().clone(), storage_requirements)
+            .unwrap(),
+    )
+    .unwrap();
+
+    // Create transaction request
+    let transaction_request = TransactionRequestBuilder::new()
+        .with_foreign_accounts([foreign_account])
+        .with_custom_script(get_entry_script)
+        .unwrap()
+        .build();
+
+    // Execute transaction
+    let tx_result = client
+        .new_transaction(oracle_id, transaction_request)
+        .await
+        .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
+
+    // Wait for transaction to be processed
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    client.sync_state().await.unwrap();
+
+    Ok(())
 }

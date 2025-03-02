@@ -64,11 +64,7 @@ impl GetEntryCmd {
             .await
             .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
 
-        client
-            .submit_transaction(tx_result.clone())
-            .await
-            .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
-
+            
         Ok(())
     }
 }
