@@ -1,10 +1,8 @@
 use core::{check_result, set_reference_price};
 
-use faucet::{deploy_faucet, mint_tokens, send_faucet_funds};
 use miden_client::account::AccountId;
 use miden_crypto::Felt;
-use operator::deploy_operator;
-use pm_utils_cli::{setup_client, setup_testnet_client, STORE_FILENAME};
+use pm_utils_cli::{setup_client, STORE_FILENAME};
 use utils::BetAccountBuilder;
 
 pub mod constants;

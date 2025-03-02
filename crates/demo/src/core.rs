@@ -6,11 +6,8 @@ use miden_client::transaction::{
 };
 use miden_client::Client;
 use miden_client::{account::AccountId, crypto::FeltRng};
-use miden_crypto::{Felt, Word};
-use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
-use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use std::str::FromStr;
 
 use crate::constants::ORACLE_ACCOUNT_ID;

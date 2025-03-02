@@ -13,19 +13,14 @@ use miden_client::{
     store::TransactionFilter,
     sync::SyncSummary,
     transaction::{
-        ExecutedTransaction, ForeignAccount, ForeignAccountInputs, TransactionId,
+        ForeignAccount, ForeignAccountInputs, TransactionId,
         TransactionRequest, TransactionRequestBuilder, TransactionResult, TransactionScript,
     },
     Client, ClientError,
 };
-use miden_crypto::{hash::rpo::RpoDigest, rand::RpoRandomCoin, Felt, Word, ZERO};
+use miden_crypto::{hash::rpo::RpoDigest, rand::RpoRandomCoin, Word};
 use miden_lib::transaction::TransactionKernel;
-use miden_objects::{
-    account::{Account, StorageMap, StorageSlot},
-    vm::AdviceInputs,
-    Digest,
-};
-use miden_tx::testing::MockChain;
+use miden_objects::account::{Account, StorageMap, StorageSlot};
 use pm_accounts::{
     oracle::{get_oracle_component_library, OracleAccountBuilder},
     publisher::PublisherAccountBuilder,

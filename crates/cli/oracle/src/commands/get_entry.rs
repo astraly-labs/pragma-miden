@@ -12,7 +12,7 @@ use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
 use pm_utils_cli::{
-    JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN,
+    JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE,
 };
 
 #[derive(clap::Parser, Debug, Clone)]

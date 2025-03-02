@@ -1,5 +1,5 @@
 use miden_client::{
-    account::{Account, AccountBuilder, AccountId, AccountStorageMode, AccountType},
+    account::{Account, AccountBuilder, AccountStorageMode, AccountType},
     auth::AuthSecretKey,
     crypto::SecretKey,
     Client,

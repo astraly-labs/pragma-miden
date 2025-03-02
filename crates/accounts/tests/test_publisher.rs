@@ -1,22 +1,18 @@
-use std::time::Duration;
-use std::vec;
 mod common;
 use anyhow::{Context, Result};
 use miden_client::transaction::{TransactionRequestBuilder};
-use miden_client::Client;
-use miden_client::{crypto::RpoRandomCoin};
-use miden_crypto::{Felt, Word, ZERO};
+use miden_crypto::Word;
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{transaction::TransactionScript};
 use pm_types::{Currency, Entry, Pair};
 
 use pm_accounts::{
-    publisher::{get_publisher_component_library, PublisherAccountBuilder},
+    publisher::get_publisher_component_library,
     utils::word_to_masm,
 };
 
 use common::{
-    create_and_deploy_publisher_account, execute_tx_and_sync, mock_entry, setup_test_environment, wait_for_tx
+    create_and_deploy_publisher_account, execute_tx_and_sync, mock_entry, setup_test_environment
 };
 
 #[tokio::test]

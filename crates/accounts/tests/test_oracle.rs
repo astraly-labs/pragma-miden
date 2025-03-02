@@ -1,6 +1,5 @@
 // pub mod common;
 
-use std::time::Duration;
 use std::vec;
 mod common;
 use anyhow::{Context, Result};
@@ -8,7 +7,6 @@ use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapK
 use miden_client::transaction::{ForeignAccount, ForeignAccountInputs, TransactionRequestBuilder};
 use miden_client::Client;
 use miden_client::{account::AccountId, crypto::RpoRandomCoin};
-use miden_crypto::EMPTY_WORD;
 use miden_crypto::{hash::rpo::RpoDigest, Felt, Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
@@ -16,7 +14,6 @@ use miden_objects::{
     transaction::TransactionScript,
 };
 use pm_types::{Currency, Entry, Pair};
-use pm_utils_cli::{setup_client, setup_testnet_client, STORE_FILENAME};
 
 use pm_accounts::{
     oracle::{get_oracle_component_library, OracleAccountBuilder},
@@ -27,7 +24,7 @@ use pm_accounts::{
 use common::{
     create_and_deploy_oracle_account, create_and_deploy_publisher_account,
     execute_get_entry_transaction, execute_tx_and_sync, mock_entry,
-    random_entry, setup_test_environment, wait_for_blocks, wait_for_node, wait_for_tx,
+    random_entry, setup_test_environment,
 };
 
 #[tokio::test]

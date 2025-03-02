@@ -1,4 +1,3 @@
-use std::time::Duration;
 
 use miden_client::{
     account::{AccountBuilder, AccountId, AccountStorageMode, AccountType},
@@ -7,7 +6,7 @@ use miden_client::{
     crypto::SecretKey,
     note::NoteType,
     transaction::{
-        ForeignAccountInputs, PaymentTransactionData, TransactionRequestBuilder, TransactionScript,
+        PaymentTransactionData, TransactionRequestBuilder, TransactionScript,
     },
     Client,
 };
@@ -16,7 +15,6 @@ use miden_lib::{
     account::{auth::RpoFalcon512, faucets::BasicFungibleFaucet},
     transaction::TransactionKernel,
 };
-use miden_objects::account::AccountIdVersion;
 
 use crate::{
     constants::{AMOUNT, AMOUNT_TO_SEND},
