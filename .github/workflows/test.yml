@@ -1,0 +1,172 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ github.token }}
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Checkout Miden Node v0.7.2
+        uses: actions/checkout@v3
+        with:
+          repository: 0xPolygonMiden/miden-node
+          path: miden-node
+          ref: v0.7.2
+          token: ${{ github.token }}
+      
+      - name: Clone Miden Node (fallback)
+        if: ${{ failure() }}
+        run: |
+          git clone --depth 1 --branch v0.7.2 https://github.com/0xPolygonMiden/miden-node.git miden-node
+      
+      - name: Create Miden Node Config Files
+        run: |
+          # Create node config file
+          cat > miden-node.toml << EOF
+          # Node configuration
+          [node]
+          # Node data directory
+          data_dir = "./data"
+          
+          # RPC configuration
+          [rpc]
+          # RPC server address
+          address = "0.0.0.0:57291"
+          
+          # Block producer configuration
+          [block_producer]
+          # Enable block production
+          enabled = true
+          # Block production interval in milliseconds
+          interval = 10000
+          
+          # Store configuration
+          [store]
+          # Store type (sqlite or postgres)
+          type = "sqlite"
+          # Store connection string
+          connection = "./data/miden.db"
+          EOF
+          
+          # Create genesis config file
+          cat > genesis.toml << EOF
+          # Genesis configuration
+          [genesis]
+          # Genesis timestamp
+          timestamp = 0
+          # Genesis chain ID
+          chain_id = 1
+          # Genesis block number
+          block_number = 0
+          EOF
+      
+      - name: Build Miden Node Docker Image
+        run: |
+          cd miden-node
+          
+          # Build the Docker image using the commands from the Makefile
+          CREATED=$(date) && \
+          VERSION=$(cat bin/node/Cargo.toml | grep -m 1 '^version' | cut -d '"' -f 2) && \
+          COMMIT=$(git rev-parse HEAD) && \
+          docker build --build-arg CREATED="$CREATED" \
+                      --build-arg VERSION="$VERSION" \
+                      --build-arg COMMIT="$COMMIT" \
+                      -f bin/node/Dockerfile \
+                      -t miden-node-image .
+      
+      - name: Initialize and Start Miden Node
+        run: |
+          # Create a directory for node data
+          mkdir -p data
+          
+          # Create a Docker container for initialization
+          docker run --name miden-node-init \
+                    -v "$(pwd):/workspace" \
+                    -w /workspace \
+                    miden-node-image \
+                    miden-node init --config-path miden-node.toml --genesis-path genesis.toml
+          
+          # Create genesis data
+          docker run --name miden-node-genesis \
+                    -v "$(pwd):/workspace" \
+                    -w /workspace \
+                    miden-node-image \
+                    miden-node make-genesis --inputs-path genesis.toml --output-path genesis.dat --force
+          
+          # Clean up initialization containers
+          docker rm miden-node-init miden-node-genesis
+          
+          # Start the node
+          docker run --name miden-node \
+                    -p 57291:57291 \
+                    -v "$(pwd):/workspace" \
+                    -w /workspace \
+                    -d miden-node-image \
+                    miden-node start --config miden-node.toml node
+          
+          # Wait for the node to start
+          echo "Waiting for Miden node to start..."
+          sleep 30
+          
+          # Check if the node is running
+          if ! docker ps | grep miden-node > /dev/null; then
+            echo "Miden node failed to start"
+            docker logs miden-node || true
+            exit 1
+          else
+            echo "Miden node started successfully"
+            docker logs miden-node
+          fi
+      
+      - name: Build Project
+        run: cargo build --verbose
+      
+      - name: Run tests
+        run: |
+          # Set environment variables to connect to the Docker container
+          export MIDEN_NODE_URL=http://localhost:57291
+          
+          # Run your specific tests
+          cargo test --package pm-accounts --test test_oracle --verbose -- --nocapture
+          cargo test --package pm-accounts --test test_publisher --verbose -- --nocapture
+      
+      - name: Show Node Logs
+        if: always()
+        run: |
+          docker logs miden-node || true
+      
+      - name: Stop Miden Node
+        if: always()
+        run: |
+          docker stop miden-node || true
+          docker rm miden-node || true 
