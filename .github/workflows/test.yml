@@ -54,6 +54,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
       
+      - name: Cleanup existing containers
+        run: |
+          # Stop and remove any existing containers with the same names
+          docker stop miden-node miden-node-init miden-node-genesis 2>/dev/null || true
+          docker rm miden-node miden-node-init miden-node-genesis 2>/dev/null || true
+      
       - name: Checkout Miden Node v0.7.2
         uses: actions/checkout@v3
         with:
@@ -83,6 +89,9 @@ jobs:
       
       - name: Initialize and Start Miden Node
         run: |
+          # Clean up any existing data directory
+          rm -rf data
+          
           # Create a directory for node data
           mkdir -p data
           
@@ -126,15 +135,36 @@ jobs:
           fi
       
       - name: Build Project
-        run: cargo build --verbose
+        run: |
+          # Source cargo environment if running with act
+          if [ -n "$ACT" ]; then
+            source "$HOME/.cargo/env"
+          fi
+          
+          cargo build --verbose
       
       - name: Run tests
         run: |
+          # Source cargo environment if running with act
+          if [ -n "$ACT" ]; then
+            source "$HOME/.cargo/env"
+          fi
+          
           # Set environment variables to connect to the Docker container
           export MIDEN_NODE_URL=http://localhost:57291
+          export RUST_BACKTRACE=1
           
-          # Run your specific tests
-          cargo test --package pm-accounts --test test_oracle --verbose -- --nocapture
+          # Run tests one at a time to avoid database conflicts
+          echo "Running test_oracle_get_entry..."
+          cargo test --package pm-accounts --test test_oracle test_oracle_get_entry --verbose -- --nocapture
+          
+          echo "Running test_oracle_register_publisher..."
+          cargo test --package pm-accounts --test test_oracle test_oracle_register_publisher --verbose -- --nocapture
+          
+          echo "Running test_oracle_get_median..."
+          cargo test --package pm-accounts --test test_oracle test_oracle_get_median --verbose -- --nocapture
+          
+          echo "Running test_publisher tests..."
           cargo test --package pm-accounts --test test_publisher --verbose -- --nocapture
       
       - name: Show Node Logs
