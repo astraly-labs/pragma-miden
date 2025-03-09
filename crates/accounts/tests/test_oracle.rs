@@ -23,8 +23,8 @@ use pm_accounts::{
 
 use common::{
     create_and_deploy_oracle_account, create_and_deploy_publisher_account,
-    execute_get_entry_transaction, execute_tx_and_sync, mock_entry,
-    random_entry, setup_test_environment,
+    execute_get_entry_transaction, execute_tx_and_sync, mock_entry, random_entry,
+    setup_test_environment,
 };
 
 #[tokio::test]
@@ -56,13 +56,13 @@ async fn test_oracle_get_entry() -> Result<()> {
         StorageSlot::Value(publisher_id_word),
     ];
     storage_slots.extend((0..251).map(|_| StorageSlot::empty_value()));
-    
+
     // Create and deploy oracle account
     let oracle_account = create_and_deploy_oracle_account(&mut client, Some(storage_slots)).await?;
 
     // Sync state
     client.sync_state().await.context("Failed to sync state")?;
-    
+
     // Execute get_entry transaction
     execute_get_entry_transaction(
         &mut client,
@@ -74,7 +74,7 @@ async fn test_oracle_get_entry() -> Result<()> {
 
     // TODO(#116:miden-base(https://github.com/0xPolygonMiden/miden-base/issues/1161))
     // Catch the stack output once available
-    
+
     Ok(())
 }
 
@@ -82,10 +82,10 @@ async fn test_oracle_get_entry() -> Result<()> {
 async fn test_oracle_register_publisher() -> Result<()> {
     // Setup client and environment
     let (mut client, _) = setup_test_environment().await;
-    
+
     // Create and deploy oracle account with default storage
     let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
-    
+
     // Define publisher ID to register
     let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")
         .context("Failed to parse publisher ID")?;
@@ -95,7 +95,7 @@ async fn test_oracle_register_publisher() -> Result<()> {
         publisher_id.suffix(),
         publisher_id.prefix().as_felt(),
     ];
-    
+
     // Create transaction script for registering publisher
     let tx_script_code = format!(
         "
@@ -112,7 +112,7 @@ async fn test_oracle_register_publisher() -> Result<()> {
         publisher_id_prefix = publisher_id.prefix().as_u64(),
         publisher_id_suffix = publisher_id.suffix(),
     );
-    
+
     let tx_script = TransactionScript::compile(
         tx_script_code,
         [],
@@ -123,15 +123,15 @@ async fn test_oracle_register_publisher() -> Result<()> {
             .clone(),
     )
     .context("Error while compiling the script")?;
-    
+
     let transaction_request = TransactionRequestBuilder::new()
         .with_custom_script(tx_script)
         .context("Error while building transaction request")?
         .build();
-    
+
     // Execute transaction and wait for it to be processed
     execute_tx_and_sync(&mut client, oracle_account.id(), transaction_request).await?;
-    
+
     // Verify storage changes
     client.sync_state().await.context("Failed to sync state")?;
     let oracle_account = client
@@ -140,7 +140,7 @@ async fn test_oracle_register_publisher() -> Result<()> {
         .context("Failed to get oracle account")?
         .context("Oracle account not found")?;
     let oracle_account = oracle_account.account();
-    
+
     // Check that publisher was registered
     assert_eq!(
         oracle_account.storage().get_item(1).unwrap(),
@@ -150,7 +150,7 @@ async fn test_oracle_register_publisher() -> Result<()> {
         oracle_account.storage().get_item(3).unwrap(),
         RpoDigest::new(publisher_id_word)
     );
-    
+
     Ok(())
 }
 
@@ -158,34 +158,42 @@ async fn test_oracle_register_publisher() -> Result<()> {
 async fn test_oracle_get_median() -> Result<()> {
     // Setup client and environment
     let (mut client, _) = setup_test_environment().await;
-    
+
     // Create entries with different prices for testing median
     let entry1 = Entry {
-        pair: Pair::new(Currency::new("BTC").context("Invalid currency")?, Currency::new("USD").context("Invalid currency")?),
+        pair: Pair::new(
+            Currency::new("BTC").context("Invalid currency")?,
+            Currency::new("USD").context("Invalid currency")?,
+        ),
         price: 50000000000, // $50,000
         decimals: 8,
         timestamp: 1739722449,
     };
-    
+
     let entry2 = Entry {
-        pair: Pair::new(Currency::new("BTC").context("Invalid currency")?, Currency::new("USD").context("Invalid currency")?),
+        pair: Pair::new(
+            Currency::new("BTC").context("Invalid currency")?,
+            Currency::new("USD").context("Invalid currency")?,
+        ),
         price: 52000000000, // $52,000
         decimals: 8,
         timestamp: 1739722450,
     };
-    
+
     // Create pair word (same for both entries since they have the same pair)
     let pair_word = entry1.pair.to_word();
     // Create and deploy publisher accounts
-    let entry1_as_word: Word = entry1.try_into().unwrap(); 
-    let entry2_as_word: Word = entry2.try_into().unwrap(); 
-    
-    let publisher1 = create_and_deploy_publisher_account(&mut client, pair_word, entry1_as_word).await?;
-    let publisher2 = create_and_deploy_publisher_account(&mut client, pair_word, entry2_as_word).await?;
-    
+    let entry1_as_word: Word = entry1.try_into().unwrap();
+    let entry2_as_word: Word = entry2.try_into().unwrap();
+
+    let publisher1 =
+        create_and_deploy_publisher_account(&mut client, pair_word, entry1_as_word).await?;
+    let publisher2 =
+        create_and_deploy_publisher_account(&mut client, pair_word, entry2_as_word).await?;
+
     // Create and deploy oracle account
     let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
-    
+
     // Register publishers in the oracle
     for publisher_id in [publisher1.id(), publisher2.id()] {
         let tx_script_code = format!(
@@ -203,30 +211,35 @@ async fn test_oracle_get_median() -> Result<()> {
             publisher_id_prefix = publisher_id.prefix().as_u64(),
             publisher_id_suffix = publisher_id.suffix(),
         );
-        
+
         let tx_script = TransactionScript::compile(
             tx_script_code,
             [],
             TransactionKernel::assembler()
                 .with_debug_mode(true)
                 .with_library(get_oracle_component_library())
-                .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
+                .map_err(|e| {
+                    anyhow::anyhow!("Error while setting up the component library: {}", e)
+                })?
                 .clone(),
         )
         .context("Error while compiling the script")?;
-        
+
         let transaction_request = TransactionRequestBuilder::new()
             .with_custom_script(tx_script)
             .context("Error while building transaction request")?
             .build();
-        
+
         execute_tx_and_sync(&mut client, oracle_account.id(), transaction_request).await?;
-        println!("publisher {:?} registered successfully!", publisher_id.to_hex());
+        println!(
+            "publisher {:?} registered successfully!",
+            publisher_id.to_hex()
+        );
     }
-    
+
     // Sync state to ensure we have the latest account state
     client.sync_state().await.context("Failed to sync state")?;
-    
+
     // Create foreign accounts for the get_median transaction
     let mut foreign_accounts = Vec::new();
     for publisher_id in [publisher1.id(), publisher2.id()] {
@@ -235,21 +248,20 @@ async fn test_oracle_get_median() -> Result<()> {
             .await
             .context("Failed to get publisher account")?
             .context("Publisher account not found")?;
-        
+
         let foreign_account_inputs = ForeignAccountInputs::from_account(
             publisher_account.account().clone(),
             AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]),
         )
         .context("Failed to create foreign account inputs")?;
-        
+
         let foreign_account = ForeignAccount::private(foreign_account_inputs)
             .context("Failed to create foreign account")?;
         foreign_accounts.push(foreign_account);
     }
-    
+
     println!("Trying to query the median");
 
-    
     // Create transaction script for get_median
     let tx_script_code = format!(
         "
@@ -266,7 +278,7 @@ async fn test_oracle_get_median() -> Result<()> {
         ",
         pair = word_to_masm(pair_word),
     );
-    
+
     let tx_script = TransactionScript::compile(
         tx_script_code,
         [],
@@ -277,20 +289,19 @@ async fn test_oracle_get_median() -> Result<()> {
             .clone(),
     )
     .context("Error while compiling the script")?;
-    
+
     let transaction_request = TransactionRequestBuilder::new()
         .with_custom_script(tx_script)
         .context("Error while building transaction request")?
         .with_foreign_accounts(foreign_accounts)
         .build();
-    
+
     // Execute the get_median transaction
     let _ = client
         .new_transaction(oracle_account.id(), transaction_request)
         .await
         .context("Error while creating a transaction")?;
-    
-    
+
     Ok(())
 }
 

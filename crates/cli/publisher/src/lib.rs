@@ -5,14 +5,18 @@ mod commands;
 use crate::commands::{
     entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, publish::PublishCmd, sync::SyncCmd,
 };
-use pm_utils_cli::setup_testnet_client;
+use pm_utils_cli::{setup_devnet_client, setup_testnet_client};
 
 pub const STORE_SIMPLE_FILENAME: &str = "miden_storage/store.sqlite3";
 
 /// Initialize publisher
 #[pyfunction]
 #[pyo3(name = "init")]
-fn py_init(oracle_id: Option<String>, storage_path: Option<String>) -> PyResult<String> {
+fn py_init(
+    oracle_id: Option<String>,
+    storage_path: Option<String>,
+    network: Option<String>,
+) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -24,9 +28,19 @@ fn py_init(oracle_id: Option<String>, storage_path: Option<String>) -> PyResult<
 
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
 
-        let mut client = setup_testnet_client(Option::Some(store_config))
-            .await
-            .unwrap();
+        // Use appropriate client setup based on network parameter
+        let mut client = match network.as_deref() {
+            Some("devnet") => setup_devnet_client(Option::Some(store_config))
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup devnet client: {}", e))
+                })?,
+            _ => setup_testnet_client(Option::Some(store_config))
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup testnet client: {}", e))
+                })?,
+        };
 
         let cmd = InitCmd { oracle_id };
 
@@ -47,6 +61,7 @@ fn py_publish(
     decimals: u32,
     timestamp: u64,
     storage_path: Option<String>,
+    network: Option<String>,
 ) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -58,9 +73,19 @@ fn py_publish(
 
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
 
-        let mut client = setup_testnet_client(Option::Some(store_config))
-            .await
-            .unwrap();
+        // Use appropriate client setup based on network parameter
+        let mut client = match network.as_deref() {
+            Some("devnet") => setup_devnet_client(Option::Some(store_config))
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup devnet client: {}", e))
+                })?,
+            _ => setup_testnet_client(Option::Some(store_config))
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup testnet client: {}", e))
+                })?,
+        };
 
         let cmd = PublishCmd {
             publisher,
@@ -84,6 +109,7 @@ fn py_get_entry(
     publisher_id: String,
     pair: String,
     storage_path: Option<String>,
+    network: Option<String>,
 ) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -95,9 +121,20 @@ fn py_get_entry(
 
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
 
-        let mut client = setup_testnet_client(Option::Some(store_config))
-            .await
-            .unwrap();
+        // Use appropriate client setup based on network parameter
+        let mut client = match network.as_deref() {
+            Some("devnet") => setup_devnet_client(Option::Some(store_config))
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup devnet client: {}", e))
+                })?,
+            _ => setup_testnet_client(Option::Some(store_config))
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup testnet client: {}", e))
+                })?,
+        };
+
         let cmd = GetEntryCmd { publisher_id, pair };
         cmd.call(&mut client)
             .await
@@ -110,7 +147,12 @@ fn py_get_entry(
 /// Get entry details
 #[pyfunction]
 #[pyo3(name = "entry")]
-fn py_entry(publisher_id: String, pair: String, storage_path: Option<String>) -> PyResult<String> {
+fn py_entry(
+    publisher_id: String,
+    pair: String,
+    storage_path: Option<String>,
+    network: Option<String>,
+) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -121,9 +163,19 @@ fn py_entry(publisher_id: String, pair: String, storage_path: Option<String>) ->
 
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
 
-        let mut client = setup_testnet_client(Option::Some(store_config))
-            .await
-            .unwrap();
+        // Use appropriate client setup based on network parameter
+        let mut client = match network.as_deref() {
+            Some("devnet") => setup_devnet_client(Option::Some(store_config))
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup devnet client: {}", e))
+                })?,
+            _ => setup_testnet_client(Option::Some(store_config))
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup testnet client: {}", e))
+                })?,
+        };
 
         let cmd = EntryCmd { publisher_id, pair };
         cmd.call(&mut client)
@@ -137,7 +189,7 @@ fn py_entry(publisher_id: String, pair: String, storage_path: Option<String>) ->
 /// Sync state
 #[pyfunction]
 #[pyo3(name = "sync")]
-fn py_sync(storage_path: Option<String>) -> PyResult<String> {
+fn py_sync(storage_path: Option<String>, network: Option<String>) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -148,9 +200,20 @@ fn py_sync(storage_path: Option<String>) -> PyResult<String> {
 
         let store_config = exec_dir.join(STORE_SIMPLE_FILENAME);
 
-        let mut client = setup_testnet_client(Option::Some(store_config))
-            .await
-            .unwrap();
+        // Use appropriate client setup based on network parameter
+        let mut client = match network.as_deref() {
+            Some("devnet") => setup_devnet_client(Option::Some(store_config))
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup devnet client: {}", e))
+                })?,
+            _ => setup_testnet_client(Option::Some(store_config))
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup testnet client: {}", e))
+                })?,
+        };
+
         let cmd = SyncCmd {};
         cmd.call(&mut client)
             .await

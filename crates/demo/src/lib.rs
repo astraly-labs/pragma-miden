@@ -2,7 +2,7 @@ use core::{check_result, set_reference_price};
 
 use miden_client::account::AccountId;
 use miden_crypto::Felt;
-use pm_utils_cli::{setup_client, STORE_FILENAME};
+use pm_utils_cli::{setup_devnet_client, STORE_FILENAME};
 use utils::BetAccountBuilder;
 
 pub mod constants;
@@ -16,7 +16,7 @@ pub async fn main() {
     let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let db_path = crate_path.parent().unwrap().parent().unwrap();
     let store_config = db_path.join(STORE_FILENAME);
-    let mut client = setup_client(store_config).await.unwrap();
+    let mut client = setup_devnet_client(Some(store_config)).await.unwrap();
 
     // First step is to deploy the bet contract
     client.sync_state().await.unwrap();

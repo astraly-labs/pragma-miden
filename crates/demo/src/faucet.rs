@@ -1,13 +1,10 @@
-
 use miden_client::{
     account::{AccountBuilder, AccountId, AccountStorageMode, AccountType},
     asset::{FungibleAsset, TokenSymbol},
     auth::AuthSecretKey,
     crypto::SecretKey,
     note::NoteType,
-    transaction::{
-        PaymentTransactionData, TransactionRequestBuilder, TransactionScript,
-    },
+    transaction::{PaymentTransactionData, TransactionRequestBuilder, TransactionScript},
     Client,
 };
 use miden_crypto::{rand::FeltRng, Felt, ONE, ZERO};

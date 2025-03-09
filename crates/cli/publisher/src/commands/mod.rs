@@ -10,7 +10,7 @@ use clap::Parser;
 use entry::EntryCmd;
 use get_entry::GetEntryCmd;
 use init::InitCmd;
-use pm_utils_cli::{setup_client, STORE_FILENAME};
+use pm_utils_cli::{setup_devnet_client, STORE_FILENAME};
 use publish::PublishCmd;
 use sync::SyncCmd;
 
@@ -37,7 +37,7 @@ impl SubCommand {
     pub async fn call(&self) -> anyhow::Result<()> {
         let crate_path = PathBuf::new();
         let store_config = crate_path.join(STORE_FILENAME);
-        let mut client = setup_client(store_config).await.unwrap();
+        let mut client = setup_devnet_client(Some(store_config)).await.unwrap();
 
         match self {
             Self::Init(cmd) => cmd.call(&mut client).await?,

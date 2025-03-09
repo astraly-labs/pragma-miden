@@ -13,8 +13,8 @@ use miden_client::{
     store::TransactionFilter,
     sync::SyncSummary,
     transaction::{
-        ForeignAccount, ForeignAccountInputs, TransactionId,
-        TransactionRequest, TransactionRequestBuilder, TransactionResult, TransactionScript,
+        ForeignAccount, ForeignAccountInputs, TransactionId, TransactionRequest,
+        TransactionRequestBuilder, TransactionResult, TransactionScript,
     },
     Client, ClientError,
 };
@@ -27,7 +27,7 @@ use pm_accounts::{
     utils::word_to_masm,
 };
 use pm_types::{Currency, Entry, Pair};
-use pm_utils_cli::{setup_client, STORE_FILENAME};
+use pm_utils_cli::{setup_devnet_client, STORE_FILENAME};
 use rand::Rng;
 
 pub type TestClient = Client<RpoRandomCoin>;
@@ -98,7 +98,7 @@ pub async fn execute_tx(
         .new_transaction(account_id, tx_request)
         .await
         .context("Failed to create new transaction")?;
-        
+
     let transaction_id = transaction_execution_result.executed_transaction().id();
 
     println!("Sending transaction to node");
@@ -120,15 +120,20 @@ pub async fn execute_tx_and_sync(
     Ok(())
 }
 
-pub async fn wait_for_tx(client: &mut Client<RpoRandomCoin>, transaction_id: TransactionId) -> Result<()> {
+pub async fn wait_for_tx(
+    client: &mut Client<RpoRandomCoin>,
+    transaction_id: TransactionId,
+) -> Result<()> {
     // wait until tx is committed
     let mut attempts = 0;
     const MAX_ATTEMPTS: u32 = 60;
     const SLEEP_DURATION: Duration = Duration::from_millis(500);
-    
+
     loop {
         println!("Syncing State...");
-        client.sync_state().await
+        client
+            .sync_state()
+            .await
             .context("Failed to sync state while waiting for transaction")?;
 
         // Check if executed transaction got committed by the node
@@ -136,7 +141,7 @@ pub async fn wait_for_tx(client: &mut Client<RpoRandomCoin>, transaction_id: Tra
             .get_transactions(TransactionFilter::Uncomitted)
             .await
             .context("Failed to get uncommitted transactions")?;
-            
+
         let is_tx_committed = uncommited_transactions
             .iter()
             .all(|uncommited_tx| uncommited_tx.id != transaction_id);
@@ -148,7 +153,10 @@ pub async fn wait_for_tx(client: &mut Client<RpoRandomCoin>, transaction_id: Tra
 
         attempts += 1;
         if attempts >= MAX_ATTEMPTS {
-            return Err(anyhow::anyhow!("Transaction not committed after {} attempts", MAX_ATTEMPTS));
+            return Err(anyhow::anyhow!(
+                "Transaction not committed after {} attempts",
+                MAX_ATTEMPTS
+            ));
         }
 
         std::thread::sleep(SLEEP_DURATION);
@@ -179,7 +187,9 @@ pub async fn setup_test_environment() -> (Client<RpoRandomCoin>, PathBuf) {
     let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let db_path = crate_path.parent().unwrap().parent().unwrap();
     let store_config = db_path.join(STORE_FILENAME);
-    let mut client = setup_client(store_config.clone()).await.unwrap();
+    let mut client = setup_devnet_client(Some(store_config.clone()))
+        .await
+        .unwrap();
     wait_for_node(&mut client).await;
 
     (client, store_config)
@@ -204,7 +214,10 @@ pub async fn create_and_deploy_publisher_account(
     // Deploy publisher account
     let deployment_tx = create_deployment_transaction(client, publisher_account.id()).await?;
     let tx_id = deployment_tx.executed_transaction().id();
-    client.submit_transaction(deployment_tx).await.context("Failed to submit deployment transaction for publisher account")?;
+    client
+        .submit_transaction(deployment_tx)
+        .await
+        .context("Failed to submit deployment transaction for publisher account")?;
     wait_for_tx(client, tx_id).await;
 
     Ok(publisher_account)
@@ -227,14 +240,18 @@ pub async fn create_and_deploy_oracle_account(
     let (oracle_account, _) = builder.build().await;
 
     // Deploy oracle account
-    let deployment_tx = create_deployment_transaction(client, oracle_account.id()).await
+    let deployment_tx = create_deployment_transaction(client, oracle_account.id())
+        .await
         .context("Failed to create deployment transaction for oracle account")?;
-    
+
     let tx_id = deployment_tx.executed_transaction().id();
-    client.submit_transaction(deployment_tx).await
+    client
+        .submit_transaction(deployment_tx)
+        .await
         .context("Failed to submit deployment transaction for oracle account")?;
-    
-    wait_for_tx(client, tx_id).await
+
+    wait_for_tx(client, tx_id)
+        .await
         .context("Failed to wait for oracle account deployment transaction")?;
 
     Ok(oracle_account)

@@ -12,10 +12,14 @@ use miden_client::{
 use rand::Rng;
 use std::{path::PathBuf, sync::Arc};
 
+use crate::STORE_FILENAME;
+
 // Client Setup
 // ================================================================================================
 
-pub async fn setup_client(path: PathBuf) -> Result<Client<RpoRandomCoin>, ClientError> {
+pub async fn setup_devnet_client(
+    path: Option<PathBuf>,
+) -> Result<Client<RpoRandomCoin>, ClientError> {
     // let exec_dir = PathBuf::new();
     // let store_config = exec_dir.join(path);
     // RPC endpoint and timeout
@@ -29,6 +33,14 @@ pub async fn setup_client(path: PathBuf) -> Result<Client<RpoRandomCoin>, Client
 
     let rng = RpoRandomCoin::new(coin_seed.map(Felt::new));
 
+    let path = match path {
+        Some(p) => p,
+        None => {
+            let exec_dir = PathBuf::new();
+            let p = exec_dir.join(STORE_FILENAME);
+            p
+        }
+    };
     let store = SqliteStore::new(path.into())
         .await
         .map_err(ClientError::StoreError)?;

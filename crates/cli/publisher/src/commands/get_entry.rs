@@ -64,7 +64,6 @@ impl GetEntryCmd {
             .await
             .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
 
-            
         Ok(())
     }
 }
