@@ -3,6 +3,8 @@ use.std::math::u64
 use.miden::account
 use.miden::tx
 use.miden::contracts::auth::basic->auth_tx
+use.kernels::transaction::lib::memory
+
 
 # CONSTANTS
 # =================================================================================================
@@ -21,6 +23,9 @@ const.PUBLISHER_REGISTRY_MAP_SLOT=1
 
 # The beginning of the storage slots for the publishers.
 const.PUBLISHERS_STORAGE_SLOT=2
+
+# Define the staleness threshold in seconds, the time after which an entry is considered stale.
+const.STALENESS_THRESHOLD=3600
 
 # INTERNAL PROCEDURES (utilities)
 # =================================================================================================
@@ -239,6 +244,18 @@ proc.ram_get_median
     end
 end
 
+
+#! Takes an entry, extract the timestamp and check if it's stale
+#! Inputs: [ENTRY] (format of the entry : [price, pair, decimals ,timestamp])
+#! Outputs: [BOOL, ENTRY] 1 if stale, 0 if not
+proc.is_entry_stale
+    movup.3 dup movdn.4
+    exec.memory::get_blk_timestamp
+    swap #TODO: publishers might publish in the future
+    sub
+    push.STALENESS_THRESHOLD
+    gt 
+end
 # EXTERNAL PROCEDURES
 # =================================================================================================
 
@@ -280,11 +297,17 @@ export.get_median
 
         # Call get_entry
         exec.call_publisher_get_entry
-        # => [ENTRY, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, PAIR]
-          
-        # Store the entry in the RAM from index 0 to index N
-        dup.4 push.PUBLISHERS_STORAGE_SLOT sub mul.4  # we multiplied the result by 4 because se can store with % 4!=0 addresses
-        mem_storew dropw
+
+        # Check if the entry is staled
+        exec.is_entry_stale
+        if.true 
+        else 
+            # => [ENTRY, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, PAIR]
+            
+            # Store the entry in the RAM from index 0 to index N
+            dup.4 push.PUBLISHERS_STORAGE_SLOT sub mul.4  # we multiplied the result by 4 because se can store with % 4!=0 addresses
+            mem_storew dropw
+        end
         # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, PAIR]
         # Increment the next index and check if there's still publishers to process
         add.1 exec.felt_is_lower
