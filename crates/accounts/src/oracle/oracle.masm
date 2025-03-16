@@ -11,6 +11,12 @@ use.miden::contracts::auth::basic->auth_tx
 const.MAX_U32=0x0000000100000000
 
 
+# ERRORS
+# =================================================================================================
+
+# Error if the publisher is already registered in the registry
+const.ERR_PUBLISHER_ALREADY_REGISTERED = 100
+
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
 const.NEXT_PUBLISHER_INDEX_SLOT=0
@@ -321,9 +327,16 @@ end
 #! Inputs:  [PUBLISHER_ID]
 #! Outputs: []
 export.register_publisher
-    # Check if it is not already present in the registry, if yes raise err (get_map_item)
-    # TODO: How?
+    dupw 
+    # => [PUBLISHER_ID, PUBLISHER_ID]
 
+    # The goal here is to retrieve the index associated to the publisher id in the registry. If the index is 0, it is not registered
+    push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item
+    # => [REGISTERED_INDEX, PUBLISHER_ID]
+    push.0.0.0.0
+    # => [ZERO,REGISTERED_INDEX, PUBLISHER_ID]
+    assert_eqw.err=ERR_PUBLISHER_ALREADY_REGISTERED
+    # => [PUBLISHER_ID]
     # Duplicate the publisher id
     dupw
     # => [PUBLISHER_ID, PUBLISHER_ID]
