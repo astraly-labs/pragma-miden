@@ -155,6 +155,115 @@ async fn test_oracle_register_publisher() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_oracle_register_publisher_fails_if_publisher_already_registered() -> Result<()> {
+    // Setup client and environment
+    let (mut client, _) = setup_test_environment().await;
+
+    // Create and deploy oracle account with default storage
+    let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
+
+    // Define publisher ID to register
+    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")
+        .context("Failed to parse publisher ID")?;
+    let publisher_id_word: [Felt; 4] = [
+        ZERO,
+        ZERO,
+        publisher_id.suffix(),
+        publisher_id.prefix().as_felt(),
+    ];
+
+    // Create transaction script for registering publisher
+    let tx_script_code = format!(
+        "
+        use.oracle_component::oracle_module
+        use.std::sys
+
+        begin
+            push.0.0
+            push.{publisher_id_suffix} push.{publisher_id_prefix}
+            call.oracle_module::register_publisher
+            exec.sys::truncate_stack
+        end
+        ",
+        publisher_id_prefix = publisher_id.prefix().as_u64(),
+        publisher_id_suffix = publisher_id.suffix(),
+    );
+
+    let tx_script = TransactionScript::compile(
+        tx_script_code.clone(),
+        [],
+        TransactionKernel::assembler()
+            .with_debug_mode(true)
+            .with_library(get_oracle_component_library())
+            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
+            .clone(),
+    )
+    .context("Error while compiling the script")?;
+
+    let transaction_request = TransactionRequestBuilder::new()
+        .with_custom_script(tx_script)
+        .context("Error while building transaction request")?
+        .build();
+
+    // First registration should succeed
+    execute_tx_and_sync(&mut client, oracle_account.id(), transaction_request).await?;
+
+    // Verify storage changes to confirm publisher was registered
+    client.sync_state().await.context("Failed to sync state")?;
+
+    // Now try to register the same publisher again - should fail
+    let tx_script = TransactionScript::compile(
+        tx_script_code,
+        [],
+        TransactionKernel::assembler()
+            .with_debug_mode(true)
+            .with_library(get_oracle_component_library())
+            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
+            .clone(),
+    )
+    .context("Error while compiling the script")?;
+
+    let transaction_request = TransactionRequestBuilder::new()
+        .with_custom_script(tx_script)
+        .context("Error while building second transaction request")?
+        .build();
+
+    // The transaction creation should succeed, but execution should fail
+    let result = client
+        .new_transaction(oracle_account.id(), transaction_request)
+        .await;
+
+    // Check that the transaction execution failed with the expected error
+    match result {
+        Ok(_) => {
+            // If the transaction was created successfully, executing it should fail
+            let tx_result = client.sync_state().await;
+            assert!(
+                tx_result.is_err(),
+                "Expected transaction to fail when registering publisher twice"
+            );
+
+            // We should be able to see the specific error if we capture the error message
+            // The error should mention publisher already registered (error code 100)
+            if let Err(err) = tx_result {
+                println!("Expected error received: {}", err);
+                assert!(
+                    err.to_string().contains("100")
+                        || err.to_string().contains("publisher already registered"),
+                    "Error should mention publisher already registered"
+                );
+            }
+        }
+        Err(err) => {
+            // Some implementations might fail immediately on transaction creation
+            println!("Transaction creation failed as expected: {}", err);
+        }
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_oracle_get_median() -> Result<()> {
     // Setup client and environment
     let (mut client, _) = setup_test_environment().await;
