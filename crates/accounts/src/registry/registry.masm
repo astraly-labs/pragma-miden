@@ -1,0 +1,73 @@
+use.std::sys
+use.std::math::u64
+
+
+
+
+
+# ERRORS 
+# =================================================================================================
+
+# Error if the source is already registered
+const.ERR_SOURCE_ALREADY_REGISTERED = 100
+
+
+# CONSTANTS
+# =================================================================================================
+
+
+# Holds the next registry mapping (source => index)
+const.SOURCE_REGISTRY_MAP_SLOT=150
+
+# Holds the next storage slot index available for sources. Will be used when we register a sources
+# We allocate the last 252-151 storage slots to the sources definition
+# Every time we add a new source, we increment this index by one.
+const.NEXT_SOURCE_INDEX_SLOT=151
+
+
+# Holds the mapping between the publisher and its index in the storage
+# (publisher => map_index)
+const.PUBLISHERS_INDEX_STORAGE_SLOT=0
+
+# Hold the next storage slot available for publisher map. Every time we 
+
+# The beginning of the sources storage values
+const.SOURCES_STORAGE_VALUE=3
+
+
+
+
+# EXTERNAL FUNCTIONS
+# =================================================================================================
+
+
+
+#! We will call this function contract once. It is used to set the constants definition
+#! Inputs: []
+#! Outputs: []
+export.constructor
+
+
+#! Ad  a new source to the registry.
+#! Inputs: [SOURCE]
+#! Outputs: []
+export.add_source
+
+    dupw
+    # => [SOURCE, SOURCE]
+
+    push.SOURCE_REGISTRY_MAP_SLOT exec.account::get_map_item
+
+    # => [REGISTERED_SOURCE_INDEX, SOURCE]
+
+    # Check if the source is already registered
+    push.0.0.0.0
+    assert_eqw.err=ERR_SOURCE_ALREADY_REGISTERED
+
+    # => [SOURCE]
+    dupw
+    # => [SOURCE, SOURCE]
+
+    # Retrieve the next_source_slot available from the slot 
+    push.
+
