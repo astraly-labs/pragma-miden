@@ -83,7 +83,8 @@ async fn test_oracle_get_entry() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test]async fn test_oracle_register_publisher() -> Result<()> {
+#[tokio::test]
+async fn test_oracle_register_publisher() -> Result<()> {
     // Setup client and environment
     let (mut client, _) = setup_test_environment().await;
 

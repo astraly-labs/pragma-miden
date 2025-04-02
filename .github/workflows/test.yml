@@ -90,35 +90,41 @@ jobs:
       - name: Initialize and Start Miden Node
         run: |
           # Clean up any existing data directory
-          rm -rf data
+          rm -rf data accounts
           
-          # Create a directory for node data
+          # Create directories for node data and accounts
           mkdir -p data
+          mkdir -p accounts
           
-          # Create a Docker container for initialization
-          docker run --name miden-node-init \
-                    -v "$(pwd):/workspace" \
-                    -w /workspace \
-                    miden-node-image \
-                    miden-node init --config-path miden-node.toml --genesis-path genesis.toml
-          
-          # Create genesis data
+          # Generate genesis configuration
           docker run --name miden-node-genesis \
                     -v "$(pwd):/workspace" \
                     -w /workspace \
                     miden-node-image \
-                    miden-node make-genesis --inputs-path genesis.toml --output-path genesis.dat --force
+                    miden-node store dump-genesis > genesis.toml
           
-          # Clean up initialization containers
-          docker rm miden-node-init miden-node-genesis
+          # Bootstrap the node
+          docker run --name miden-node-bootstrap \
+                    -v "$(pwd):/workspace" \
+                    -w /workspace \
+                    miden-node-image \
+                    miden-node bundled bootstrap \
+                    --data-directory data \
+                    --accounts-directory accounts \
+                    --config genesis.toml
+          
+          # Clean up bootstrap container
+          docker rm miden-node-bootstrap miden-node-genesis
           
           # Start the node
           docker run --name miden-node \
-                    -p 57291:57291 \
+                    -p 57123:57123 \
                     -v "$(pwd):/workspace" \
                     -w /workspace \
                     -d miden-node-image \
-                    miden-node start --config miden-node.toml node
+                    miden-node bundled start \
+                    --data-directory data \
+                    --rpc.url http://0.0.0.0:57123
           
           # Wait for the node to start
           echo "Waiting for Miden node to start..."
