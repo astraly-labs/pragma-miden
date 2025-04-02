@@ -8,6 +8,8 @@ use miden_assembly::{
 };
 use miden_client::{
     account::{Account, AccountBuilder, AccountStorageMode, AccountType as ClientAccountType},
+    auth::AuthSecretKey,
+    keystore::FilesystemKeyStore,
     Client,
 };
 use miden_client::{crypto::SecretKey, Felt, Word, ZERO};
@@ -87,7 +89,7 @@ impl<'a> OracleAccountBuilder<'a> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
         let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into()));
-        let from_seed = client_rng.gen();
+        let from_seed = client_rng.random();
         let anchor_block = client.get_latest_epoch_block().await.unwrap();
 
         let (account, account_seed) = AccountBuilder::new(from_seed)
@@ -101,6 +103,12 @@ impl<'a> OracleAccountBuilder<'a> {
         client
             .add_account(&account, Some(account_seed), true)
             .await
+            .unwrap();
+
+        let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
+            FilesystemKeyStore::new("./keystore".into()).unwrap();
+        keystore
+            .add_key(&AuthSecretKey::RpoFalcon512(private_key))
             .unwrap();
         client.sync_state().await.unwrap();
 

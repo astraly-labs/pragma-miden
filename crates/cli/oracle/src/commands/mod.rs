@@ -18,7 +18,7 @@ use publishers::PublishersCmd;
 use register_publisher::RegisterPublisherCmd;
 use sync::SyncCmd;
 
-use pm_utils_cli::{setup_devnet_client, STORE_FILENAME};
+use pm_utils_cli::{setup_devnet_client, setup_testnet_client, STORE_FILENAME};
 
 #[derive(Debug, Parser, Clone)]
 pub enum SubCommand {
@@ -50,7 +50,7 @@ impl SubCommand {
     pub async fn call(&self) -> anyhow::Result<()> {
         let crate_path = PathBuf::new();
         let store_config = crate_path.join(STORE_FILENAME);
-        let mut client = setup_devnet_client(Some(store_config)).await.unwrap();
+        let mut client = setup_testnet_client(Some(store_config)).await.unwrap();
 
         match self {
             Self::Init(cmd) => cmd.call(&mut client).await?,

@@ -39,22 +39,24 @@ pub async fn setup_devnet_client(path: Option<PathBuf>) -> Result<Client, Client
         }
     };
 
-    // let store = SqliteStore::new(path.into())
-    //     .await
-    //     .map_err(ClientError::StoreError)?;
-    // let arc_store = Arc::new(store);
-    let auth_path = temp_dir().join(format!("keystore-{}", Uuid::new_v4()));
-    std::fs::create_dir_all(&auth_path).unwrap();
+    let store = SqliteStore::new(path.into())
+        .await
+        .map_err(ClientError::StoreError)?;
+    let arc_store = Arc::new(store);
+    // let auth_path = temp_dir().join(format!("keystore-{}", Uuid::new_v4()));
+    // std::fs::create_dir_all(&auth_path).unwrap();
 
-    let client = ClientBuilder::new()
+    let mut client = ClientBuilder::new()
         .with_rpc(rpc_api)
-        // .with_rng(rng)
-        .with_filesystem_keystore(auth_path.to_str().unwrap())
-        // .with_store(arc_store)
+        .with_rng(rng)
+        .with_filesystem_keystore("./keystore")
+        .with_store(arc_store)
         .in_debug_mode(true)
         .build()
         .await?;
 
+    let sync_summary = client.sync_state().await.unwrap();
+    println!("Latest block: {}", sync_summary.block_num);
     Ok(client)
 }
 
@@ -92,6 +94,7 @@ pub async fn setup_testnet_client(storage_path: Option<PathBuf>) -> Result<Clien
     let client = ClientBuilder::new()
         .with_rpc(rpc_api)
         .with_rng(rng)
+        .with_filesystem_keystore("./keystore")
         .with_store(arc_store)
         .in_debug_mode(true)
         .build()

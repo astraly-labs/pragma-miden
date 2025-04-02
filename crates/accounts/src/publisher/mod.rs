@@ -8,7 +8,9 @@ use miden_assembly::{
 };
 use miden_client::{
     account::{Account, AccountStorageMode, AccountType as ClientAccountType},
+    auth::AuthSecretKey,
     crypto::SecretKey,
+    keystore::FilesystemKeyStore,
     Client, Word,
 };
 
@@ -84,7 +86,7 @@ impl<'a> PublisherAccountBuilder<'a> {
 
         let auth_component: AccountComponent = AccountComponent::from(auth_component);
         let publisher_component: AccountComponent = AccountComponent::from(publisher_component);
-        let from_seed = client_rng.gen();
+        let from_seed = client_rng.random();
         let account_type: String = self.account_type.to_string();
         let client_account_type: ClientAccountType = account_type.parse().unwrap();
         let anchor_block = client.get_latest_epoch_block().await.unwrap();
@@ -101,6 +103,12 @@ impl<'a> PublisherAccountBuilder<'a> {
             .add_account(&account, Some(account_seed), true)
             .await
             .unwrap();
+        let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
+            FilesystemKeyStore::new("./keystore".into()).unwrap();
+        keystore
+            .add_key(&AuthSecretKey::RpoFalcon512(private_key))
+            .unwrap();
+
         client.sync_state().await.unwrap();
 
         (account, account_seed)

@@ -3,10 +3,10 @@
 use std::vec;
 mod common;
 use anyhow::{Context, Result};
+use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{ForeignAccount, ForeignAccountInputs, TransactionRequestBuilder};
 use miden_client::Client;
-use miden_client::account::AccountId;
 use miden_crypto::{hash::rpo::RpoDigest, Felt, Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
@@ -83,9 +83,7 @@ async fn test_oracle_get_entry() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test]
-#[ignore]
-async fn test_oracle_register_publisher() -> Result<()> {
+#[tokio::test]async fn test_oracle_register_publisher() -> Result<()> {
     // Setup client and environment
     let (mut client, _) = setup_test_environment().await;
 
@@ -161,8 +159,6 @@ async fn test_oracle_register_publisher() -> Result<()> {
 }
 
 #[tokio::test]
-#[ignore]
-
 async fn test_oracle_register_publisher_fails_if_publisher_already_registered() -> Result<()> {
     // Setup client and environment
     let (mut client, _) = setup_test_environment().await;
@@ -272,8 +268,6 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
 }
 
 #[tokio::test]
-#[ignore]
-
 async fn test_oracle_get_median() -> Result<()> {
     // Setup client and environment
     let (mut client, _) = setup_test_environment().await;

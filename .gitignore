@@ -21,3 +21,8 @@ store.sqlite3
 
 # Oracle accounts
 pragma_miden_accounts.json
+
+
+# Keystore
+**/keystore/
+keystore/

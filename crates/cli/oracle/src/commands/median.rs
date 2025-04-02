@@ -1,11 +1,11 @@
 use anyhow::Context;
+use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{
     ForeignAccount, ForeignAccountInputs, TransactionKernel, TransactionRequestBuilder,
     TransactionScript,
 };
 use miden_client::Client;
-use miden_client::account::AccountId;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;

@@ -1,7 +1,7 @@
 #! Starts a fresh local Miden Node.
 #! See: https://github.com/0xPolygonMiden/miden-node
 
-rm -rf ./accounts ./data ./genesis.toml ./miden-node
+rm -rf ./accounts ./data ./genesis.toml ./miden-node store.sqlite3
 
 miden-node store dump-genesis > genesis.toml
 mkdir data
