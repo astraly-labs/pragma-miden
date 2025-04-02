@@ -1,6 +1,6 @@
 use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder, TransactionScript};
 use miden_client::Client;
-use miden_client::{account::AccountId, crypto::FeltRng};
+use miden_client::account::AccountId;
 use pm_accounts::publisher::get_publisher_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;

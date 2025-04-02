@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use miden_client::{account::AccountId, crypto::FeltRng, Client};
+use miden_client::{account::AccountId, Client};
 use pm_types::{Entry, Pair};
 use prettytable::{Cell, Row, Table};
 use std::str::FromStr;

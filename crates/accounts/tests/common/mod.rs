@@ -18,7 +18,7 @@ use miden_client::{
     },
     Client, ClientError,
 };
-use miden_crypto::{hash::rpo::RpoDigest, rand::RpoRandomCoin, Word};
+use miden_crypto::{hash::rpo::RpoDigest, Word};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::account::{Account, StorageMap, StorageSlot};
 use pm_accounts::{

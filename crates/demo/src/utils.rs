@@ -8,8 +8,7 @@ use miden_assembly::{
 };
 use miden_client::{
     account::{Account, AccountStorageMode, AccountType as ClientAccountType},
-    auth::AuthSecretKey,
-    crypto::{FeltRng, SecretKey},
+    crypto::SecretKey,
     Client, Word,
 };
 

@@ -1,5 +1,4 @@
 use colored::*;
-use miden_client::crypto::FeltRng;
 use miden_client::Client;
 use pm_accounts::oracle::OracleAccountBuilder;
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};

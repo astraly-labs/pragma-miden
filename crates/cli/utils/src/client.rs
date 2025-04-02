@@ -4,12 +4,10 @@ use miden_client::{
         component::{BasicWallet, RpoFalcon512},
         Account, AccountBuilder, AccountStorageMode, AccountType,
     },
-    auth::AuthSecretKey,
     builder::ClientBuilder,
-    crypto::{FeltRng, RpoRandomCoin, SecretKey},
-    keystore::FilesystemKeyStore,
+    crypto::{RpoRandomCoin, SecretKey},
     rpc::{Endpoint, TonicRpcClient},
-    store::{sqlite_store::SqliteStore, StoreError},
+    store::sqlite_store::SqliteStore,
     Client, ClientError, Felt, Word,
 };
 use rand::{Rng, RngCore};

@@ -5,7 +5,7 @@ use miden_client::transaction::{
     TransactionScript,
 };
 use miden_client::Client;
-use miden_client::{account::AccountId, crypto::FeltRng};
+use miden_client::account::AccountId;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
 use std::str::FromStr;

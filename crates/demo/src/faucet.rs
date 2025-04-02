@@ -1,7 +1,6 @@
 use miden_client::{
     account::{AccountBuilder, AccountId, AccountStorageMode, AccountType},
     asset::{FungibleAsset, TokenSymbol},
-    auth::AuthSecretKey,
     crypto::SecretKey,
     note::NoteType,
     transaction::{PaymentTransactionData, TransactionRequestBuilder, TransactionScript},

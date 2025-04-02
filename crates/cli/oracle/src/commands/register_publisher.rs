@@ -1,4 +1,3 @@
-use miden_client::crypto::FeltRng;
 use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder};
 use miden_client::Client;
 use miden_client::{account::AccountId, transaction::TransactionScript};

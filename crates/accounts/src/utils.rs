@@ -1,6 +1,4 @@
-use miden_client::{auth::AuthSecretKey, crypto::SecretKey, Word};
-use rand_chacha::rand_core::SeedableRng;
-use rand_chacha::ChaCha20Rng;
+use miden_client::Word;
 /// Word to MASM
 pub fn word_to_masm(word: Word) -> String {
     word.iter()

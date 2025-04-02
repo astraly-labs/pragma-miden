@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{ForeignAccount, ForeignAccountInputs, TransactionRequestBuilder};
 use miden_client::Client;
-use miden_client::{account::AccountId, crypto::RpoRandomCoin};
+use miden_client::account::AccountId;
 use miden_crypto::{hash::rpo::RpoDigest, Felt, Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{

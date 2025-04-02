@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use miden_client::{
     account::AccountId,
-    crypto::FeltRng,
     transaction::{TransactionKernel, TransactionRequestBuilder, TransactionScript},
     Client, Word,
 };

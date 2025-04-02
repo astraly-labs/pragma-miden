@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use miden_client::account::AccountId;
-use miden_client::crypto::FeltRng;
 use miden_client::Client;
 use prettytable::{Cell, Row, Table};
 

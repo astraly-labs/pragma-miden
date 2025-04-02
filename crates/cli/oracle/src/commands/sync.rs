@@ -1,4 +1,3 @@
-use miden_client::crypto::FeltRng;
 use miden_client::Client;
 
 #[derive(clap::Parser, Debug, Clone)]

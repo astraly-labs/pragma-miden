@@ -1,10 +1,8 @@
 use miden_client::{
     account::{Account, AccountBuilder, AccountStorageMode, AccountType},
-    auth::AuthSecretKey,
     crypto::SecretKey,
     Client,
 };
-use miden_crypto::rand::FeltRng;
 use miden_lib::account::{auth::RpoFalcon512, wallets::BasicWallet};
 use rand::RngCore;
 

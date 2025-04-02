@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use miden_client::{crypto::FeltRng, Client};
+use miden_client::Client;
 
 #[derive(Debug, Clone, Parser)]
 #[clap(about = "Sync local state with the blockchain")]

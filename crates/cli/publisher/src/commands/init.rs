@@ -1,5 +1,4 @@
 use colored::*;
-use miden_client::crypto::FeltRng;
 use miden_client::Client;
 use pm_accounts::publisher::PublisherAccountBuilder;
 use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
