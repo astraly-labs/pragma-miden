@@ -7,7 +7,7 @@ use miden_client::{crypto::FeltRng, Client};
 pub struct SyncCmd {}
 
 impl SyncCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         let new_details = client
             .sync_state()
             .await
@@ -15,7 +15,6 @@ impl SyncCmd {
         println!("🔁 Sync successful!\n");
 
         println!("State synced to block {}", new_details.block_num);
-        println!("New public notes: {}", new_details.received_notes.len());
         println!(
             "Tracked notes updated: {}",
             new_details.committed_notes.len()

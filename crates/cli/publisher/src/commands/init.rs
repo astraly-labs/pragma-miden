@@ -14,7 +14,7 @@ pub struct InitCmd {
 }
 
 impl InitCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         // TODO: Refine this condition & logic
         // if JsonStorage::exists(PRAGMA_ACCOUNTS_STORAGE) && JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE).get_key(PUBLISHER_ACCOUNT_ID).is_some() {
         //     bail!("A Publisher has already been created! Delete it if you wanna start over.");

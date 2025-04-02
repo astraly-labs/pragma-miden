@@ -38,13 +38,13 @@ pub fn get_publisher_component_library() -> Library {
         .expect("assembly should succeed")
 }
 
-pub struct PublisherAccountBuilder<'a, T: FeltRng> {
-    client: Option<&'a mut Client<T>>,
+pub struct PublisherAccountBuilder<'a> {
+    client: Option<&'a mut Client>,
     account_type: AccountType,
     storage_slots: Vec<StorageSlot>,
 }
 
-impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
+impl<'a> PublisherAccountBuilder<'a> {
     pub fn new() -> Self {
         let default_storage_slots = vec![StorageSlot::empty_map()];
         Self {
@@ -64,7 +64,7 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
         self
     }
 
-    pub fn with_client(mut self, client: &'a mut Client<T>) -> Self {
+    pub fn with_client(mut self, client: &'a mut Client) -> Self {
         self.client = Some(client);
         self
     }
@@ -99,12 +99,7 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
             .unwrap();
 
         client
-            .add_account(
-                &account,
-                Some(account_seed),
-                &AuthSecretKey::RpoFalcon512(private_key),
-                true,
-            )
+            .add_account(&account, Some(account_seed), true)
             .await
             .unwrap();
         client.sync_state().await.unwrap();
@@ -113,7 +108,7 @@ impl<'a, T: FeltRng> PublisherAccountBuilder<'a, T> {
     }
 }
 
-impl<'a, T: FeltRng> Default for PublisherAccountBuilder<'a, T> {
+impl<'a> Default for PublisherAccountBuilder<'a> {
     fn default() -> Self {
         Self::new()
     }

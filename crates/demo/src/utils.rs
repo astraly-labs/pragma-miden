@@ -38,13 +38,13 @@ pub fn get_bet_component_library() -> Library {
         .expect("assembly should succeed")
 }
 
-pub struct BetAccountBuilder<'a, T: FeltRng> {
-    client: Option<&'a mut Client<T>>,
+pub struct BetAccountBuilder<'a> {
+    client: Option<&'a mut Client>,
     account_type: AccountType,
     storage_slots: Vec<StorageSlot>,
 }
 
-impl<'a, T: FeltRng> BetAccountBuilder<'a, T> {
+impl<'a> BetAccountBuilder<'a> {
     pub fn new() -> Self {
         let default_storage_slots = vec![
             StorageSlot::empty_value(),
@@ -69,7 +69,7 @@ impl<'a, T: FeltRng> BetAccountBuilder<'a, T> {
         self
     }
 
-    pub fn with_client(mut self, client: &'a mut Client<T>) -> Self {
+    pub fn with_client(mut self, client: &'a mut Client) -> Self {
         self.client = Some(client);
         self
     }
@@ -103,12 +103,7 @@ impl<'a, T: FeltRng> BetAccountBuilder<'a, T> {
             .unwrap();
 
         client
-            .add_account(
-                &account,
-                Some(account_seed),
-                &AuthSecretKey::RpoFalcon512(private_key),
-                true,
-            )
+            .add_account(&account, Some(account_seed), true)
             .await
             .unwrap();
         client.sync_state().await.unwrap();
@@ -117,7 +112,7 @@ impl<'a, T: FeltRng> BetAccountBuilder<'a, T> {
     }
 }
 
-impl<'a, T: FeltRng> Default for BetAccountBuilder<'a, T> {
+impl<'a> Default for BetAccountBuilder<'a> {
     fn default() -> Self {
         Self::new()
     }

@@ -38,13 +38,13 @@ pub fn get_oracle_component_library() -> Library {
         .expect("assembly should succeed")
 }
 
-pub struct OracleAccountBuilder<'a, T: FeltRng> {
-    client: Option<&'a mut Client<T>>,
+pub struct OracleAccountBuilder<'a> {
+    client: Option<&'a mut Client>,
     account_type: String, // Temporary fix, because AccountType is not consistent between the Client and the Object
     storage_slots: Vec<StorageSlot>,
 }
 
-impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
+impl<'a> OracleAccountBuilder<'a> {
     pub fn new() -> Self {
         let default_storage_slots = {
             let mut slots = vec![
@@ -72,7 +72,7 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
         self
     }
 
-    pub fn with_client(mut self, client: &'a mut Client<T>) -> Self {
+    pub fn with_client(mut self, client: &'a mut Client) -> Self {
         self.client = Some(client);
         self
     }
@@ -101,20 +101,16 @@ impl<'a, T: FeltRng> OracleAccountBuilder<'a, T> {
             .build()
             .unwrap();
         client
-            .add_account(
-                &account,
-                Some(account_seed),
-                &AuthSecretKey::RpoFalcon512(private_key),
-                true,
-            )
+            .add_account(&account, Some(account_seed), true)
             .await
             .unwrap();
+        client.sync_state().await.unwrap();
 
         (account, account_seed)
     }
 }
 
-impl<'a, T: FeltRng> Default for OracleAccountBuilder<'a, T> {
+impl<'a> Default for OracleAccountBuilder<'a> {
     fn default() -> Self {
         Self::new()
     }

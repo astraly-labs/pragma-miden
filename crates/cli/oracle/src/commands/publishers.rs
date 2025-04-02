@@ -10,7 +10,7 @@ use prettytable::{Cell, Row, Table};
 pub struct PublishersCmd {}
 
 impl PublishersCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         client.sync_state().await.unwrap();
 
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;

@@ -6,8 +6,9 @@ use miden_client::{
 };
 use miden_crypto::rand::FeltRng;
 use miden_lib::account::{auth::RpoFalcon512, wallets::BasicWallet};
+use rand::RngCore;
 
-pub async fn deploy_operator(client: &mut Client<impl FeltRng>) -> Account {
+pub async fn deploy_operator(client: &mut Client) -> Account {
     println!("\n[STEP 1] Creating a new account for User");
 
     // Account seed
@@ -32,12 +33,7 @@ pub async fn deploy_operator(client: &mut Client<impl FeltRng>) -> Account {
 
     // Add the account to the client
     client
-        .add_account(
-            &user_account,
-            Some(seed),
-            &AuthSecretKey::RpoFalcon512(key_pair),
-            false,
-        )
+        .add_account(&user_account, Some(seed), false)
         .await
         .unwrap();
 

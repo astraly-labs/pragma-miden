@@ -17,7 +17,7 @@ pub struct GetEntryCmd {
 // This CLI command is used to call the get_entry getter function from the publisher, and output it in the stack.
 // This is useful for debugging purposes, but it's better to call the entry command to get a more user-friendly output.
 impl GetEntryCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         // let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
 
         // let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
@@ -57,8 +57,8 @@ impl GetEntryCmd {
 
         let transaction_request = TransactionRequestBuilder::new()
             .with_custom_script(get_entry_script)
-            .unwrap()
-            .build();
+            .build()
+            .unwrap();
         let tx_result = client
             .new_transaction(publisher_id, transaction_request)
             .await

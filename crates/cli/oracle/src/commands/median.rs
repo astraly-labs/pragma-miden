@@ -20,7 +20,7 @@ pub struct MedianCmd {
 }
 
 impl MedianCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
 
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
@@ -62,7 +62,7 @@ impl MedianCmd {
 
             let foreign_account_inputs = ForeignAccountInputs::from_account(
                 publisher.account().clone(),
-                AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+                &AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
             )?;
             let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
             foreign_accounts.push(foreign_account);
@@ -99,11 +99,11 @@ impl MedianCmd {
 
         let transaction_request = TransactionRequestBuilder::new()
             .with_custom_script(median_script)
-            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))
-            .unwrap()
             .with_foreign_accounts(foreign_accounts);
 
-        let transaction_request = transaction_request.build();
+        let transaction_request = transaction_request
+            .build()
+            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 
         let _ = client
             .new_transaction(oracle_id, transaction_request)

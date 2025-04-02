@@ -7,18 +7,19 @@ use miden_client::{
     transaction::{PaymentTransactionData, TransactionRequestBuilder, TransactionScript},
     Client,
 };
-use miden_crypto::{rand::FeltRng, Felt, ONE, ZERO};
+use miden_crypto::{Felt, ONE, ZERO};
 use miden_lib::{
     account::{auth::RpoFalcon512, faucets::BasicFungibleFaucet},
     transaction::TransactionKernel,
 };
+use rand::RngCore;
 
 use crate::{
     constants::{AMOUNT, AMOUNT_TO_SEND},
     utils::get_bet_component_library,
 };
 
-pub async fn deploy_faucet(client: &mut Client<impl FeltRng>) -> anyhow::Result<AccountId> {
+pub async fn deploy_faucet(client: &mut Client) -> anyhow::Result<AccountId> {
     //------------------------------------------------------------
     // STEP 2: Deploy a fungible faucet
     //------------------------------------------------------------
@@ -49,12 +50,7 @@ pub async fn deploy_faucet(client: &mut Client<impl FeltRng>) -> anyhow::Result<
 
     // Add the faucet to the client
     client
-        .add_account(
-            &faucet_account,
-            Some(seed),
-            &AuthSecretKey::RpoFalcon512(key_pair),
-            false,
-        )
+        .add_account(&faucet_account, Some(seed), false)
         .await
         .unwrap();
 
@@ -63,7 +59,7 @@ pub async fn deploy_faucet(client: &mut Client<impl FeltRng>) -> anyhow::Result<
 }
 
 pub async fn send_faucet_funds(
-    client: &mut Client<impl FeltRng>,
+    client: &mut Client,
     bet_account_id: AccountId,
     faucet_account_id: AccountId,
     sender_account_id: AccountId,
@@ -92,7 +88,8 @@ pub async fn send_faucet_funds(
         client.rng(),     // rng
     )
     .unwrap()
-    .build();
+    .build()
+    .unwrap();
     let tx_execution_result = client
         .new_transaction(sender_account_id, transaction_request)
         .await
@@ -150,9 +147,8 @@ pub async fn send_faucet_funds(
 
     let transaction_request = TransactionRequestBuilder::new()
         .with_custom_script(median_script)
-        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))
-        .unwrap()
-        .build();
+        .build()
+        .unwrap();
 
     let tx_result = client
         .new_transaction(bet_account_id, transaction_request)
@@ -168,7 +164,7 @@ pub async fn send_faucet_funds(
 }
 
 pub async fn mint_tokens(
-    client: &mut Client<impl FeltRng>,
+    client: &mut Client,
     faucet_account_id: AccountId,
     target_account_id: AccountId,
 ) {
@@ -181,7 +177,8 @@ pub async fn mint_tokens(
         client.rng(),
     )
     .unwrap()
-    .build();
+    .build()
+    .unwrap();
     let tx_execution_result = client
         .new_transaction(faucet_account_id, transaction_request)
         .await
@@ -210,8 +207,9 @@ pub async fn mint_tokens(
             "Found {} consumable notes. Consuming them now...",
             list_of_note_ids.len()
         );
-        let transaction_request =
-            TransactionRequestBuilder::consume_notes(list_of_note_ids).build();
+        let transaction_request = TransactionRequestBuilder::consume_notes(list_of_note_ids)
+            .build()
+            .unwrap();
 
         let tx_result = client
             .new_transaction(target_account_id, transaction_request)

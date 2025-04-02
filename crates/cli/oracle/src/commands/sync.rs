@@ -6,7 +6,7 @@ use miden_client::Client;
 pub struct SyncCmd {}
 
 impl SyncCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         let new_details = client
             .sync_state()
             .await

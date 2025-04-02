@@ -15,7 +15,7 @@ pub struct EntryCmd {
 const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 1;
 
 impl EntryCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         client.sync_state().await.unwrap();
         // let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         // let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();

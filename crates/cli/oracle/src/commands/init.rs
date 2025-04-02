@@ -9,7 +9,7 @@ use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_F
 pub struct InitCmd {}
 
 impl InitCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         println!("⏳ Initiating the Oracle...\n");
         client.sync_state().await.unwrap();
 

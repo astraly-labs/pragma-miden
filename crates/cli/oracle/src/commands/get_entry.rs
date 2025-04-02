@@ -22,7 +22,7 @@ pub struct GetEntryCmd {
 }
 
 impl GetEntryCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
@@ -42,7 +42,7 @@ impl GetEntryCmd {
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         let foreign_account_inputs = ForeignAccountInputs::from_account(
             publisher.account().clone(),
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+            &AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
         )?;
         let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
         let tx_script_code = format!(
@@ -80,8 +80,8 @@ impl GetEntryCmd {
         let transaction_request = TransactionRequestBuilder::new()
             .with_foreign_accounts([foreign_account])
             .with_custom_script(get_entry_script)
-            .unwrap()
-            .build();
+            .build()
+            .unwrap();
         let _ = client
             .new_transaction(oracle_id, transaction_request)
             .await

@@ -79,8 +79,8 @@ async fn test_publisher_publish_entry() -> Result<()> {
 
     let transaction_request = TransactionRequestBuilder::new()
         .with_custom_script(tx_script)
-        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {}", e))?
-        .build();
+        .build()
+        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {}", e))?;
 
     // Execute transaction and wait for it to be processed
     execute_tx_and_sync(&mut client, publisher_account.id(), transaction_request).await?;
@@ -157,8 +157,8 @@ async fn test_publisher_get_entry() -> Result<()> {
     // Create transaction request
     let transaction_request = TransactionRequestBuilder::new()
         .with_custom_script(get_entry_script)
-        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {}", e))?
-        .build();
+        .build()
+        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {}", e))?;
 
     // Execute the get_entry transaction
     let _ = client

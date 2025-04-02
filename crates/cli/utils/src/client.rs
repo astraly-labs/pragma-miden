@@ -1,37 +1,36 @@
+use crate::STORE_FILENAME;
 use miden_client::{
     account::{
         component::{BasicWallet, RpoFalcon512},
         Account, AccountBuilder, AccountStorageMode, AccountType,
     },
     auth::AuthSecretKey,
+    builder::ClientBuilder,
     crypto::{FeltRng, RpoRandomCoin, SecretKey},
+    keystore::FilesystemKeyStore,
     rpc::{Endpoint, TonicRpcClient},
-    store::{sqlite_store::SqliteStore, StoreAuthenticator},
+    store::{sqlite_store::SqliteStore, StoreError},
     Client, ClientError, Felt, Word,
 };
-use rand::Rng;
-use std::{path::PathBuf, sync::Arc};
-
-use crate::STORE_FILENAME;
+use rand::{Rng, RngCore};
+use std::{env::temp_dir, path::PathBuf, sync::Arc};
+use uuid::Uuid;
 
 // Client Setup
 // ================================================================================================
 
-pub async fn setup_devnet_client(
-    path: Option<PathBuf>,
-) -> Result<Client<RpoRandomCoin>, ClientError> {
+pub async fn setup_devnet_client(path: Option<PathBuf>) -> Result<Client, ClientError> {
     // let exec_dir = PathBuf::new();
     // let store_config = exec_dir.join(path);
     // RPC endpoint and timeout
-    let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57291));
+    let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57123));
     let timeout_ms = 10_000;
 
-    let rpc_api = Box::new(TonicRpcClient::new(endpoint, timeout_ms));
+    let rpc_api = Arc::new(TonicRpcClient::new(&endpoint, timeout_ms));
 
-    let mut seed_rng = rand::thread_rng();
-    let coin_seed: [u64; 4] = seed_rng.gen();
+    let coin_seed: [u64; 4] = rand::random();
 
-    let rng = RpoRandomCoin::new(coin_seed.map(Felt::new));
+    let rng = Box::new(RpoRandomCoin::new(coin_seed.map(Felt::new)));
 
     let path = match path {
         Some(p) => p,
@@ -41,21 +40,27 @@ pub async fn setup_devnet_client(
             p
         }
     };
-    let store = SqliteStore::new(path.into())
-        .await
-        .map_err(ClientError::StoreError)?;
-    let arc_store = Arc::new(store);
 
-    let authenticator = StoreAuthenticator::new_with_rng(arc_store.clone(), rng.clone());
+    // let store = SqliteStore::new(path.into())
+    //     .await
+    //     .map_err(ClientError::StoreError)?;
+    // let arc_store = Arc::new(store);
+    let auth_path = temp_dir().join(format!("keystore-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&auth_path).unwrap();
 
-    let client = Client::new(rpc_api, rng, arc_store, Arc::new(authenticator), true);
+    let client = ClientBuilder::new()
+        .with_rpc(rpc_api)
+        // .with_rng(rng)
+        .with_filesystem_keystore(auth_path.to_str().unwrap())
+        // .with_store(arc_store)
+        .in_debug_mode(true)
+        .build()
+        .await?;
 
     Ok(client)
 }
 
-pub async fn setup_testnet_client(
-    storage_path: Option<PathBuf>,
-) -> Result<Client<RpoRandomCoin>, ClientError> {
+pub async fn setup_testnet_client(storage_path: Option<PathBuf>) -> Result<Client, ClientError> {
     // RPC endpoint and timeout
     let endpoint = Endpoint::new(
         "https".to_string(),
@@ -65,14 +70,14 @@ pub async fn setup_testnet_client(
     let timeout_ms = 10_000;
 
     // Build RPC client
-    let rpc_api = Box::new(TonicRpcClient::new(endpoint, timeout_ms));
+    let rpc_api = Arc::new(TonicRpcClient::new(&endpoint, timeout_ms));
 
     // Seed RNG
-    let mut seed_rng = rand::thread_rng();
-    let coin_seed: [u64; 4] = seed_rng.gen();
+    let mut seed_rng = rand::rng();
+    let coin_seed: [u64; 4] = seed_rng.random();
 
     // Create random coin instance
-    let rng = RpoRandomCoin::new(coin_seed.map(Felt::new));
+    let rng = Box::new(RpoRandomCoin::new(coin_seed.map(Felt::new)));
 
     // SQLite path
     let store_path = "store.sqlite3";
@@ -84,16 +89,21 @@ pub async fn setup_testnet_client(
     let arc_store = Arc::new(store);
 
     // Create authenticator referencing the store and RNG
-    let authenticator = StoreAuthenticator::new_with_rng(arc_store.clone(), rng.clone());
 
     // Instantiate client (toggle debug mode as needed)
-    let client = Client::new(rpc_api, rng, arc_store, Arc::new(authenticator), true);
+    let client = ClientBuilder::new()
+        .with_rpc(rpc_api)
+        .with_rng(rng)
+        .with_store(arc_store)
+        .in_debug_mode(true)
+        .build()
+        .await?;
 
     Ok(client)
 }
 
 pub async fn create_wallet(
-    client: &mut Client<impl FeltRng>,
+    client: &mut Client,
     storage_mode: AccountStorageMode,
 ) -> Result<(Account, Word), ClientError> {
     let mut init_seed = [0u8; 32];
@@ -109,13 +119,6 @@ pub async fn create_wallet(
         .build()
         .unwrap();
 
-    client
-        .add_account(
-            &account,
-            Some(seed),
-            &AuthSecretKey::RpoFalcon512(key_pair.clone()),
-            false,
-        )
-        .await?;
+    client.add_account(&account, Some(seed), false).await?;
     Ok((account, seed))
 }

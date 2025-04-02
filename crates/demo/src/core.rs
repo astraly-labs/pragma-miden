@@ -14,7 +14,7 @@ use crate::constants::ORACLE_ACCOUNT_ID;
 use crate::utils::get_bet_component_library;
 
 pub async fn check_result(
-    client: &mut Client<impl FeltRng>,
+    client: &mut Client,
     bet_account_id: AccountId,
     sender_account_id: AccountId,
 ) -> anyhow::Result<()> {
@@ -56,7 +56,7 @@ pub async fn check_result(
 
         let foreign_account_inputs = ForeignAccountInputs::from_account(
             publisher.account().clone(),
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+            &AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
         )?;
         let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
         foreign_accounts.push(foreign_account);
@@ -106,11 +106,11 @@ pub async fn check_result(
 
     let transaction_request = TransactionRequestBuilder::new()
         .with_custom_script(median_script)
-        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))
-        .unwrap()
         .with_foreign_accounts(foreign_accounts);
 
-    let transaction_request = transaction_request.build();
+    let transaction_request = transaction_request
+        .build()
+        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 
     let _ = client
         .new_transaction(bet_account_id, transaction_request)
@@ -121,7 +121,7 @@ pub async fn check_result(
 }
 
 pub async fn set_reference_price(
-    client: &mut Client<impl FeltRng>,
+    client: &mut Client,
     bet_account_id: AccountId,
 ) -> anyhow::Result<()> {
     let oracle_id = AccountId::from_hex(ORACLE_ACCOUNT_ID).unwrap();
@@ -162,7 +162,7 @@ pub async fn set_reference_price(
 
         let foreign_account_inputs = ForeignAccountInputs::from_account(
             publisher.account().clone(),
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+            &AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
         )?;
         let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
         foreign_accounts.push(foreign_account);
@@ -216,10 +216,9 @@ pub async fn set_reference_price(
 
     let transaction_request = TransactionRequestBuilder::new()
         .with_custom_script(median_script)
-        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))
-        .unwrap()
         .with_foreign_accounts(foreign_accounts)
-        .build();
+        .build()
+        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 
     let tx_result = client
         .new_transaction(bet_account_id, transaction_request)

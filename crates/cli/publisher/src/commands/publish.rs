@@ -22,7 +22,7 @@ pub struct PublishCmd {
 }
 
 impl PublishCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         // let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         // let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
         let publisher_id = &self.publisher;
@@ -75,8 +75,8 @@ impl PublishCmd {
 
         let transaction_request = TransactionRequestBuilder::new()
             .with_custom_script(publish_script)
-            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?
-            .build();
+            .build()
+            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 
         let transaction = client
             .new_transaction(publisher_id, transaction_request)

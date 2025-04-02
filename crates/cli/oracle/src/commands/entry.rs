@@ -18,7 +18,7 @@ pub struct EntryCmd {
 }
 
 impl EntryCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         client.sync_state().await.unwrap();
 
         let publisher_id = AccountId::from_hex(&self.publisher_id).unwrap();

@@ -30,7 +30,7 @@ use pm_types::{Currency, Entry, Pair};
 use pm_utils_cli::{setup_devnet_client, STORE_FILENAME};
 use rand::Rng;
 
-pub type TestClient = Client<RpoRandomCoin>;
+pub type TestClient = Client;
 
 /// Mocks [Entry] representing price feeds for use in tests.
 pub fn mock_entry() -> Entry {
@@ -44,20 +44,20 @@ pub fn mock_entry() -> Entry {
 
 /// Mocks a random [Entry] representing price feeds for use in tests.
 pub fn random_entry() -> Entry {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     // Get current timestamp and add/subtract up to 1 hour (3600 seconds)
     let current_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
-    let random_offset = rng.gen_range(-3600..3600);
+    let random_offset = rng.random_range(-3600..3600);
     let timestamp = current_time + random_offset;
 
     // Generate random price around 101709 with ±5% variation
     let base_price = 101709.0;
     let variation = base_price * 0.05; // 5% variation
-    let random_price = rng.gen_range((base_price - variation)..(base_price + variation));
+    let random_price = rng.random_range((base_price - variation)..(base_price + variation));
 
     Entry {
         pair: Pair::new(Currency::new("BTC").unwrap(), Currency::new("USD").unwrap()),
@@ -89,7 +89,7 @@ pub async fn wait_for_node(client: &mut TestClient) {
 }
 
 pub async fn execute_tx(
-    client: &mut Client<RpoRandomCoin>,
+    client: &mut Client,
     account_id: AccountId,
     tx_request: TransactionRequest,
 ) -> Result<TransactionId> {
@@ -111,7 +111,7 @@ pub async fn execute_tx(
 }
 
 pub async fn execute_tx_and_sync(
-    client: &mut Client<RpoRandomCoin>,
+    client: &mut Client,
     account_id: AccountId,
     tx_request: TransactionRequest,
 ) -> Result<()> {
@@ -120,10 +120,7 @@ pub async fn execute_tx_and_sync(
     Ok(())
 }
 
-pub async fn wait_for_tx(
-    client: &mut Client<RpoRandomCoin>,
-    transaction_id: TransactionId,
-) -> Result<()> {
+pub async fn wait_for_tx(client: &mut Client, transaction_id: TransactionId) -> Result<()> {
     // wait until tx is committed
     let mut attempts = 0;
     const MAX_ATTEMPTS: u32 = 60;
@@ -183,7 +180,7 @@ pub async fn wait_for_blocks(client: &mut TestClient, amount_of_blocks: u32) -> 
     }
 }
 
-pub async fn setup_test_environment() -> (Client<RpoRandomCoin>, PathBuf) {
+pub async fn setup_test_environment() -> (Client, PathBuf) {
     let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let db_path = crate_path.parent().unwrap().parent().unwrap();
     let store_config = db_path.join(STORE_FILENAME);
@@ -197,16 +194,15 @@ pub async fn setup_test_environment() -> (Client<RpoRandomCoin>, PathBuf) {
 
 /// Creates and deploys a publisher account with the given entry data
 pub async fn create_and_deploy_publisher_account(
-    client: &mut Client<RpoRandomCoin>,
+    client: &mut Client,
     pair_word: Word,
     entry_as_word: Word,
 ) -> Result<Account> {
     // Create publisher account
-    let (publisher_account, _) = PublisherAccountBuilder::<RpoRandomCoin>::new()
-        .with_storage_slots(vec![StorageSlot::Map(StorageMap::with_entries(vec![(
-            RpoDigest::from(pair_word),
-            entry_as_word,
-        )]))])
+    let (publisher_account, publisher_seed) = PublisherAccountBuilder::new()
+        .with_storage_slots(vec![StorageSlot::Map(
+            StorageMap::with_entries(vec![(RpoDigest::from(pair_word), entry_as_word)]).unwrap(),
+        )])
         .with_client(client)
         .build()
         .await;
@@ -218,18 +214,20 @@ pub async fn create_and_deploy_publisher_account(
         .submit_transaction(deployment_tx)
         .await
         .context("Failed to submit deployment transaction for publisher account")?;
-    wait_for_tx(client, tx_id).await;
-
+    let _ = wait_for_tx(client, tx_id).await;
+    let _ = client
+        .add_account(&publisher_account, Some(publisher_seed), true)
+        .await;
     Ok(publisher_account)
 }
 
 /// Creates and deploys an oracle account
 pub async fn create_and_deploy_oracle_account(
-    client: &mut Client<RpoRandomCoin>,
+    client: &mut Client,
     storage_slots: Option<Vec<StorageSlot>>,
 ) -> Result<Account> {
     // Create oracle account builder
-    let mut builder = OracleAccountBuilder::<RpoRandomCoin>::new().with_client(client);
+    let mut builder = OracleAccountBuilder::new().with_client(client);
 
     // Add storage slots if provided
     if let Some(slots) = storage_slots {
@@ -259,7 +257,7 @@ pub async fn create_and_deploy_oracle_account(
 
 /// Creates a deployment transaction for the given account
 async fn create_deployment_transaction(
-    client: &mut Client<RpoRandomCoin>,
+    client: &mut Client,
     account_id: AccountId,
 ) -> Result<TransactionResult> {
     let deployment_tx_script = TransactionScript::compile(
@@ -276,8 +274,8 @@ async fn create_deployment_transaction(
             account_id,
             TransactionRequestBuilder::new()
                 .with_custom_script(deployment_tx_script)
-                .context("Failed to build deployment transaction request")?
-                .build(),
+                .build()
+                .context("Failed to build deployment transaction request")?,
         )
         .await
         .context("Failed to create new deployment transaction")
@@ -285,7 +283,7 @@ async fn create_deployment_transaction(
 
 /// Executes a get_entry transaction
 pub async fn execute_get_entry_transaction(
-    client: &mut Client<RpoRandomCoin>,
+    client: &mut Client,
     oracle_id: AccountId,
     publisher_id: AccountId,
     pair_word: Word,
@@ -336,7 +334,7 @@ pub async fn execute_get_entry_transaction(
         AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]);
 
     let foreign_account = ForeignAccount::private(
-        ForeignAccountInputs::from_account(publisher.account().clone(), storage_requirements)
+        ForeignAccountInputs::from_account(publisher.account().clone(), &storage_requirements)
             .unwrap(),
     )
     .unwrap();
@@ -345,8 +343,8 @@ pub async fn execute_get_entry_transaction(
     let transaction_request = TransactionRequestBuilder::new()
         .with_foreign_accounts([foreign_account])
         .with_custom_script(get_entry_script)
-        .unwrap()
-        .build();
+        .build()
+        .unwrap();
 
     // Execute transaction
     let tx_result = client

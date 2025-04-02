@@ -15,7 +15,7 @@ pub struct RegisterPublisherCmd {
 }
 
 impl RegisterPublisherCmd {
-    pub async fn call(&self, client: &mut Client<impl FeltRng>) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
         let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
 
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
@@ -58,9 +58,8 @@ impl RegisterPublisherCmd {
 
         let transaction_request = TransactionRequestBuilder::new()
             .with_custom_script(median_script)
-            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))
-            .unwrap()
-            .build();
+            .build()
+            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 
         let tx_result = client
             .new_transaction(oracle_id, transaction_request)

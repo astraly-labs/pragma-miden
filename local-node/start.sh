@@ -1,8 +1,16 @@
 #! Starts a fresh local Miden Node.
 #! See: https://github.com/0xPolygonMiden/miden-node
 
-rm -rf ./accounts ./blocks ./genesis.dat ./genesis.toml ./miden-node.toml ./miden-store.sqlite3 ./miden-store.sqlite3-shm ./miden-store.sqlite3-wal store.sqlite3
+rm -rf ./accounts ./data ./genesis.toml ./miden-node
 
-miden-node init --config-path  miden-node.toml --genesis-path genesis.toml
-miden-node make-genesis --inputs-path genesis.toml --output-path genesis.dat --force
-miden-node start --config miden-node.toml node
+miden-node store dump-genesis > genesis.toml
+mkdir data
+mkdir accounts
+miden-node bundled bootstrap \
+  --data-directory data \
+  --accounts-directory accounts \
+  --config genesis.toml 
+
+miden-node bundled start \
+  --data-directory data \
+  --rpc.url http://0.0.0.0:57123
