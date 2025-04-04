@@ -1,14 +1,16 @@
 // pub mod common;
 
+use std::collections::BTreeSet;
 use std::vec;
 mod common;
 use anyhow::{Context, Result};
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{ForeignAccount, ForeignAccountInputs, TransactionRequestBuilder};
-use miden_client::Client;
-use miden_crypto::{hash::rpo::RpoDigest, Felt, Word, ZERO};
+use miden_client::{Client, Felt, Word};
+use miden_crypto::{hash::rpo::RpoDigest, ZERO};
 use miden_lib::transaction::TransactionKernel;
+use miden_objects::vm::AdviceInputs;
 use miden_objects::{
     account::{Account, StorageMap, StorageSlot},
     transaction::TransactionScript,
@@ -31,7 +33,7 @@ use common::{
 async fn test_oracle_get_entry() -> Result<()> {
     let entry = mock_entry();
     let pair_word = entry.pair.to_word();
-    let entry_as_word: Word = entry.try_into().unwrap();
+    let entry_as_word: Word = entry.clone().try_into().unwrap();
 
     let (mut client, store_config) = setup_test_environment().await;
     println!("do we reach here ? ");
@@ -69,7 +71,7 @@ async fn test_oracle_get_entry() -> Result<()> {
     client.sync_state().await.context("Failed to sync state")?;
 
     // Execute get_entry transaction
-    execute_get_entry_transaction(
+    let res_entry = execute_get_entry_transaction(
         &mut client,
         oracle_account.id(),
         publisher_account.id(),
@@ -77,8 +79,7 @@ async fn test_oracle_get_entry() -> Result<()> {
     )
     .await?;
 
-    // TODO(#116:miden-base(https://github.com/0xPolygonMiden/miden-base/issues/1161))
-    // Catch the stack output once available
+    assert_eq!(res_entry, entry);
 
     Ok(())
 }
@@ -297,8 +298,8 @@ async fn test_oracle_get_median() -> Result<()> {
     // Create pair word (same for both entries since they have the same pair)
     let pair_word = entry1.pair.to_word();
     // Create and deploy publisher accounts
-    let entry1_as_word: Word = entry1.try_into().unwrap();
-    let entry2_as_word: Word = entry2.try_into().unwrap();
+    let entry1_as_word: Word = entry1.clone().try_into().unwrap();
+    let entry2_as_word: Word = entry2.clone().try_into().unwrap();
 
     let publisher1 =
         create_and_deploy_publisher_account(&mut client, pair_word, entry1_as_word).await?;
@@ -384,9 +385,7 @@ async fn test_oracle_get_median() -> Result<()> {
 
         begin
             push.{pair}
-            debug.stack
             call.oracle_module::get_median
-            debug.stack
             exec.sys::truncate_stack
         end
         ",
@@ -403,19 +402,22 @@ async fn test_oracle_get_median() -> Result<()> {
             .clone(),
     )
     .context("Error while compiling the script")?;
-
-    let transaction_request = TransactionRequestBuilder::new()
-        .with_custom_script(tx_script)
-        .with_foreign_accounts(foreign_accounts)
-        .build()
-        .context("Error while building transaction request")?;
-
-    // Execute the get_median transaction
-    let _ = client
-        .new_transaction(oracle_account.id(), transaction_request)
+    let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
+    let output_stack = client
+        .execute_program(
+            oracle_account.id(),
+            tx_script,
+            AdviceInputs::default(),
+            foreign_accounts_set,
+        )
         .await
-        .context("Error while creating a transaction")?;
-
+        .unwrap();
+    // Get the median value from the stack
+    let median = output_stack
+        .first()
+        .ok_or_else(|| anyhow::anyhow!("No median value returned"))?;
+    let expected_price = (entry1.price + entry2.price) / 2;
+    assert_eq!(expected_price, <Felt as Into<u64>>::into(*median));
     Ok(())
 }
 

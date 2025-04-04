@@ -315,7 +315,6 @@ pub async fn execute_get_entry_transaction(
             push.{publisher_id_suffix} push.{publisher_id_prefix}
             call.oracle_module::get_entry
             exec.sys::truncate_stack
-            debug.stack
         end
         ",
         pair = word_to_masm(pair_word),

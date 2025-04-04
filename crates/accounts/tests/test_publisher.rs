@@ -1,10 +1,12 @@
 mod common;
 use anyhow::{Context, Result};
 use miden_client::transaction::TransactionRequestBuilder;
-use miden_crypto::Word;
+use miden_crypto::{Felt, Word};
 use miden_lib::transaction::TransactionKernel;
-use miden_objects::transaction::TransactionScript;
+use miden_objects::{transaction::TransactionScript, vm::AdviceInputs};
 use pm_types::{Currency, Entry, Pair};
+use std::collections::BTreeSet;
+use std::str::FromStr;
 
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 
@@ -121,7 +123,7 @@ async fn test_publisher_get_entry() -> Result<()> {
 
     // Create pair word from entry
     let pair_word = entry.pair.to_word();
-    let entry_as_word: Word = entry.try_into().unwrap();
+    let entry_as_word: Word = entry.clone().try_into().unwrap();
     // Create and deploy publisher account with the entry
     let publisher_account =
         create_and_deploy_publisher_account(&mut client, pair_word, entry_as_word).await?;
@@ -136,7 +138,6 @@ async fn test_publisher_get_entry() -> Result<()> {
             push.{pair}
 
             call.publisher_module::get_entry
-            debug.stack
             exec.sys::truncate_stack
         end
         ",
@@ -154,17 +155,22 @@ async fn test_publisher_get_entry() -> Result<()> {
     )
     .map_err(|e| anyhow::anyhow!("Error while compiling the script: {}", e))?;
 
-    // Create transaction request
-    let transaction_request = TransactionRequestBuilder::new()
-        .with_custom_script(get_entry_script)
-        .build()
-        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {}", e))?;
-
-    // Execute the get_entry transaction
-    let _ = client
-        .new_transaction(publisher_account.id(), transaction_request)
+    let output_stack = client
+        .execute_program(
+            publisher_account.id(),
+            get_entry_script,
+            AdviceInputs::default(),
+            BTreeSet::new(),
+        )
         .await
-        .context("Error while creating a transaction")?;
-
+        .unwrap();
+    println!("Here is the output stack: {:?}", output_stack);
+    let expected_entry = Entry {
+        pair: entry.pair.clone(), // Normal, should be removed
+        price: output_stack[2].into(),
+        decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
+        timestamp: output_stack[0].into(),
+    };
+    assert_eq!(expected_entry, entry);
     Ok(())
 }

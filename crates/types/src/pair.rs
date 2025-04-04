@@ -3,7 +3,7 @@ use std::str::FromStr;
 use crate::currency::Currency;
 use miden_client::{Felt, Word, ZERO};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pair {
     pub base: Currency,
     pub quote: Currency,

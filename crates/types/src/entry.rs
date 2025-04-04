@@ -1,7 +1,7 @@
 use miden_client::{Felt, Word};
 
 use crate::pair::Pair;
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
     pub pair: Pair,
     // TODO(akhercha): We may prefer a u128 for more precision.
