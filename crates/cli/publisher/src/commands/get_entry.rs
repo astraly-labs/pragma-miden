@@ -1,9 +1,11 @@
 use miden_client::account::AccountId;
 use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder, TransactionScript};
-use miden_client::Client;
+use miden_client::{Client, Felt};
+use miden_objects::vm::AdviceInputs;
 use pm_accounts::publisher::get_publisher_component_library;
 use pm_accounts::utils::word_to_masm;
-use pm_types::Pair;
+use pm_types::{Entry, Pair};
+use std::collections::BTreeSet;
 use std::str::FromStr;
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -17,7 +19,7 @@ pub struct GetEntryCmd {
 // This CLI command is used to call the get_entry getter function from the publisher, and output it in the stack.
 // This is useful for debugging purposes, but it's better to call the entry command to get a more user-friendly output.
 impl GetEntryCmd {
-    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<Entry> {
         // let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
 
         // let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
@@ -33,14 +35,11 @@ impl GetEntryCmd {
                 push.{pair}
 
                 call.publisher_module::get_entry
-                debug.stack
                 exec.sys::truncate_stack
             end
             ",
             pair = word_to_masm(pair.to_word()),
         );
-
-        // TODO: Can we pipe stdout to a variable so we can see the stack??
 
         let get_entry_script = TransactionScript::compile(
             tx_script_code,
@@ -55,15 +54,21 @@ impl GetEntryCmd {
         )
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
-        let transaction_request = TransactionRequestBuilder::new()
-            .with_custom_script(get_entry_script)
-            .build()
-            .unwrap();
-        let tx_result = client
-            .new_transaction(publisher_id, transaction_request)
+        let output_stack = client
+            .execute_program(
+                publisher_id,
+                get_entry_script,
+                AdviceInputs::default(),
+                BTreeSet::new(),
+            )
             .await
-            .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
-
-        Ok(())
+            .unwrap();
+        println!("Here is the output stack: {:?}", output_stack);
+        Ok(Entry {
+            pair: Pair::from_str(&self.pair).unwrap(),
+            price: output_stack[2].into(),
+            decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
+            timestamp: output_stack[0].into(),
+        })
     }
 }

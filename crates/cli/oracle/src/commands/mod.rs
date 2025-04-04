@@ -9,16 +9,28 @@ pub mod sync;
 use std::path::PathBuf;
 
 use clap::Parser;
+use miden_client::Felt;
 
 use entry::EntryCmd;
 use get_entry::GetEntryCmd;
 use init::InitCmd;
 use median::MedianCmd;
+use pm_types::Entry;
 use publishers::PublishersCmd;
 use register_publisher::RegisterPublisherCmd;
 use sync::SyncCmd;
 
 use pm_utils_cli::{setup_devnet_client, setup_testnet_client, STORE_FILENAME};
+
+#[derive(Debug)]
+pub enum CommandOutput {
+    /// No specific output value
+    None,
+    /// A single Felt value
+    Felt(Felt),
+    // Entry
+    Entry(Entry),
+}
 
 #[derive(Debug, Parser, Clone)]
 pub enum SubCommand {
@@ -47,21 +59,40 @@ pub enum SubCommand {
 }
 
 impl SubCommand {
-    pub async fn call(&self) -> anyhow::Result<()> {
+    pub async fn call(&self) -> anyhow::Result<CommandOutput> {
         let crate_path = PathBuf::new();
         let store_config = crate_path.join(STORE_FILENAME);
         let mut client = setup_testnet_client(Some(store_config)).await.unwrap();
 
         match self {
-            Self::Init(cmd) => cmd.call(&mut client).await?,
-            Self::Sync(cmd) => cmd.call(&mut client).await?,
-            Self::RegisterPublisher(cmd) => cmd.call(&mut client).await?,
-            Self::Entry(cmd) => cmd.call(&mut client).await?,
-            Self::Median(cmd) => cmd.call(&mut client).await?,
-            Self::Publishers(cmd) => cmd.call(&mut client).await?,
-            Self::GetEntry(cmd) => cmd.call(&mut client).await?,
+            Self::Init(cmd) => {
+                cmd.call(&mut client).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::Sync(cmd) => {
+                cmd.call(&mut client).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::RegisterPublisher(cmd) => {
+                cmd.call(&mut client).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::Entry(cmd) => {
+                cmd.call(&mut client).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::Median(cmd) => {
+                let median = cmd.call(&mut client).await?;
+                Ok(CommandOutput::Felt(median))
+            }
+            Self::Publishers(cmd) => {
+                cmd.call(&mut client).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::GetEntry(cmd) => {
+                let entry = cmd.call(&mut client).await?;
+                Ok(CommandOutput::Entry(entry))
+            }
         }
-
-        Ok(())
     }
 }

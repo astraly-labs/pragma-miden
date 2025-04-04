@@ -5,11 +5,13 @@ use miden_client::transaction::{
     ForeignAccount, ForeignAccountInputs, TransactionKernel, TransactionRequestBuilder,
     TransactionScript,
 };
-use miden_client::Client;
+use miden_client::{Client, Felt};
+use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use std::collections::BTreeSet;
 use std::str::FromStr;
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -20,7 +22,7 @@ pub struct MedianCmd {
 }
 
 impl MedianCmd {
-    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<Felt> {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
 
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
@@ -76,7 +78,6 @@ impl MedianCmd {
             begin
                 push.{pair}
                 call.oracle_module::get_median
-                debug.stack
                 exec.sys::truncate_stack
             end
             ",
@@ -96,20 +97,23 @@ impl MedianCmd {
                 .clone(),
         )
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
-
-        let transaction_request = TransactionRequestBuilder::new()
-            .with_custom_script(median_script)
-            .with_foreign_accounts(foreign_accounts);
-
-        let transaction_request = transaction_request
-            .build()
-            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
-
-        let _ = client
-            .new_transaction(oracle_id, transaction_request)
+        let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
+        let output_stack = client
+            .execute_program(
+                oracle_id,
+                median_script,
+                AdviceInputs::default(),
+                foreign_accounts_set,
+            )
             .await
-            .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
+            .unwrap();
+        // Get the median value from the stack
+        let median = output_stack
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("No median value returned"))?;
 
-        Ok(())
+        // Print for CLI users
+        println!("Median value: {}", median);
+        Ok(*median)
     }
 }

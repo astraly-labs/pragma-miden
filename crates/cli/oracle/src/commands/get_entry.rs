@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::str::FromStr;
 
 use miden_client::account::AccountId;
@@ -6,11 +7,12 @@ use miden_client::transaction::{
     ForeignAccount, ForeignAccountInputs, TransactionKernel, TransactionRequestBuilder,
     TransactionScript,
 };
-use miden_client::Client;
+use miden_client::{Client, Felt};
 
+use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
-use pm_types::Pair;
+use pm_types::{Entry, Pair};
 use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -22,7 +24,7 @@ pub struct GetEntryCmd {
 }
 
 impl GetEntryCmd {
-    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client) -> anyhow::Result<Entry> {
         let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
         let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
         let oracle_id = AccountId::from_hex(oracle_id).unwrap();
@@ -56,7 +58,6 @@ impl GetEntryCmd {
                 push.{account_id_suffix} push.{account_id_prefix}
                 call.oracle_module::get_entry
                 exec.sys::truncate_stack
-                debug.stack
             end
             ",
             pair = word_to_masm(pair.to_word()),
@@ -76,16 +77,22 @@ impl GetEntryCmd {
                 })?,
         )
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
-
-        let transaction_request = TransactionRequestBuilder::new()
-            .with_foreign_accounts([foreign_account])
-            .with_custom_script(get_entry_script)
-            .build()
-            .unwrap();
-        let _ = client
-            .new_transaction(oracle_id, transaction_request)
+        let mut foreign_accounts_set: BTreeSet<ForeignAccount> = BTreeSet::new();
+        foreign_accounts_set.insert(foreign_account);
+        let output_stack = client
+            .execute_program(
+                oracle_id,
+                get_entry_script,
+                AdviceInputs::default(),
+                foreign_accounts_set,
+            )
             .await
-            .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
-        Ok(())
+            .unwrap();
+        Ok(Entry {
+            pair: Pair::from_str(&self.pair).unwrap(),
+            price: output_stack[2].into(),
+            decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
+            timestamp: output_stack[0].into(),
+        })
     }
 }

@@ -1,4 +1,6 @@
+use std::str::FromStr;
 use std::{
+    collections::BTreeSet,
     path::PathBuf,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -18,9 +20,12 @@ use miden_client::{
     },
     Client, ClientError,
 };
-use miden_crypto::{hash::rpo::RpoDigest, Word};
+use miden_crypto::{hash::rpo::RpoDigest, Felt, Word};
 use miden_lib::transaction::TransactionKernel;
-use miden_objects::account::{Account, StorageMap, StorageSlot};
+use miden_objects::{
+    account::{Account, StorageMap, StorageSlot},
+    vm::AdviceInputs,
+};
 use pm_accounts::{
     oracle::{get_oracle_component_library, OracleAccountBuilder},
     publisher::PublisherAccountBuilder,
@@ -287,7 +292,7 @@ pub async fn execute_get_entry_transaction(
     oracle_id: AccountId,
     publisher_id: AccountId,
     pair_word: Word,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Entry> {
     // Sync state
     client.sync_state().await.unwrap();
 
@@ -339,22 +344,22 @@ pub async fn execute_get_entry_transaction(
     )
     .unwrap();
 
-    // Create transaction request
-    let transaction_request = TransactionRequestBuilder::new()
-        .with_foreign_accounts([foreign_account])
-        .with_custom_script(get_entry_script)
-        .build()
-        .unwrap();
-
-    // Execute transaction
-    let tx_result = client
-        .new_transaction(oracle_id, transaction_request)
+    let mut foreign_accounts_set: BTreeSet<ForeignAccount> = BTreeSet::new();
+    foreign_accounts_set.insert(foreign_account);
+    let output_stack = client
+        .execute_program(
+            oracle_id,
+            get_entry_script,
+            AdviceInputs::default(),
+            foreign_accounts_set,
+        )
         .await
-        .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
-
-    // Wait for transaction to be processed
-    tokio::time::sleep(Duration::from_secs(5)).await;
-    client.sync_state().await.unwrap();
-
-    Ok(())
+        .unwrap();
+    let pair = Pair::from_felts(pair_word).unwrap();
+    Ok(Entry {
+        pair: pair,
+        price: output_stack[2].into(),
+        decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
+        timestamp: output_stack[0].into(),
+    })
 }

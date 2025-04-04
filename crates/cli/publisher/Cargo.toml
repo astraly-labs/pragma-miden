@@ -32,6 +32,7 @@ rand.workspace = true
 rusqlite.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+miden-objects.workspace = true
 pyo3.workspace = true
 
 [build-dependencies]
