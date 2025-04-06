@@ -24,3 +24,6 @@ pm-utils-cli.workspace = true
 anyhow.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
+once_cell = "1.18.0"
+tempfile = "3.8.0"
+uuid.workspace = true

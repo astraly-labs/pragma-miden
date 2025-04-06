@@ -42,6 +42,7 @@ pub struct OracleAccountBuilder<'a> {
     client: Option<&'a mut Client>,
     account_type: String, // Temporary fix, because AccountType is not consistent between the Client and the Object
     storage_slots: Vec<StorageSlot>,
+    keystore_path: String,
 }
 
 impl<'a> OracleAccountBuilder<'a> {
@@ -59,6 +60,7 @@ impl<'a> OracleAccountBuilder<'a> {
             client: None,
             account_type: ClientAccountType::RegularAccountImmutableCode.to_string(),
             storage_slots: default_storage_slots,
+            keystore_path: "./keystore".to_string(),
         }
     }
 
@@ -77,13 +79,17 @@ impl<'a> OracleAccountBuilder<'a> {
         self
     }
 
+    pub fn with_keystore_path(mut self, path: String) -> Self {
+        self.keystore_path = path;
+        self
+    }
+
     pub async fn build(self) -> (Account, Word) {
         let client_account_type: ClientAccountType = self.account_type.parse().unwrap();
         let oracle_component =
             AccountComponent::new(get_oracle_component_library(), self.storage_slots)
                 .unwrap()
                 .with_supports_all_types();
-
         let client = self.client.expect("build must have a Miden Client!");
         let client_rng = client.rng();
         let private_key = SecretKey::with_rng(client_rng);
@@ -106,7 +112,7 @@ impl<'a> OracleAccountBuilder<'a> {
             .unwrap();
 
         let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
-            FilesystemKeyStore::new("./keystore".into()).unwrap();
+            FilesystemKeyStore::new(self.keystore_path.into()).unwrap();
         keystore
             .add_key(&AuthSecretKey::RpoFalcon512(private_key))
             .unwrap();

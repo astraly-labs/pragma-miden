@@ -26,3 +26,7 @@ pragma_miden_accounts.json
 # Keystore
 **/keystore/
 keystore/
+
+# Store 
+**/store/
+store/

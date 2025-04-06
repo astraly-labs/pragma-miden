@@ -46,7 +46,7 @@ impl SubCommand {
     pub async fn call(&self) -> anyhow::Result<CommandOutput> {
         let crate_path = PathBuf::new();
         let store_config = crate_path.join(STORE_FILENAME);
-        let mut client = setup_testnet_client(Some(store_config)).await.unwrap();
+        let mut client = setup_devnet_client(Some(store_config), None).await.unwrap();
 
         match self {
             Self::Init(cmd) => {

@@ -42,11 +42,11 @@ impl GetEntryCmd {
             .unwrap()
             .expect("Oracle account not found");
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
-        let foreign_account_inputs = ForeignAccountInputs::from_account(
-            publisher.account().clone(),
-            &AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
-        )?;
-        let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
+        let foreign_account = ForeignAccount::public(
+            publisher.account().id(),
+            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+        )
+        .unwrap();
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module

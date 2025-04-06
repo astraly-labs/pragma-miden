@@ -1,0 +1,32 @@
+
+
+use.std::sys
+use.miden::tx
+
+
+#! Calls the ORACLE_ID get_median procedure of the provided account.
+#!
+#! Inputs: [ORACLE_ID, PAIR]
+#! Output: [ENTRY]
+proc.call_oracle_get_median
+
+    push.0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9
+    # => [GET_MEDIAN_HASH, ORACLE_ID, PAIR]
+    swapw swap.2 drop swap.2 drop
+    # => [oracle_id,oracle_id,  GET_ENTRY_HASH, PAIR]
+    exec.tx::execute_foreign_procedure
+    # => [price]
+end
+
+
+#! Simple function that takes an asset and a price, and return if the input price is greater than the actual price
+#! Inputs: [ORACLE_ID, PAIR_ID, PRICE]
+#! Outputs: [bool]
+export.is_greater
+    exec.call_oracle_get_median
+    # => [actual_price, PRICE]
+    movdn.4 drop drop drop
+    # => [price, actual_price]
+    lt
+    # => [bool]
+end

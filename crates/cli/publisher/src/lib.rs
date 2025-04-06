@@ -15,6 +15,7 @@ pub const STORE_SIMPLE_FILENAME: &str = "miden_storage/store.sqlite3";
 fn py_init(
     oracle_id: Option<String>,
     storage_path: Option<String>,
+    keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -30,7 +31,7 @@ fn py_init(
 
         // Use appropriate client setup based on network parameter
         let mut client = match network.as_deref() {
-            Some("devnet") => setup_devnet_client(Option::Some(store_config))
+            Some("devnet") => setup_devnet_client(Option::Some(store_config), keystore_path)
                 .await
                 .map_err(|e| {
                     PyValueError::new_err(format!("Failed to setup devnet client: {}", e))
@@ -61,6 +62,7 @@ fn py_publish(
     decimals: u32,
     timestamp: u64,
     storage_path: Option<String>,
+    keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -75,7 +77,7 @@ fn py_publish(
 
         // Use appropriate client setup based on network parameter
         let mut client = match network.as_deref() {
-            Some("devnet") => setup_devnet_client(Option::Some(store_config))
+            Some("devnet") => setup_devnet_client(Option::Some(store_config), keystore_path)
                 .await
                 .map_err(|e| {
                     PyValueError::new_err(format!("Failed to setup devnet client: {}", e))
@@ -109,6 +111,7 @@ fn py_get_entry(
     publisher_id: String,
     pair: String,
     storage_path: Option<String>,
+    keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -123,7 +126,7 @@ fn py_get_entry(
 
         // Use appropriate client setup based on network parameter
         let mut client = match network.as_deref() {
-            Some("devnet") => setup_devnet_client(Option::Some(store_config))
+            Some("devnet") => setup_devnet_client(Option::Some(store_config), keystore_path)
                 .await
                 .map_err(|e| {
                     PyValueError::new_err(format!("Failed to setup devnet client: {}", e))
@@ -151,6 +154,7 @@ fn py_entry(
     publisher_id: String,
     pair: String,
     storage_path: Option<String>,
+    keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -165,7 +169,7 @@ fn py_entry(
 
         // Use appropriate client setup based on network parameter
         let mut client = match network.as_deref() {
-            Some("devnet") => setup_devnet_client(Option::Some(store_config))
+            Some("devnet") => setup_devnet_client(Option::Some(store_config), keystore_path)
                 .await
                 .map_err(|e| {
                     PyValueError::new_err(format!("Failed to setup devnet client: {}", e))
@@ -189,7 +193,11 @@ fn py_entry(
 /// Sync state
 #[pyfunction]
 #[pyo3(name = "sync")]
-fn py_sync(storage_path: Option<String>, network: Option<String>) -> PyResult<String> {
+fn py_sync(
+    storage_path: Option<String>,
+    keystore_path: Option<String>,
+    network: Option<String>,
+) -> PyResult<String> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -202,7 +210,7 @@ fn py_sync(storage_path: Option<String>, network: Option<String>) -> PyResult<St
 
         // Use appropriate client setup based on network parameter
         let mut client = match network.as_deref() {
-            Some("devnet") => setup_devnet_client(Option::Some(store_config))
+            Some("devnet") => setup_devnet_client(Option::Some(store_config), keystore_path)
                 .await
                 .map_err(|e| {
                     PyValueError::new_err(format!("Failed to setup devnet client: {}", e))

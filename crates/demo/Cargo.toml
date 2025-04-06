@@ -1,6 +1,6 @@
 [package]
 name = "pm-demo"
-description = "Pragma-Miden demo"
+description = "Pragma-Miden example"
 authors.workspace = true
 homepage.workspace = true
 edition.workspace = true
@@ -8,16 +8,9 @@ repository.workspace = true
 version.workspace = true
 license.workspace = true
 
-[lib]
-name = "pm_demo"
-path = "src/lib.rs"
-
-[[bin]]
-name = "pm-demo"
-path = "src/main.rs"
-
 [lints]
 workspace = true
+
 
 [dependencies]
 miden-assembly.workspace = true
@@ -32,4 +25,6 @@ pm-utils-cli.workspace = true
 anyhow.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
-pm-accounts.workspace = true
+once_cell = "1.18.0"
+tempfile = "3.8.0"
+uuid.workspace = true

@@ -13,11 +13,16 @@ use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_mas
 use common::{
     create_and_deploy_publisher_account, execute_tx_and_sync, mock_entry, setup_test_environment,
 };
+use pm_utils_cli::STORE_TEST_FILENAME;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn test_publisher_publish_entry() -> Result<()> {
     // Setup client and environment
-    let (mut client, _) = setup_test_environment().await;
+
+    let unique_id = Uuid::new_v4();
+    let (mut client, store_config) =
+        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
 
     // Create a new entry to publish
     let entry = Entry {
@@ -116,7 +121,10 @@ async fn test_publisher_publish_entry() -> Result<()> {
 #[tokio::test]
 async fn test_publisher_get_entry() -> Result<()> {
     // Setup client and environment
-    let (mut client, _) = setup_test_environment().await;
+    let unique_id = Uuid::new_v4();
+
+    let (mut client, store_config) =
+        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
 
     // Create an entry to store in the publisher account
     let entry = mock_entry();

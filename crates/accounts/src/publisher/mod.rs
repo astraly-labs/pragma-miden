@@ -43,6 +43,7 @@ pub struct PublisherAccountBuilder<'a> {
     client: Option<&'a mut Client>,
     account_type: AccountType,
     storage_slots: Vec<StorageSlot>,
+    keystore_path: String,
 }
 
 impl<'a> PublisherAccountBuilder<'a> {
@@ -52,6 +53,7 @@ impl<'a> PublisherAccountBuilder<'a> {
             client: None,
             account_type: AccountType::RegularAccountImmutableCode,
             storage_slots: default_storage_slots,
+            keystore_path: "./keystore".to_string(),
         }
     }
 
@@ -67,6 +69,11 @@ impl<'a> PublisherAccountBuilder<'a> {
 
     pub fn with_client(mut self, client: &'a mut Client) -> Self {
         self.client = Some(client);
+        self
+    }
+
+    pub fn with_keystore_path(mut self, path: String) -> Self {
+        self.keystore_path = path;
         self
     }
 
@@ -92,7 +99,7 @@ impl<'a> PublisherAccountBuilder<'a> {
         let anchor_block = client.get_latest_epoch_block().await.unwrap();
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
-            .storage_mode(AccountStorageMode::Private)
+            .storage_mode(AccountStorageMode::Public)
             .with_component(auth_component)
             .with_component(publisher_component)
             .anchor((&anchor_block).try_into().unwrap())
@@ -104,7 +111,7 @@ impl<'a> PublisherAccountBuilder<'a> {
             .await
             .unwrap();
         let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
-            FilesystemKeyStore::new("./keystore".into()).unwrap();
+            FilesystemKeyStore::new(self.keystore_path.into()).unwrap();
         keystore
             .add_key(&AuthSecretKey::RpoFalcon512(private_key))
             .unwrap();

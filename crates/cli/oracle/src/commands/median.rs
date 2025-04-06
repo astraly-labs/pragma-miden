@@ -66,7 +66,11 @@ impl MedianCmd {
                 publisher.account().clone(),
                 &AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
             )?;
-            let foreign_account = ForeignAccount::private(foreign_account_inputs).unwrap();
+            let foreign_account = ForeignAccount::public(
+                publisher_id,
+                AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+            )
+            .unwrap();
             foreign_accounts.push(foreign_account);
         }
 

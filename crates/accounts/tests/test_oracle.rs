@@ -1,6 +1,7 @@
 // pub mod common;
 
 use std::collections::BTreeSet;
+use std::path::PathBuf;
 use std::vec;
 mod common;
 use anyhow::{Context, Result};
@@ -28,6 +29,8 @@ use common::{
     execute_get_entry_transaction, execute_tx_and_sync, mock_entry, random_entry,
     setup_test_environment,
 };
+use pm_utils_cli::STORE_TEST_FILENAME;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn test_oracle_get_entry() -> Result<()> {
@@ -35,8 +38,9 @@ async fn test_oracle_get_entry() -> Result<()> {
     let pair_word = entry.pair.to_word();
     let entry_as_word: Word = entry.clone().try_into().unwrap();
 
-    let (mut client, store_config) = setup_test_environment().await;
-    println!("do we reach here ? ");
+    let unique_id = Uuid::new_v4();
+    let (mut client, store_config) =
+        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
 
     let publisher_account =
         create_and_deploy_publisher_account(&mut client, pair_word, entry_as_word).await?;
@@ -47,8 +51,6 @@ async fn test_oracle_get_entry() -> Result<()> {
         publisher_account.id().suffix(),
         publisher_account.id().prefix().as_felt(),
     ];
-
-    println!("do we reach here ? ");
     let mut storage_slots = vec![
         // Storage for account (index 0)
         StorageSlot::Value([Felt::new(4), ZERO, ZERO, ZERO]),
@@ -87,7 +89,9 @@ async fn test_oracle_get_entry() -> Result<()> {
 #[tokio::test]
 async fn test_oracle_register_publisher() -> Result<()> {
     // Setup client and environment
-    let (mut client, _) = setup_test_environment().await;
+    let unique_id = Uuid::new_v4();
+    let (mut client, store_config) =
+        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
 
     // Create and deploy oracle account with default storage
     let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
@@ -163,7 +167,9 @@ async fn test_oracle_register_publisher() -> Result<()> {
 #[tokio::test]
 async fn test_oracle_register_publisher_fails_if_publisher_already_registered() -> Result<()> {
     // Setup client and environment
-    let (mut client, _) = setup_test_environment().await;
+    let unique_id = Uuid::new_v4();
+    let (mut client, store_config) =
+        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
 
     // Create and deploy oracle account with default storage
     let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
@@ -272,7 +278,9 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
 #[tokio::test]
 async fn test_oracle_get_median() -> Result<()> {
     // Setup client and environment
-    let (mut client, _) = setup_test_environment().await;
+    let unique_id = Uuid::new_v4();
+    let (mut client, store_config) =
+        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
 
     // Create entries with different prices for testing median
     let entry1 = Entry {
@@ -364,14 +372,11 @@ async fn test_oracle_get_median() -> Result<()> {
             .context("Failed to get publisher account")?
             .context("Publisher account not found")?;
 
-        let foreign_account_inputs = ForeignAccountInputs::from_account(
-            publisher_account.account().clone(),
-            &AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]),
+        let foreign_account = ForeignAccount::public(
+            publisher_id,
+            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]),
         )
-        .context("Failed to create foreign account inputs")?;
-
-        let foreign_account = ForeignAccount::private(foreign_account_inputs)
-            .context("Failed to create foreign account")?;
+        .context("Failed to create foreign account")?;
         foreign_accounts.push(foreign_account);
     }
 

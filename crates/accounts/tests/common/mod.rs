@@ -185,13 +185,16 @@ pub async fn wait_for_blocks(client: &mut TestClient, amount_of_blocks: u32) -> 
     }
 }
 
-pub async fn setup_test_environment() -> (Client, PathBuf) {
+pub async fn setup_test_environment(store_filename: String) -> (Client, PathBuf) {
     let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let db_path = crate_path.parent().unwrap().parent().unwrap();
-    let store_config = db_path.join(STORE_FILENAME);
-    let mut client = setup_devnet_client(Some(store_config.clone()))
-        .await
-        .unwrap();
+    let store_config = db_path.join(store_filename);
+    let mut client = setup_devnet_client(
+        Some(store_config.clone()),
+        Some("./crates/accounts/tests/keystore".to_string()),
+    )
+    .await
+    .unwrap();
     wait_for_node(&mut client).await;
 
     (client, store_config)
@@ -337,9 +340,9 @@ pub async fn execute_get_entry_transaction(
     let storage_requirements =
         AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]);
 
-    let foreign_account = ForeignAccount::private(
-        ForeignAccountInputs::from_account(publisher.account().clone(), &storage_requirements)
-            .unwrap(),
+    let foreign_account = ForeignAccount::public(
+        publisher_id,
+        AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]),
     )
     .unwrap();
 
@@ -354,7 +357,7 @@ pub async fn execute_get_entry_transaction(
         )
         .await
         .unwrap();
-    let pair = Pair::from_felts(pair_word).unwrap();
+    let pair: Pair = pair_word[3].into();
     Ok(Entry {
         pair: pair,
         price: output_stack[2].into(),

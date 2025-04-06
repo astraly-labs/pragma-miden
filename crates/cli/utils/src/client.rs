@@ -7,7 +7,7 @@ use miden_client::{
     builder::ClientBuilder,
     crypto::{RpoRandomCoin, SecretKey},
     rpc::{Endpoint, TonicRpcClient},
-    store::sqlite_store::SqliteStore,
+    store::{sqlite_store::SqliteStore, StoreError},
     Client, ClientError, Felt, Word,
 };
 use rand::{Rng, RngCore};
@@ -17,7 +17,10 @@ use uuid::Uuid;
 // Client Setup
 // ================================================================================================
 
-pub async fn setup_devnet_client(path: Option<PathBuf>) -> Result<Client, ClientError> {
+pub async fn setup_devnet_client(
+    path: Option<PathBuf>,
+    keystore_path: Option<String>,
+) -> Result<Client, ClientError> {
     // let exec_dir = PathBuf::new();
     // let store_config = exec_dir.join(path);
     // RPC endpoint and timeout
@@ -50,7 +53,7 @@ pub async fn setup_devnet_client(path: Option<PathBuf>) -> Result<Client, Client
         .with_rpc(rpc_api)
         .with_rng(rng)
         .with_filesystem_keystore("./keystore")
-        .with_store(arc_store)
+        // .with_store(arc_store)
         .in_debug_mode(true)
         .build()
         .await?;
