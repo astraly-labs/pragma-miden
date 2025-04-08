@@ -1938,6 +1938,7 @@ dependencies = [
  "pyo3",
  "rand 0.9.0",
  "rusqlite",
+ "serde_json",
  "thiserror 1.0.69",
  "tokio",
 ]
@@ -1951,6 +1952,7 @@ dependencies = [
  "chrono",
  "clap",
  "colored",
+ "lazy_static",
  "miden-client",
  "miden-objects",
  "miden-tx",
@@ -1962,6 +1964,7 @@ dependencies = [
  "pyo3-build-config",
  "rand 0.9.0",
  "rusqlite",
+ "serde_json",
  "thiserror 1.0.69",
  "tokio",
 ]

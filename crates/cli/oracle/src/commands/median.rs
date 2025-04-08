@@ -10,8 +10,11 @@ use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
-use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use pm_utils_cli::{
+    get_oracle_id, JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE,
+};
 use std::collections::BTreeSet;
+use std::path::Path;
 use std::str::FromStr;
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -22,11 +25,9 @@ pub struct MedianCmd {
 }
 
 impl MedianCmd {
-    pub async fn call(&self, client: &mut Client) -> anyhow::Result<Felt> {
-        let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
+    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<Felt> {
+        let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
-        let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
-        let oracle_id = AccountId::from_hex(oracle_id).unwrap();
         client.sync_state().await.unwrap();
         let oracle = client
             .get_account(oracle_id)
@@ -62,10 +63,6 @@ impl MedianCmd {
                 .unwrap()
                 .expect("Publisher account not found");
 
-            let foreign_account_inputs = ForeignAccountInputs::from_account(
-                publisher.account().clone(),
-                &AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
-            )?;
             let foreign_account = ForeignAccount::public(
                 publisher_id,
                 AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),

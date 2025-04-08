@@ -1,8 +1,12 @@
+use std::path::Path;
+
 use anyhow::Context;
 use colored::*;
 use miden_client::account::AccountId;
 use miden_client::{Client, ZERO};
-use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use pm_utils_cli::{
+    get_oracle_id, JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE,
+};
 use prettytable::{Cell, Row, Table};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -10,13 +14,10 @@ use prettytable::{Cell, Row, Table};
 pub struct PublishersCmd {}
 
 impl PublishersCmd {
-    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
         client.sync_state().await.unwrap();
+        let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
-        let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
-
-        let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
-        let oracle_id = AccountId::from_hex(oracle_id).unwrap();
         let oracle = client
             .get_account(oracle_id)
             .await

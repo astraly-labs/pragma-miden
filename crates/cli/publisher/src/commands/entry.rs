@@ -1,25 +1,25 @@
 use chrono::{DateTime, Utc};
 use miden_client::{account::AccountId, Client};
 use pm_types::{Entry, Pair};
+use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use prettytable::{Cell, Row, Table};
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 #[derive(clap::Parser, Debug, Clone)]
-#[clap(about = "Retrieve an entry for a given pair (published by this publisher)")]
+#[clap(
+    about = "Retrieve an entry for a given pair (published by this publisher). This version read directly within the rust storage of the publisher"
+)]
 pub struct EntryCmd {
     // Input pair (format example: "BTC/USD")
-    pub publisher_id: String, // TODO: remove
     pub pair: String,
 }
 
 const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 1;
 
 impl EntryCmd {
-    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
         client.sync_state().await.unwrap();
-        // let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
-        // let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
-        let publisher_id = AccountId::from_hex(&self.publisher_id).unwrap();
+        let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
         let publisher = client
             .get_account(publisher_id)

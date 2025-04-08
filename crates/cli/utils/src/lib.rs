@@ -1,9 +1,11 @@
 pub mod client;
 pub mod constants;
+pub mod network;
 pub mod storage;
 
 pub use client::*;
 pub use constants::*;
+pub use network::*;
 pub use storage::*;
 
 use anyhow::Context;

@@ -1,6 +1,8 @@
 {
-  "data": {
-    "oracle_account_id": "0x8fceff39ad6e49000000af06b99c16",
-    "publisher_account_id": "0x8eb0e9a8939964000000569ae13ada"
+  "networks": {
+    "devnet": {
+      "oracle_account_id": "0x286659485bea1000000079606e3297",
+      "publisher_account_id": "0xc304954ec245610000000ff1fbbd63"
+    }
   }
 }

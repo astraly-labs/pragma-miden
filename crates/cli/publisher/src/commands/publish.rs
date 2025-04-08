@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 use miden_client::{
     account::AccountId,
@@ -8,12 +8,11 @@ use miden_client::{
 
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use pm_types::{Entry, Pair};
+use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Publish an entry(Callable by the publisher itself)")]
 pub struct PublishCmd {
-    // The publisher (to be removed)
-    pub publisher: String,
     pub pair: String, //"BTC/USD"
     pub price: u64,
     pub decimals: u32,
@@ -21,11 +20,8 @@ pub struct PublishCmd {
 }
 
 impl PublishCmd {
-    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
-        // let pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
-        // let publisher_id = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
-        let publisher_id = &self.publisher;
-        let publisher_id = AccountId::from_hex(publisher_id).unwrap();
+    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
+        let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
 

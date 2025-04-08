@@ -43,22 +43,36 @@ pub enum SubCommand {
 }
 
 impl SubCommand {
-    pub async fn call(&self) -> anyhow::Result<CommandOutput> {
+    pub async fn call(&self, network: &str) -> anyhow::Result<CommandOutput> {
         let crate_path = PathBuf::new();
         let store_config = crate_path.join(STORE_FILENAME);
-        let mut client = setup_devnet_client(Some(store_config), None).await.unwrap();
-
+        let mut client = match network {
+            "testnet" => {
+                println!("Using testnet client");
+                setup_testnet_client(Some(store_config), None).await?
+            }
+            "devnet" => {
+                println!("Using devnet client");
+                setup_devnet_client(Some(store_config), None).await?
+            }
+            other => {
+                return Err(anyhow::anyhow!(
+                    "Unknown network '{}'. Must be 'devnet' or 'testnet'",
+                    other
+                ));
+            }
+        };
         match self {
             Self::Init(cmd) => {
-                cmd.call(&mut client).await?;
+                cmd.call(&mut client, network).await?;
                 Ok(CommandOutput::None)
             }
             Self::Publish(cmd) => {
-                cmd.call(&mut client).await?;
+                cmd.call(&mut client, network).await?;
                 Ok(CommandOutput::None)
             }
             Self::Entry(cmd) => {
-                cmd.call(&mut client).await?;
+                cmd.call(&mut client, network).await?;
                 Ok(CommandOutput::None)
             }
             Self::Sync(cmd) => {
@@ -66,7 +80,7 @@ impl SubCommand {
                 Ok(CommandOutput::None)
             }
             Self::Get(cmd) => {
-                let entry = cmd.call(&mut client).await?;
+                let entry = cmd.call(&mut client, network).await?;
                 Ok(CommandOutput::Entry(entry))
             }
         }

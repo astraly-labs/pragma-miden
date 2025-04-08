@@ -1,14 +1,19 @@
+use std::path::Path;
+
 use colored::*;
 use miden_client::Client;
 use pm_accounts::oracle::OracleAccountBuilder;
-use pm_utils_cli::{JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use pm_utils_cli::{
+    set_oracle_id, JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE,
+};
+use serde_json::{self, json, Value};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Oracle Account")]
 pub struct InitCmd {}
 
 impl InitCmd {
-    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
         println!("⏳ Initiating the Oracle...\n");
         client.sync_state().await.unwrap();
 
@@ -18,9 +23,12 @@ impl InitCmd {
             .await;
         let created_oracle_id = oracle_account.id();
 
-        let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
-        pragma_storage.add_key(ORACLE_ACCOUNT_COLUMN, &created_oracle_id.to_string())?;
-
+        // Update the storage with the new oracle ID
+        set_oracle_id(
+            Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE),
+            network,
+            &created_oracle_id,
+        )?;
         println!();
 
         // Clear screen for better presentation

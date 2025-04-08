@@ -1,9 +1,12 @@
+use std::path::Path;
+
 use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder};
 use miden_client::Client;
 use miden_client::{account::AccountId, transaction::TransactionScript};
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_utils_cli::{
-    JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN,
+    get_oracle_id, JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE,
+    PUBLISHER_ACCOUNT_COLUMN,
 };
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -14,11 +17,9 @@ pub struct RegisterPublisherCmd {
 }
 
 impl RegisterPublisherCmd {
-    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
-        let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
+    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
+        let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
-        let oracle_id = pragma_storage.get_key(ORACLE_ACCOUNT_COLUMN).unwrap();
-        let oracle_id = AccountId::from_hex(oracle_id).unwrap();
         // just assert that the account exists
         client
             .get_account(oracle_id)
@@ -69,8 +70,6 @@ impl RegisterPublisherCmd {
             .submit_transaction(tx_result.clone())
             .await
             .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
-
-        pragma_storage.add_key(PUBLISHER_ACCOUNT_COLUMN, &self.publisher_id)?;
 
         println!("✅ Register successful!");
 

@@ -1,7 +1,12 @@
+use std::path::Path;
+
 use colored::*;
 use miden_client::Client;
 use pm_accounts::publisher::PublisherAccountBuilder;
-use pm_utils_cli::{JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN};
+use pm_utils_cli::{
+    set_publisher_id, JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN,
+};
+use serde_json::{self, json, Value};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Publisher Account")]
@@ -13,14 +18,12 @@ pub struct InitCmd {
 }
 
 impl InitCmd {
-    pub async fn call(&self, client: &mut Client) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
         // TODO: Refine this condition & logic
         // if JsonStorage::exists(PRAGMA_ACCOUNTS_STORAGE) && JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE).get_key(PUBLISHER_ACCOUNT_ID).is_some() {
         //     bail!("A Publisher has already been created! Delete it if you wanna start over.");
         // }
         client.sync_state().await.unwrap();
-
-        // TODO: Check that an oracle id has been provided or that it exists in the storage.
 
         let (publisher_account, _) = PublisherAccountBuilder::new()
             .with_client(client)
@@ -28,8 +31,12 @@ impl InitCmd {
             .await;
         let created_publisher_id = publisher_account.id();
 
-        let mut pragma_storage = JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE_FILE)?;
-        pragma_storage.add_key(PUBLISHER_ACCOUNT_COLUMN, &created_publisher_id.to_string())?;
+        // Update the storage with the new oracle ID
+        set_publisher_id(
+            Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE),
+            network,
+            &created_publisher_id,
+        )?;
 
         // Clear screen for better presentation
         print!("\x1B[2J\x1B[1;1H");

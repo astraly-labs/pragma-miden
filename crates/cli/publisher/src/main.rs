@@ -6,6 +6,10 @@ use commands::SubCommand;
 #[command(name = "pm-publisher")]
 #[command(about = "Pragma Miden publisher CLI")]
 struct Cli {
+    /// Network to use (devnet or testnet)
+    #[clap(short = 'n', long = "network", default_value = "devnet", global = true)]
+    pub network: String,
+
     #[command(subcommand)]
     command: SubCommand,
 }
@@ -13,6 +17,6 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    cli.command.call().await?;
+    cli.command.call(&cli.network).await?;
     Ok(())
 }
