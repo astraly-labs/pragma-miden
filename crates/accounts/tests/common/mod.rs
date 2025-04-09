@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use std::{
     collections::BTreeSet,
     path::PathBuf,
@@ -15,7 +14,7 @@ use miden_client::{
     store::TransactionFilter,
     sync::SyncSummary,
     transaction::{
-        ForeignAccount, ForeignAccountInputs, TransactionId, TransactionRequest,
+        ForeignAccount, TransactionId, TransactionRequest,
         TransactionRequestBuilder, TransactionResult, TransactionScript,
     },
     Client, ClientError,
@@ -32,7 +31,7 @@ use pm_accounts::{
     utils::word_to_masm,
 };
 use pm_types::{Currency, Entry, Pair};
-use pm_utils_cli::{setup_devnet_client, STORE_FILENAME};
+use pm_utils_cli::setup_devnet_client;
 use rand::Rng;
 
 pub type TestClient = Client;

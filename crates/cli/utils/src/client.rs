@@ -7,12 +7,10 @@ use miden_client::{
     builder::ClientBuilder,
     crypto::{RpoRandomCoin, SecretKey},
     rpc::{Endpoint, TonicRpcClient},
-    store::{sqlite_store::SqliteStore, StoreError},
     Client, ClientError, Felt, Word,
 };
 use rand::{Rng, RngCore};
-use std::{env::temp_dir, path::PathBuf, sync::Arc};
-use uuid::Uuid;
+use std::{path::PathBuf, sync::Arc};
 
 // Client Setup
 // ================================================================================================

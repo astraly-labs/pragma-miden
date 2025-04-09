@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use miden_client::{account::AccountId, Client};
+use miden_client::Client;
 use pm_types::{Entry, Pair};
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use prettytable::{Cell, Row, Table};

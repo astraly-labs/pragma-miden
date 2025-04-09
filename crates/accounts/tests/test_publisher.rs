@@ -6,7 +6,6 @@ use miden_lib::transaction::TransactionKernel;
 use miden_objects::{transaction::TransactionScript, vm::AdviceInputs};
 use pm_types::{Currency, Entry, Pair};
 use std::collections::BTreeSet;
-use std::str::FromStr;
 
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 

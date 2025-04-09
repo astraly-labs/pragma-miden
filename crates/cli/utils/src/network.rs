@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use miden_client::account::AccountId;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::{fs, path::Path};
 
 use crate::JsonStorage;

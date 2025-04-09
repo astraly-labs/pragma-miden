@@ -5,7 +5,7 @@ use std::str::FromStr;
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{
-    ForeignAccount, ForeignAccountInputs, TransactionKernel, TransactionRequestBuilder,
+    ForeignAccount, TransactionKernel,
     TransactionScript,
 };
 use miden_client::{Client, Felt};
@@ -15,7 +15,7 @@ use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::{Entry, Pair};
 use pm_utils_cli::{
-    get_oracle_id, JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE,
+    get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE,
 };
 
 #[derive(clap::Parser, Debug, Clone)]

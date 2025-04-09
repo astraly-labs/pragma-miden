@@ -1,13 +1,12 @@
 // pub mod common;
 
 use std::collections::BTreeSet;
-use std::path::PathBuf;
 use std::vec;
 mod common;
 use anyhow::{Context, Result};
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
-use miden_client::transaction::{ForeignAccount, ForeignAccountInputs, TransactionRequestBuilder};
+use miden_client::transaction::{ForeignAccount, TransactionRequestBuilder};
 use miden_client::{Client, Felt, Word};
 use miden_crypto::{hash::rpo::RpoDigest, ZERO};
 use miden_lib::transaction::TransactionKernel;

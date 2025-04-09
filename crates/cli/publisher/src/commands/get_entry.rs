@@ -1,5 +1,4 @@
-use miden_client::account::AccountId;
-use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder, TransactionScript};
+use miden_client::transaction::{TransactionKernel, TransactionScript};
 use miden_client::{Client, Felt};
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::publisher::get_publisher_component_library;

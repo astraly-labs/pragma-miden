@@ -1,7 +1,6 @@
 use std::{path::Path, str::FromStr};
 
 use miden_client::{
-    account::AccountId,
     transaction::{TransactionKernel, TransactionRequestBuilder, TransactionScript},
     Client, Word,
 };

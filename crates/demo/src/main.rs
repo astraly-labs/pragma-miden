@@ -11,12 +11,9 @@ use miden_assembly::{
 };
 use miden_client::{
     account::{Account, AccountId, AccountStorageMode, AccountType as ClientAccountType},
-    auth::AuthSecretKey,
-    crypto::SecretKey,
-    keystore::FilesystemKeyStore,
-    rpc::domain::account::{AccountStorageRequirements, StorageMapKey, StorageSlotIndex},
+    rpc::domain::account::{AccountStorageRequirements, StorageMapKey},
     transaction::{
-        ForeignAccount, ForeignAccountInputs, TransactionRequestBuilder, TransactionScript,
+        ForeignAccount, TransactionRequestBuilder, TransactionScript,
     },
     Client, Word,
 };
@@ -28,13 +25,11 @@ use pm_utils_cli::{
 use rand::Rng;
 use std::str::FromStr;
 
-use miden_lib::{account::auth::RpoFalcon512, transaction::TransactionKernel};
+use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
     account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
     assembly::Library,
-    crypto::dsa::rpo_falcon512::PublicKey,
     vm::AdviceInputs,
-    Digest,
 };
 
 pub const EXAMPLE_ACCOUNT_MASM: &str = include_str!("example.masm");

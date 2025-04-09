@@ -4,9 +4,8 @@ use colored::*;
 use miden_client::Client;
 use pm_accounts::publisher::PublisherAccountBuilder;
 use pm_utils_cli::{
-    set_publisher_id, JsonStorage, PRAGMA_ACCOUNTS_STORAGE_FILE, PUBLISHER_ACCOUNT_COLUMN,
+    set_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE,
 };
-use serde_json::{self, json, Value};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Publisher Account")]

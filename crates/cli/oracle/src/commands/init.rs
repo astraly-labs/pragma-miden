@@ -4,9 +4,8 @@ use colored::*;
 use miden_client::Client;
 use pm_accounts::oracle::OracleAccountBuilder;
 use pm_utils_cli::{
-    set_oracle_id, JsonStorage, ORACLE_ACCOUNT_COLUMN, PRAGMA_ACCOUNTS_STORAGE_FILE,
+    set_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE,
 };
-use serde_json::{self, json, Value};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Oracle Account")]
