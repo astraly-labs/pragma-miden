@@ -22,31 +22,40 @@ use pm_utils_cli::{
 #[clap(about = "Gets entry")]
 pub struct GetEntryCmd {
     // Input pair (format example: "BTC/USD")
-    publisher_id: String, // TO REMOVE
+    publisher_id: String,
     pair: String,
 }
 
 impl GetEntryCmd {
+    /// Retrieves an entry from the publisher account for the specified trading pair.
+    ///
+    /// This function executes an on-chain program that calls the publisher's `get_entry` function
+    /// and returns the result as an Entry object containing price, decimals, and timestamp.
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - Mutable reference to miden client. Must be initialized first.
+    /// * `network` - Network identifier (e.g., "devnet", "testnet")
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Entry>` - The retrieved entry or an error with context
     pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<Entry> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
-        // let publisher_id: &String = pragma_storage.get_key(PUBLISHER_ACCOUNT_COLUMN).unwrap();
-        let publisher_id = AccountId::from_hex(&self.publisher_id).unwrap();
+        let publisher_id = AccountId::from_hex(&self.publisher_id)?;
         let publisher = client
             .get_account(publisher_id)
-            .await
-            .unwrap()
+            .await?
             .expect("Publisher account not found");
         let _ = client
             .get_account(oracle_id)
-            .await
-            .unwrap()
+            .await?
             .expect("Oracle account not found");
-        let pair: Pair = Pair::from_str(&self.pair).unwrap();
+        let pair: Pair = Pair::from_str(&self.pair)?;
         let foreign_account = ForeignAccount::public(
             publisher.account().id(),
             AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
-        )
-        .unwrap();
+        )?;
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module
@@ -64,7 +73,6 @@ impl GetEntryCmd {
             account_id_prefix = publisher_id.prefix().as_u64(),
             account_id_suffix = publisher_id.suffix(),
         );
-        // TODO: Can we pipe stdout to a variable so we can see the stack??
 
         let get_entry_script = TransactionScript::compile(
             tx_script_code,
@@ -87,9 +95,9 @@ impl GetEntryCmd {
                 foreign_accounts_set,
             )
             .await
-            .unwrap();
+            .map_err(|e| anyhow::anyhow!("Error executing transaction: {}", e))?;
         Ok(Entry {
-            pair: Pair::from_str(&self.pair).unwrap(),
+            pair: Pair::from_str(&self.pair)?,
             price: output_stack[2].into(),
             decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
             timestamp: output_stack[0].into(),

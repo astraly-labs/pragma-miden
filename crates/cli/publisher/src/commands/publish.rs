@@ -20,6 +20,32 @@ pub struct PublishCmd {
 }
 
 impl PublishCmd {
+    /// Publishes a price entry to the network
+    ///
+    /// This function performs the following operations:
+    /// 1. Retrieves the publisher account ID from configuration
+    /// 2. Constructs an Entry object from the command parameters
+    /// 3. Creates a transaction script that calls the publish_entry function
+    /// 4. Submits the transaction to the Miden network
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - A mutable reference to the Miden client, must be initialized first
+    /// * `network` - The network identifier (e.g., "devnet", "testnet")
+    ///
+    /// # Returns
+    ///
+    /// * `anyhow::Result<()>` - Success or an error
+    ///
+    /// # Errors
+    ///
+    /// This function can fail if:
+    /// - The publisher ID cannot be retrieved from configuration
+    /// - The pair string cannot be parsed into a valid Pair
+    /// - The entry cannot be converted to a Word
+    /// - The transaction script compilation fails
+    /// - The transaction request building fails
+    /// - The transaction creation or submission fails
     pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
         let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 

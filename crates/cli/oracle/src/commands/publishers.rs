@@ -14,6 +14,30 @@ use prettytable::{Cell, Row, Table};
 pub struct PublishersCmd {}
 
 impl PublishersCmd {
+    /// Fetches and displays all publishers registered with the Oracle
+    ///
+    /// This function performs the following operations:
+    /// 1. Retrieves the Oracle account ID from configuration
+    /// 2. Syncs the client state with the network
+    /// 3. Fetches the Oracle account data
+    /// 4. Extracts and displays publisher information from the Oracle's storage
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - A mutable reference to the Miden client, must be initialized first
+    /// * `network` - The network identifier (e.g., "devnet", "testnet")
+    ///
+    /// # Returns
+    ///
+    /// * `anyhow::Result<()>` - Success or an error
+    ///
+    /// # Errors
+    ///
+    /// This function can fail if:
+    /// - The Oracle ID cannot be retrieved from configuration
+    /// - The client fails to sync state with the network
+    /// - The Oracle account cannot be found
+    /// - Publisher information cannot be retrieved from storage
     pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
         client.sync_state().await.unwrap();
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;

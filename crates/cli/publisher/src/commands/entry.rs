@@ -27,7 +27,6 @@ impl EntryCmd {
             .unwrap()
             .expect("Publisher account not found");
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
-        // TODO: create a pair from str & a to_word
         let entry = publisher
             .account()
             .storage()

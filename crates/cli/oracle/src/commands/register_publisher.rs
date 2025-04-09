@@ -17,6 +17,32 @@ pub struct RegisterPublisherCmd {
 }
 
 impl RegisterPublisherCmd {
+    /// Registers a publisher with the Oracle
+    ///
+    /// This function performs the following operations:
+    /// 1. Retrieves the Oracle account ID from configuration
+    /// 2. Verifies that the Oracle account exists
+    /// 3. Constructs a transaction script that calls the register_publisher function
+    /// 4. Submits the transaction to the Miden network
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - A mutable reference to the Miden client, to be initialized first
+    /// * `network` - The network identifier (e.g., "devnet", "testnet")
+    ///
+    /// # Returns
+    ///
+    /// * `anyhow::Result<()>` - Success or an error
+    ///
+    /// # Errors
+    ///
+    /// This function can fail if:
+    /// - The Oracle ID cannot be retrieved from configuration
+    /// - The Oracle account does not exist on the network
+    /// - The publisher ID cannot be parsed
+    /// - The transaction script compilation fails
+    /// - The transaction request building fails
+    /// - The transaction submission fails
     pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 

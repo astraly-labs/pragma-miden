@@ -446,7 +446,6 @@ pub async fn generate_publishers_and_median(
 
         let (publisher_account, _) = PublisherAccountBuilder::new()
             .with_storage_slots(vec![
-                // TODO: We need a leading empty map else indexing goes wrong.
                 StorageSlot::empty_map(),
                 // Entries map
                 StorageSlot::Map(

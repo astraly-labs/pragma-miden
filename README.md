@@ -67,10 +67,61 @@ pub struct Entry {
 Converted to a Word.
 
 
+## Integrate as publisher
+
+If you want to become a testnet publisher, follow these steps:
+
+### Step 1: Build the CLI tools
+First, build the Pragma tools with the release profile:
+```bash
+cargo build --release
+```
+This will create the executable binaries in the `target/release` directory.
+
+### Step 2: Initialize your publisher account
+Initialize a new publisher account:
+```bash
+./target/release/pm-publisher-cli init
+```
+This will:
+- Create a new publisher account on the network
+- Store your publisher ID and keys locally
+- Display your publisher ID which you'll need for the next step
+
+### Step 3: Request registration with the Oracle
+Once you have your publisher ID, you need to be registered by the Oracle owner.
+
+Send your publisher ID to the Oracle administrator and request registration. The Oracle owner will run:
+```bash
+./target/release/pm-oracle-cli register-publisher YOUR_PUBLISHER_ID
+```
+
+### Step 4: Start publishing price feeds
+After your publisher has been registered, you can start pushing price data:
+```bash
+./target/release/pm-publisher-cli publish PAIR PRICE DECIMALS TIMESTAMP
+```
+
+For example:
+```bash
+./target/release/pm-publisher-cli publish BTC/USD 98179840000 6 1738593825
+```
+
+In this example:
+- `BTC/USD` is the trading pair
+- `98179840000` is the price (98,179.84 with 6 decimal places)
+- `6` is the number of decimal places 
+- `1738593825` is the Unix timestamp when the price was observed
+
+The Oracle will now include your price data when calculating median values for the specified pairs.
+
+## Integrate as consumer
+
+For developers who want to consume oracle data in their applications, please refer to our detailed integration guide in the [demo folder](./crates/demo/README.md). The demo includes examples of how to query prices, calculate medians, and integrate Pragma Miden into your dApps.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 
 ## Deployments
 

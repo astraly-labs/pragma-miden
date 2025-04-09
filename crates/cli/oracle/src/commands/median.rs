@@ -25,17 +25,44 @@ pub struct MedianCmd {
 }
 
 impl MedianCmd {
+    /// Computes the median price for the specified trading pair
+    ///
+    /// This function performs the following operations:
+    /// 1. Retrieves the Oracle account ID from configuration
+    /// 2. Fetches the Oracle account data from the network
+    /// 3. Extracts all registered publisher account IDs from the Oracle storage
+    /// 4. Sets up foreign account access to all publishers
+    /// 5. Executes an on-chain program that computes the median price
+    /// 6. Returns the computed median value
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - A mutable reference to the Miden client, must be initialized first
+    /// * `network` - The network identifier (e.g., "devnet", "testnet")
+    ///
+    /// # Returns
+    ///
+    /// * `Felt` - The median price as a Felt value or an error
+    ///
+    /// # Errors
+    ///
+    /// This function can fail if:
+    /// - The Oracle ID cannot be retrieved from configuration
+    /// - The client fails to sync state with the network
+    /// - The Oracle account cannot be found
+    /// - Publisher information cannot be retrieved from storage
+    /// - The transaction script compilation fails
+    /// - The on-chain program execution fails
     pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<Felt> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
-        client.sync_state().await.unwrap();
+        client.sync_state().await?;
         let oracle = client
             .get_account(oracle_id)
-            .await
-            .unwrap()
+            .await?
             .expect("Oracle account not found");
         // We need to fetch all the oracle registered publishers
-        let pair: Pair = Pair::from_str(&self.pair).unwrap();
+        let pair: Pair = Pair::from_str(&self.pair)?;
 
         let storage = oracle.account().storage();
 
@@ -57,17 +84,10 @@ impl MedianCmd {
             .context("Failed to collect publisher array")?;
         let mut foreign_accounts: Vec<ForeignAccount> = vec![];
         for publisher_id in publisher_array {
-            let publisher = client
-                .get_account(publisher_id)
-                .await
-                .unwrap()
-                .expect("Publisher account not found");
-
             let foreign_account = ForeignAccount::public(
                 publisher_id,
                 AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
-            )
-            .unwrap();
+            )?;
             foreign_accounts.push(foreign_account);
         }
 
@@ -84,8 +104,6 @@ impl MedianCmd {
             ",
             pair = word_to_masm(pair.to_word()),
         );
-
-        // TODO: Can we pipe stdout to a variable so we can see the stack??
         let median_script = TransactionScript::compile(
             tx_script_code.clone(),
             [],
@@ -99,6 +117,8 @@ impl MedianCmd {
         )
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
         let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
+
+        // We use the execute program, because median is a "view" function that does not modify the account hash
         let output_stack = client
             .execute_program(
                 oracle_id,
@@ -106,8 +126,7 @@ impl MedianCmd {
                 AdviceInputs::default(),
                 foreign_accounts_set,
             )
-            .await
-            .unwrap();
+            .await?;
         // Get the median value from the stack
         let median = output_stack
             .first()

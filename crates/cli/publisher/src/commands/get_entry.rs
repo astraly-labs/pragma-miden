@@ -22,6 +22,31 @@ pub struct GetEntryCmd {
 // This CLI command is used to call the get_entry getter function from the publisher, and output it in the stack.
 // This is useful for debugging purposes, but it's better to call the entry command to get a more user-friendly output.
 impl GetEntryCmd {
+    /// Retrieves an entry from the publisher account for the specified trading pair
+    ///
+    /// This function performs the following operations:
+    /// 1. Retrieves the publisher account ID from configuration
+    /// 2. Constructs a transaction script that calls the get_entry function
+    /// 3. Executes the script on-chain
+    /// 4. Parses the returned stack values into an Entry object
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - A mutable reference to the Miden client
+    /// * `network` - The network identifier (e.g., "devnet", "testnet")
+    ///
+    /// # Returns
+    ///
+    /// * `anyhow::Result<Entry>` - The retrieved entry or an error
+    ///
+    /// # Errors
+    ///
+    /// This function can fail if:
+    /// - The publisher ID cannot be retrieved from configuration
+    /// - The pair string cannot be parsed into a valid Pair
+    /// - The transaction script compilation fails
+    /// - The program execution fails
+    /// - The returned stack doesn't contain the expected values
     pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<Entry> {
         let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
         let pair: Pair = Pair::from_str(&self.pair).unwrap();

@@ -1,4 +1,8 @@
-use std::{collections::BTreeSet, path::PathBuf, sync::Arc};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use anyhow::Context;
 use miden_assembly::{
@@ -10,13 +14,17 @@ use miden_client::{
     auth::AuthSecretKey,
     crypto::SecretKey,
     keystore::FilesystemKeyStore,
-    rpc::domain::account::{AccountStorageRequirements, StorageMapKey},
-    transaction::{ForeignAccount, ForeignAccountInputs, TransactionScript},
+    rpc::domain::account::{AccountStorageRequirements, StorageMapKey, StorageSlotIndex},
+    transaction::{
+        ForeignAccount, ForeignAccountInputs, TransactionRequestBuilder, TransactionScript,
+    },
     Client, Word,
 };
 use miden_crypto::{Felt, FieldElement};
 use pm_types::Pair;
-use pm_utils_cli::{setup_devnet_client, STORE_FILENAME};
+use pm_utils_cli::{
+    get_oracle_id, setup_devnet_client, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
+};
 use rand::Rng;
 use std::str::FromStr;
 
@@ -26,10 +34,11 @@ use miden_objects::{
     assembly::Library,
     crypto::dsa::rpo_falcon512::PublicKey,
     vm::AdviceInputs,
+    Digest,
 };
 
 pub const EXAMPLE_ACCOUNT_MASM: &str = include_str!("example.masm");
-pub const ORACLE_ID: &str = "0x8fceff39ad6e49000000af06b99c16";
+pub const NETWORK: &str = "devnet";
 
 pub fn get_example_component_library() -> Library {
     let source_manager = Arc::new(DefaultSourceManager::default());
@@ -90,7 +99,6 @@ impl<'a> ExampleAccountBuilder<'a> {
             AccountComponent::new(get_example_component_library(), self.storage_slots)
                 .unwrap()
                 .with_supports_all_types();
-
         let client = self.client.expect("build must have a Miden Client!");
         let client_rng = client.rng();
         let example_component: AccountComponent = AccountComponent::from(example_component);
@@ -98,6 +106,7 @@ impl<'a> ExampleAccountBuilder<'a> {
         let account_type: String = self.account_type.to_string();
         let client_account_type: ClientAccountType = account_type.parse().unwrap();
         let anchor_block = client.get_latest_epoch_block().await.unwrap();
+
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Private)
@@ -123,7 +132,9 @@ impl<'a> Default for ExampleAccountBuilder<'a> {
     }
 }
 
-async fn example_test() -> anyhow::Result<bool> {
+async fn example_test() -> anyhow::Result<()> {
+    // Retrieve the oracle id
+    let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), NETWORK)?;
     // First setup the client
     let crate_path = PathBuf::new();
     let store_config = crate_path.join(STORE_FILENAME);
@@ -134,9 +145,10 @@ async fn example_test() -> anyhow::Result<bool> {
     .await
     .unwrap();
 
-    // Hardcoded oracle ID (replace with actual oracle ID) and import it in the local storage
-    let oracle_id_hex = ORACLE_ID;
-    let oracle_id = AccountId::from_hex(oracle_id_hex).unwrap();
+    let (example_account, _) = ExampleAccountBuilder::new()
+        .with_client(&mut client)
+        .build()
+        .await;
     client.import_account_by_id(oracle_id).await.unwrap();
     let oracle = client
         .get_account(oracle_id)
@@ -168,16 +180,6 @@ async fn example_test() -> anyhow::Result<bool> {
     let mut foreign_accounts: Vec<ForeignAccount> = vec![];
     for publisher_id in publisher_array {
         client.import_account_by_id(publisher_id).await.unwrap();
-        let publisher = client
-            .get_account(publisher_id)
-            .await
-            .unwrap()
-            .expect("Publisher account not found");
-
-        let foreign_account_inputs = ForeignAccountInputs::from_account(
-            publisher.account().clone(),
-            &AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
-        )?;
         let foreign_account = ForeignAccount::public(
             publisher_id,
             AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
@@ -185,7 +187,12 @@ async fn example_test() -> anyhow::Result<bool> {
         .unwrap();
         foreign_accounts.push(foreign_account);
     }
-    // Create transaction script
+
+    let oracle_foreign_account =
+        ForeignAccount::public(oracle_id, AccountStorageRequirements::default()).unwrap();
+    foreign_accounts.push(oracle_foreign_account);
+
+    // First case: view call
     let tx_script_code = format!(
         "
         use.example_component::example_module
@@ -193,6 +200,7 @@ async fn example_test() -> anyhow::Result<bool> {
         begin
             push.{price}
             push.{pair}
+            push.0.0
             push.{oracle_id_suffix} push.{oracle_id_prefix}
             call.example_module::is_greater
             exec.sys::truncate_stack
@@ -206,7 +214,7 @@ async fn example_test() -> anyhow::Result<bool> {
     );
 
     let example_script = TransactionScript::compile(
-        tx_script_code,
+        &tx_script_code,
         [],
         TransactionKernel::assembler()
             .with_debug_mode(true)
@@ -216,26 +224,70 @@ async fn example_test() -> anyhow::Result<bool> {
     .map_err(|e| anyhow::anyhow!("Error compiling script: {e:?}"))?;
 
     // Execute program
-    let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
+    let foreign_accounts_set: BTreeSet<ForeignAccount> =
+        foreign_accounts.clone().into_iter().collect();
 
     let output_stack = client
         .execute_program(
-            oracle_id,
+            example_account.id(),
             example_script,
             AdviceInputs::default(),
             foreign_accounts_set,
         )
         .await?;
-
     // Result is a boolean (0 for false, 1 for true)
     let result = output_stack[0] == Felt::ONE;
 
-    println!(
-        "Is price {} greater than actual price? {}",
-        price_to_compare, result
-    );
+    //
+    // Second case: tx invocation
+    //
+    let tx_script_code = format!(
+        "
+        use.example_component::example_module
+        use.std::sys
 
-    Ok(result)
+        begin
+            push.{price}
+            push.{pair}
+            push.0.0
+            push.{oracle_id_suffix} push.{oracle_id_prefix}
+            call.example_module::store_if_greater
+            exec.sys::truncate_stack
+
+        end
+        ",
+        price = price_to_compare,
+        pair = word_to_masm(pair.to_word()),
+        oracle_id_prefix = oracle_id.prefix().as_u64(),
+        oracle_id_suffix = oracle_id.suffix(),
+    );
+    let example_script = TransactionScript::compile(
+        &tx_script_code,
+        [],
+        TransactionKernel::assembler()
+            .with_debug_mode(true)
+            .with_library(get_example_component_library())
+            .map_err(|e| anyhow::anyhow!("Error setting up library: {e:?}"))?,
+    )
+    .map_err(|e| anyhow::anyhow!("Error compiling script: {e:?}"))?;
+    let transaction_request = TransactionRequestBuilder::new()
+        .with_custom_script(example_script)
+        .with_foreign_accounts(foreign_accounts)
+        .build()
+        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
+
+    let transaction = client
+        .new_transaction(example_account.id(), transaction_request)
+        .await
+        .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
+
+    client
+        .submit_transaction(transaction.clone())
+        .await
+        .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
+
+    // Now we can check the storage
+    Ok(())
 }
 
 pub fn word_to_masm(word: Word) -> String {
@@ -247,17 +299,5 @@ pub fn word_to_masm(word: Word) -> String {
 
 #[tokio::main]
 async fn main() {
-    println!("Starting example oracle price comparison test...");
-
-    let result = example_test().await.expect("Failed to execute test");
-
-    println!("Test completed successfully!");
-    println!(
-        "Result: {}",
-        if result {
-            "Price is greater"
-        } else {
-            "Price is not greater"
-        }
-    );
+    example_test().await.expect("Failed to execute test");
 }

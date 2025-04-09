@@ -18,6 +18,28 @@ pub struct InitCmd {
 }
 
 impl InitCmd {
+    /// Initializes a new Publisher Account and sets up the local configuration
+    ///
+    /// This function performs the following operations:
+    /// 1. Syncs the client state with the network
+    /// 2. Creates a new publisher account
+    /// 3. Stores the publisher ID in the local configuration
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - A mutable reference to the Miden client
+    /// * `network` - The network identifier (e.g., "devnet", "testnet")
+    ///
+    /// # Returns
+    ///
+    /// * `anyhow::Result<()>` - Success or an error
+    ///
+    /// # Errors
+    ///
+    /// This function can fail if:
+    /// - The client fails to sync state with the network
+    /// - The publisher account creation fails
+    /// - The configuration file cannot be updated
     pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
         // TODO: Refine this condition & logic
         // if JsonStorage::exists(PRAGMA_ACCOUNTS_STORAGE) && JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE).get_key(PUBLISHER_ACCOUNT_ID).is_some() {

@@ -13,9 +13,27 @@ use serde_json::{self, json, Value};
 pub struct InitCmd {}
 
 impl InitCmd {
+    /// Initializes a new Oracle Account and sets up the local configuration
+    ///
+    /// This function initialize an oracle account on the network defined in the cli command
+    /// It store the keystore locally (under the keystore folder) and the oracle account id is stored
+    /// in pragma_miden.json
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - A mutable reference to the Miden client, must be initialized first
+    /// * `network` - The network identifier (e.g., "devnet", "testnet")
+    ///
+    ///
+    /// # Errors
+    ///
+    /// This function can fail if:
+    /// - The client fails to sync state with the network
+    /// - The Oracle account creation fails
+    /// - The configuration file cannot be updated
     pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
         println!("⏳ Initiating the Oracle...\n");
-        client.sync_state().await.unwrap();
+        client.sync_state().await?;
 
         let (oracle_account, _) = OracleAccountBuilder::new()
             .with_client(client)
