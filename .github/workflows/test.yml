@@ -23,14 +23,9 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source "$HOME/.cargo/env"
           
-          # Install the specific toolchain version from rust-toolchain.toml if it exists
-          if [ -f "rust-toolchain.toml" ]; then
-            TOOLCHAIN=$(grep -oP 'channel\s*=\s*"\K[^"]+' rust-toolchain.toml || echo "stable")
-            rustup toolchain install $TOOLCHAIN
-            rustup default $TOOLCHAIN
-          else
-            rustup default stable
-          fi
+          # Install nightly toolchain for edition 2024 support
+          rustup toolchain install nightly
+          rustup default nightly
           
           rustup component add rustfmt clippy
       
@@ -39,7 +34,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: nightly
           override: true
           components: rustfmt, clippy
       
