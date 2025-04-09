@@ -4,9 +4,7 @@ use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder};
 use miden_client::Client;
 use miden_client::{account::AccountId, transaction::TransactionScript};
 use pm_accounts::oracle::get_oracle_component_library;
-use pm_utils_cli::{
-    get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE,
-};
+use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Registers a publisher id into the Oracle")]

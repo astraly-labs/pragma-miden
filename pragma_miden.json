@@ -3,6 +3,10 @@
     "devnet": {
       "oracle_account_id": "0x2c3581d378c33500000025e6d7dcaf",
       "publisher_account_id": "0xd556ba0c6b4ffd000000bbfc594d8c"
+    },
+    "testnet": {
+      "oracle_account_id": "0x4f67e78643022e00000220d8997e33",
+      "publisher_account_id": "0x0db5afa7f28ba90000029f98301f46"
     }
   }
 }

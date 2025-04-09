@@ -1,18 +1,13 @@
 use anyhow::Context;
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
-use miden_client::transaction::{
-    ForeignAccount, TransactionKernel,
-    TransactionScript,
-};
+use miden_client::transaction::{ForeignAccount, TransactionKernel, TransactionScript};
 use miden_client::{Client, Felt};
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
-use pm_utils_cli::{
-    get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE,
-};
+use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::str::FromStr;
@@ -63,7 +58,6 @@ impl MedianCmd {
             .expect("Oracle account not found");
         // We need to fetch all the oracle registered publishers
         let pair: Pair = Pair::from_str(&self.pair)?;
-
         let storage = oracle.account().storage();
 
         // Get publisher count from storage
@@ -117,7 +111,6 @@ impl MedianCmd {
         )
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
         let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
-
         // We use the execute program, because median is a "view" function that does not modify the account hash
         let output_stack = client
             .execute_program(
@@ -127,6 +120,7 @@ impl MedianCmd {
                 foreign_accounts_set,
             )
             .await?;
+        println!("do we reach here");
         // Get the median value from the stack
         let median = output_stack
             .first()

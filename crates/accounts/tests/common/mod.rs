@@ -14,8 +14,8 @@ use miden_client::{
     store::TransactionFilter,
     sync::SyncSummary,
     transaction::{
-        ForeignAccount, TransactionId, TransactionRequest,
-        TransactionRequestBuilder, TransactionResult, TransactionScript,
+        ForeignAccount, TransactionId, TransactionRequest, TransactionRequestBuilder,
+        TransactionResult, TransactionScript,
     },
     Client, ClientError,
 };

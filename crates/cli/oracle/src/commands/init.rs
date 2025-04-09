@@ -3,9 +3,7 @@ use std::path::Path;
 use colored::*;
 use miden_client::Client;
 use pm_accounts::oracle::OracleAccountBuilder;
-use pm_utils_cli::{
-    set_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE,
-};
+use pm_utils_cli::{set_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Oracle Account")]

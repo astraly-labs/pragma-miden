@@ -12,9 +12,7 @@ use miden_assembly::{
 use miden_client::{
     account::{Account, AccountId, AccountStorageMode, AccountType as ClientAccountType},
     rpc::domain::account::{AccountStorageRequirements, StorageMapKey},
-    transaction::{
-        ForeignAccount, TransactionRequestBuilder, TransactionScript,
-    },
+    transaction::{ForeignAccount, TransactionRequestBuilder, TransactionScript},
     Client, Word,
 };
 use miden_crypto::{Felt, FieldElement};
