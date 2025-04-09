@@ -23,9 +23,9 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source "$HOME/.cargo/env"
           
-          # Install nightly toolchain for edition 2024 support
-          rustup toolchain install nightly
-          rustup default nightly
+          # Install specific nightly toolchain for edition 2024 support
+          rustup toolchain install nightly-2025-03-11
+          rustup default nightly-2025-03-11
           
           rustup component add rustfmt clippy
       
@@ -34,7 +34,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly
+          toolchain: nightly-2025-03-11
           override: true
           components: rustfmt, clippy
       
