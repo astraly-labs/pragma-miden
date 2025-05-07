@@ -1,9 +1,7 @@
 
-
 use.std::sys
 use.miden::tx
 use.miden::account
-
 
 # The reference price storage
 const.PRICE_STORAGE_SLOT=0
@@ -21,7 +19,6 @@ proc.call_oracle_get_median
     # => [price]
 end
 
-
 #! Simple function that takes an asset and a price, and return if the actual price is greater than the input price
 #! It is a simple demonstration of how we use Pragma feed for a given asset for view purpose only
 #! Inputs: [ORACLE_ID, PAIR_ID, PRICE]
@@ -35,23 +32,22 @@ export.is_greater
     # => [bool]
 end
 
-
 #! Extension of the previous function, but this time, write to the example storage (tx)
 #! Inputs: [ORACLE_ID, PAIR_ID, PRICE]
 export.store_if_greater
     dupw.2
     # =>  [PRICE,ORACLE_ID, PAIR_ID, PRICE]
     movdnw.3
-      # =>  [ORACLE_ID, PAIR_ID, PRICE,PRICE]
+    # =>  [ORACLE_ID, PAIR_ID, PRICE,PRICE]
     exec.is_greater
     # => [bool,PRICE]
     if.true
         # => [PRICE]
-        push.PRICE_STORAGE_SLOT exec.account::set_map_item 
-    else 
+        push.PRICE_STORAGE_SLOT exec.account::set_map_item
+    else
         dropw
         # If false, we still want to write to storage to force the account hash change
-        push.PRICE_STORAGE_SLOT exec.account::set_map_item 
-    end 
+        push.PRICE_STORAGE_SLOT exec.account::set_map_item
+    end
     push.1 exec.account::incr_nonce
 end
