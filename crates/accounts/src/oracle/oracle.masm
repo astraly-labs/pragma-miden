@@ -321,15 +321,18 @@ end
 #! Inputs:  [PUBLISHER_ID]
 #! Outputs: []
 export.register_publisher
-    dupw
-    # => [PUBLISHER_ID, PUBLISHER_ID]
 
+    #TODO: Implement already registered error properly
+    #dupw
+    # => [PUBLISHER_ID, PUBLISHER_ID]
     # The goal here is to retrieve the index associated to the publisher id in the registry. If the index is 0, it is not registered
-    push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item
+    #push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item
     # => [REGISTERED_INDEX, PUBLISHER_ID]
-    push.0.0.0.0
+    # push.0.0.0.0
     # => [ZERO,REGISTERED_INDEX, PUBLISHER_ID]
-    assert_eqw.err=ERR_PUBLISHER_ALREADY_REGISTERED
+    #assert_eqw.err=ERR_PUBLISHER_ALREADY_REGISTERED
+
+
     # => [PUBLISHER_ID]
     # Duplicate the publisher id
     dupw

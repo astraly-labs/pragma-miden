@@ -9,7 +9,6 @@ mkdir accounts
 miden-node bundled bootstrap \
   --data-directory data \
   --accounts-directory accounts \
-  --config genesis.toml 
 
 miden-node bundled start \
   --data-directory data \
