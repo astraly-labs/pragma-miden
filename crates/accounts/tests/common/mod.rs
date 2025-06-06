@@ -139,7 +139,7 @@ pub async fn wait_for_tx(client: &mut Client, transaction_id: TransactionId) -> 
 
         // Check if executed transaction got committed by the node
         let uncommited_transactions = client
-            .get_transactions(TransactionFilter::Uncomitted)
+            .get_transactions(TransactionFilter::Uncommitted)
             .await
             .context("Failed to get uncommitted transactions")?;
 

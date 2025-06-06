@@ -7,13 +7,16 @@ use miden_assembly::{
     DefaultSourceManager, LibraryPath,
 };
 use miden_client::{
-    account::{Account, AccountBuilder, AccountStorageMode, AccountType as ClientAccountType},
+    account::{
+        component::RpoFalcon512, Account, AccountBuilder, AccountStorageMode,
+        AccountType as ClientAccountType,
+    },
     auth::AuthSecretKey,
     keystore::FilesystemKeyStore,
     Client,
 };
 use miden_client::{crypto::SecretKey, Felt, Word, ZERO};
-use miden_lib::{account::auth::RpoFalcon512, transaction::TransactionKernel};
+use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
     account::{AccountComponent, StorageSlot},
     assembly::Library,
@@ -94,10 +97,12 @@ impl<'a> OracleAccountBuilder<'a> {
         let client_rng = client.rng();
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
-        let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into()));
-        let from_seed = client_rng.random();
-        let anchor_block = client.get_latest_epoch_block().await.unwrap();
 
+        let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into()));
+
+        let from_seed = client_rng.random();
+
+        let anchor_block = client.get_latest_epoch_block().await.unwrap();
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Public)

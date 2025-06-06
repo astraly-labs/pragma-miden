@@ -7,14 +7,16 @@ use miden_assembly::{
     DefaultSourceManager, LibraryPath,
 };
 use miden_client::{
-    account::{Account, AccountStorageMode, AccountType as ClientAccountType},
+    account::{
+        component::RpoFalcon512, Account, AccountStorageMode, AccountType as ClientAccountType,
+    },
     auth::AuthSecretKey,
     crypto::SecretKey,
     keystore::FilesystemKeyStore,
     Client, Word,
 };
 
-use miden_lib::{account::auth::RpoFalcon512, transaction::TransactionKernel};
+use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
     account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
     assembly::Library,
