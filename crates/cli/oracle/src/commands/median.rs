@@ -120,7 +120,7 @@ impl MedianCmd {
                 foreign_accounts_set,
             )
             .await?;
-        println!("do we reach here");
+
         // Get the median value from the stack
         let median = output_stack
             .first()

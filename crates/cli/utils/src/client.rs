@@ -66,11 +66,7 @@ pub async fn setup_testnet_client(
     keystore_path: Option<String>,
 ) -> Result<Client, ClientError> {
     // RPC endpoint and timeout
-    let endpoint = Endpoint::new(
-        "https".to_string(),
-        "rpc.testnet.miden.io".to_string(),
-        Some(443),
-    );
+    let endpoint = Endpoint::testnet();
     let timeout_ms = 10_000;
 
     // Build RPC client
