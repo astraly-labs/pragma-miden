@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the network to use
-NETWORK="devnet"
+NETWORK="testnet"
 
 # Build 
 cargo build --release
