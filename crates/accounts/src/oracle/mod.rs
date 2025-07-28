@@ -2,14 +2,9 @@ use std::sync::Arc;
 
 use rand::Rng;
 
-use miden_assembly::{
-    ast::{Module, ModuleKind},
-    DefaultSourceManager, LibraryPath,
-};
 use miden_client::{
     account::{
-        component::RpoFalcon512, Account, AccountBuilder, AccountStorageMode,
-        AccountType as ClientAccountType,
+        component::RpoFalcon512, Account, AccountStorageMode, AccountType as ClientAccountType,
     },
     auth::AuthSecretKey,
     keystore::FilesystemKeyStore,
@@ -18,8 +13,8 @@ use miden_client::{
 use miden_client::{crypto::SecretKey, Felt, Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
-    account::{AccountComponent, StorageSlot},
-    assembly::Library,
+    account::{AccountBuilder, AccountComponent, StorageSlot},
+    assembly::{DefaultSourceManager, Library, LibraryPath, Module, ModuleKind},
     crypto::dsa::rpo_falcon512::PublicKey,
 };
 
@@ -102,13 +97,11 @@ impl<'a> OracleAccountBuilder<'a> {
 
         let from_seed = client_rng.random();
 
-        let anchor_block = client.get_latest_epoch_block().await.unwrap();
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Public)
             .with_component(auth_component)
             .with_component(oracle_component)
-            .anchor((&anchor_block).try_into().unwrap())
             .build()
             .unwrap();
         client

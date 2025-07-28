@@ -17,12 +17,12 @@ use miden_client::{
         ForeignAccount, TransactionId, TransactionRequest, TransactionRequestBuilder,
         TransactionResult, TransactionScript,
     },
-    Client, ClientError,
+    Client, ClientError, Felt,
 };
-use miden_crypto::{hash::rpo::RpoDigest, Felt, Word};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
     account::{Account, StorageMap, StorageSlot},
+    crypto::hash::rpo::RpoDigest,
     vm::AdviceInputs,
 };
 use pm_accounts::{
@@ -35,6 +35,8 @@ use pm_utils_cli::setup_devnet_client;
 use rand::Rng;
 
 pub type TestClient = Client;
+
+pub type Word = [miden_client::Felt; 4];
 
 /// Mocks [Entry] representing price feeds for use in tests.
 pub fn mock_entry() -> Entry {
@@ -271,7 +273,6 @@ async fn create_deployment_transaction(
         "begin 
             call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512 
         end",
-        vec![],
         TransactionKernel::assembler(),
     )
     .context("Failed to compile deployment transaction script")?;
@@ -280,7 +281,7 @@ async fn create_deployment_transaction(
         .new_transaction(
             account_id,
             TransactionRequestBuilder::new()
-                .with_custom_script(deployment_tx_script)
+                .custom_script(deployment_tx_script)
                 .build()
                 .context("Failed to build deployment transaction request")?,
         )
@@ -326,7 +327,6 @@ pub async fn execute_get_entry_transaction(
 
     let get_entry_script = TransactionScript::compile(
         tx_script_code,
-        [],
         TransactionKernel::assembler()
             .with_debug_mode(true)
             .with_library(get_oracle_component_library())

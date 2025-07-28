@@ -2,10 +2,6 @@ use std::sync::Arc;
 
 use rand::Rng;
 
-use miden_assembly::{
-    ast::{Module, ModuleKind},
-    DefaultSourceManager, LibraryPath,
-};
 use miden_client::{
     account::{
         component::RpoFalcon512, Account, AccountStorageMode, AccountType as ClientAccountType,
@@ -15,13 +11,13 @@ use miden_client::{
     keystore::FilesystemKeyStore,
     Client, Word,
 };
-
-use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
     account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
-    assembly::Library,
+    assembly::{DefaultSourceManager, Library, LibraryPath, Module, ModuleKind},
     crypto::dsa::rpo_falcon512::PublicKey,
 };
+
+use miden_lib::transaction::TransactionKernel;
 
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 
@@ -98,13 +94,11 @@ impl<'a> PublisherAccountBuilder<'a> {
         let from_seed = client_rng.random();
         let account_type: String = self.account_type.to_string();
         let client_account_type: ClientAccountType = account_type.parse().unwrap();
-        let anchor_block = client.get_latest_epoch_block().await.unwrap();
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Public)
             .with_component(auth_component)
             .with_component(publisher_component)
-            .anchor((&anchor_block).try_into().unwrap())
             .build()
             .unwrap();
 

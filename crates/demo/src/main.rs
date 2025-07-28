@@ -5,17 +5,17 @@ use std::{
 };
 
 use anyhow::Context;
-use miden_assembly::{
-    ast::{Module, ModuleKind},
-    DefaultSourceManager, LibraryPath,
-};
 use miden_client::{
     account::{Account, AccountId, AccountStorageMode, AccountType as ClientAccountType},
     rpc::domain::account::{AccountStorageRequirements, StorageMapKey},
     transaction::{ForeignAccount, TransactionRequestBuilder, TransactionScript},
-    Client, Word,
+    Client, Felt, Word,
 };
-use miden_crypto::{Felt, FieldElement};
+use miden_objects::{
+    account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
+    assembly::{DefaultSourceManager, Library, LibraryPath, Module, ModuleKind},
+    vm::AdviceInputs,
+};
 use pm_types::Pair;
 use pm_utils_cli::{
     get_oracle_id, setup_devnet_client, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
@@ -24,18 +24,13 @@ use rand::Rng;
 use std::str::FromStr;
 
 use miden_lib::transaction::TransactionKernel;
-use miden_objects::{
-    account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
-    assembly::Library,
-    vm::AdviceInputs,
-};
 
 pub const EXAMPLE_ACCOUNT_MASM: &str = include_str!("example.masm");
 pub const NETWORK: &str = "devnet";
 
 pub fn get_example_component_library() -> Library {
     let source_manager = Arc::new(DefaultSourceManager::default());
-    let example_component_module = Module::parser(ModuleKind::Library)
+    let example_component_module: Box<Module> = Module::parser(ModuleKind::Library)
         .parse_str(
             LibraryPath::new("example_component::example_module").unwrap(),
             EXAMPLE_ACCOUNT_MASM,
@@ -98,13 +93,11 @@ impl<'a> ExampleAccountBuilder<'a> {
         let from_seed = client_rng.random();
         let account_type: String = self.account_type.to_string();
         let client_account_type: ClientAccountType = account_type.parse().unwrap();
-        let anchor_block = client.get_latest_epoch_block().await.unwrap();
 
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Private)
             .with_component(example_component)
-            .anchor((&anchor_block).try_into().unwrap())
             .build()
             .unwrap();
 
@@ -208,7 +201,6 @@ async fn example_test() -> anyhow::Result<()> {
 
     let example_script = TransactionScript::compile(
         &tx_script_code,
-        [],
         TransactionKernel::assembler()
             .with_debug_mode(true)
             .with_library(get_example_component_library())
@@ -229,8 +221,12 @@ async fn example_test() -> anyhow::Result<()> {
         )
         .await?;
     // Result is a boolean (0 for false, 1 for true)
-    let result = output_stack[0] == Felt::ONE;
-
+    let result = output_stack[0] == Felt::new(1);
+    if result {
+        println!("The price is greater than the stored value.");
+    } else {
+        println!("The price is not greater than the stored value.");
+    }
     //
     // Second case: tx invocation
     //
@@ -256,7 +252,6 @@ async fn example_test() -> anyhow::Result<()> {
     );
     let example_script = TransactionScript::compile(
         &tx_script_code,
-        [],
         TransactionKernel::assembler()
             .with_debug_mode(true)
             .with_library(get_example_component_library())
@@ -264,8 +259,8 @@ async fn example_test() -> anyhow::Result<()> {
     )
     .map_err(|e| anyhow::anyhow!("Error compiling script: {e:?}"))?;
     let transaction_request = TransactionRequestBuilder::new()
-        .with_custom_script(example_script)
-        .with_foreign_accounts(foreign_accounts)
+        .custom_script(example_script)
+        .foreign_accounts(foreign_accounts)
         .build()
         .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 

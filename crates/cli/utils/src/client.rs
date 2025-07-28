@@ -48,10 +48,10 @@ pub async fn setup_devnet_client(
     // std::fs::create_dir_all(&auth_path).unwrap();
     let str_path = path.to_str().expect("Path should be valid");
     let mut client = ClientBuilder::new()
-        .with_rpc(rpc_api)
-        .with_rng(rng)
-        .with_filesystem_keystore("./keystore")
-        .with_sqlite_store(str_path)
+        .rpc(rpc_api)
+        .rng(rng)
+        .filesystem_keystore("./keystore")
+        .sqlite_store(str_path)
         // .with_store(arc_store)
         .in_debug_mode(true)
         .build()
@@ -102,10 +102,10 @@ pub async fn setup_testnet_client(
 
     // Instantiate client (toggle debug mode as needed)
     let client = ClientBuilder::new()
-        .with_rpc(rpc_api)
-        .with_rng(rng)
-        .with_filesystem_keystore("./keystore")
-        .with_sqlite_store(str_path)
+        .rpc(rpc_api)
+        .rng(rng)
+        .filesystem_keystore("./keystore")
+        .sqlite_store(str_path)
         .in_debug_mode(true)
         .build()
         .await?;
@@ -119,10 +119,8 @@ pub async fn create_wallet(
 ) -> Result<(Account, Word), ClientError> {
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
-    let anchor_block = client.get_latest_epoch_block().await.unwrap();
     let key_pair = SecretKey::with_rng(client.rng());
     let (account, seed) = AccountBuilder::new(init_seed)
-        .anchor((&anchor_block).try_into().unwrap())
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(storage_mode)
         .with_component(RpoFalcon512::new(key_pair.public_key()))

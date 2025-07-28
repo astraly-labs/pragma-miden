@@ -1,7 +1,6 @@
 mod common;
 use anyhow::{Context, Result};
-use miden_client::transaction::TransactionRequestBuilder;
-use miden_crypto::{Felt, Word};
+use miden_client::{transaction::TransactionRequestBuilder, Felt};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{transaction::TransactionScript, vm::AdviceInputs};
 use pm_types::{Currency, Entry, Pair};
@@ -14,6 +13,8 @@ use common::{
 };
 use pm_utils_cli::STORE_TEST_FILENAME;
 use uuid::Uuid;
+
+use crate::common::Word;
 
 #[tokio::test]
 async fn test_publisher_publish_entry() -> Result<()> {
@@ -33,7 +34,6 @@ async fn test_publisher_publish_entry() -> Result<()> {
         decimals: 8,
         timestamp: 1739722449,
     };
-
     // Create pair word from entry
     let pair_word = entry.pair.to_word();
     let entry = Entry {
@@ -74,7 +74,6 @@ async fn test_publisher_publish_entry() -> Result<()> {
 
     let tx_script = TransactionScript::compile(
         tx_script_code,
-        [],
         TransactionKernel::assembler()
             .with_debug_mode(true)
             .with_library(get_publisher_component_library())
@@ -84,7 +83,7 @@ async fn test_publisher_publish_entry() -> Result<()> {
     .map_err(|e| anyhow::anyhow!("Error while compiling the script: {}", e))?;
 
     let transaction_request = TransactionRequestBuilder::new()
-        .with_custom_script(tx_script)
+        .custom_script(tx_script)
         .build()
         .map_err(|e| anyhow::anyhow!("Error while building transaction request: {}", e))?;
 
@@ -153,7 +152,6 @@ async fn test_publisher_get_entry() -> Result<()> {
 
     let get_entry_script = TransactionScript::compile(
         tx_script_code,
-        [],
         TransactionKernel::assembler()
             .with_debug_mode(true)
             .with_library(get_publisher_component_library())

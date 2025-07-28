@@ -7,12 +7,12 @@ use anyhow::{Context, Result};
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{ForeignAccount, TransactionRequestBuilder};
-use miden_client::{Client, Felt, Word};
-use miden_crypto::{hash::rpo::RpoDigest, ZERO};
+use miden_client::{Client, Felt, Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::vm::AdviceInputs;
 use miden_objects::{
     account::{Account, StorageMap, StorageSlot},
+    crypto::hash::rpo::RpoDigest,
     transaction::TransactionScript,
 };
 use pm_types::{Currency, Entry, Pair};
@@ -124,7 +124,6 @@ async fn test_oracle_register_publisher() -> Result<()> {
 
     let tx_script = TransactionScript::compile(
         tx_script_code,
-        [],
         TransactionKernel::assembler()
             .with_debug_mode(true)
             .with_library(get_oracle_component_library())
@@ -134,7 +133,7 @@ async fn test_oracle_register_publisher() -> Result<()> {
     .context("Error while compiling the script")?;
 
     let transaction_request = TransactionRequestBuilder::new()
-        .with_custom_script(tx_script)
+        .custom_script(tx_script)
         .build()
         .context("Error while building transaction request")?;
 
@@ -202,7 +201,6 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
 
     let tx_script = TransactionScript::compile(
         tx_script_code.clone(),
-        [],
         TransactionKernel::assembler()
             .with_debug_mode(true)
             .with_library(get_oracle_component_library())
@@ -212,7 +210,7 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
     .context("Error while compiling the script")?;
 
     let transaction_request = TransactionRequestBuilder::new()
-        .with_custom_script(tx_script)
+        .custom_script(tx_script)
         .build()
         .context("Error while building transaction request")?;
 
@@ -225,7 +223,6 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
     // Now try to register the same publisher again - should fail
     let tx_script = TransactionScript::compile(
         tx_script_code,
-        [],
         TransactionKernel::assembler()
             .with_debug_mode(true)
             .with_library(get_oracle_component_library())
@@ -235,7 +232,7 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
     .context("Error while compiling the script")?;
 
     let transaction_request = TransactionRequestBuilder::new()
-        .with_custom_script(tx_script)
+        .custom_script(tx_script)
         .build()
         .context("Error while building second transaction request")?;
 
@@ -336,7 +333,6 @@ async fn test_oracle_get_median() -> Result<()> {
 
         let tx_script = TransactionScript::compile(
             tx_script_code,
-            [],
             TransactionKernel::assembler()
                 .with_debug_mode(true)
                 .with_library(get_oracle_component_library())
@@ -348,7 +344,7 @@ async fn test_oracle_get_median() -> Result<()> {
         .context("Error while compiling the script")?;
 
         let transaction_request = TransactionRequestBuilder::new()
-            .with_custom_script(tx_script)
+            .custom_script(tx_script)
             .build()
             .context("Error while building transaction request")?;
 
@@ -398,7 +394,6 @@ async fn test_oracle_get_median() -> Result<()> {
 
     let tx_script = TransactionScript::compile(
         tx_script_code,
-        [],
         TransactionKernel::assembler()
             .with_library(get_oracle_component_library())
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
