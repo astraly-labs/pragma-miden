@@ -100,7 +100,6 @@ impl MedianCmd {
         );
         let median_script = TransactionScript::compile(
             tx_script_code.clone(),
-            [],
             TransactionKernel::assembler()
                 .with_debug_mode(true)
                 .with_library(get_oracle_component_library())

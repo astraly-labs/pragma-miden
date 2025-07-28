@@ -68,7 +68,6 @@ impl RegisterPublisherCmd {
         );
         let median_script = TransactionScript::compile(
             tx_script_code,
-            [],
             TransactionKernel::assembler()
                 .with_debug_mode(true)
                 .with_library(get_oracle_component_library())
@@ -80,7 +79,7 @@ impl RegisterPublisherCmd {
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
         let transaction_request = TransactionRequestBuilder::new()
-            .with_custom_script(median_script)
+            .custom_script(median_script)
             .build()
             .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 

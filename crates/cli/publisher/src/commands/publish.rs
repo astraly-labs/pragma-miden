@@ -82,7 +82,6 @@ impl PublishCmd {
         );
         let publish_script = TransactionScript::compile(
             tx_script_code,
-            [],
             TransactionKernel::assembler()
                 .with_debug_mode(true)
                 .with_library(get_publisher_component_library())
@@ -94,7 +93,7 @@ impl PublishCmd {
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
         let transaction_request = TransactionRequestBuilder::new()
-            .with_custom_script(publish_script)
+            .custom_script(publish_script)
             .build()
             .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 
