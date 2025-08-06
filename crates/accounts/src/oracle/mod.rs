@@ -100,7 +100,7 @@ impl<'a> OracleAccountBuilder<'a> {
         let (account, account_seed) = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Public)
-            .with_component(auth_component)
+            .with_auth_component(auth_component)
             .with_component(oracle_component)
             .build()
             .unwrap();
