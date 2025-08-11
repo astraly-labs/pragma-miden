@@ -73,7 +73,7 @@ impl PublishCmd {
         
                     dropw
         
-                    call.auth_tx::auth_tx_rpo_falcon512
+                    call.auth_tx::auth__tx_rpo_falcon512
                     exec.sys::truncate_stack
                 end
                 ",

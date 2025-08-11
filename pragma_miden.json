@@ -5,8 +5,8 @@
       "publisher_account_id": "0x4512b3c6011563000000be07229c68"
     },
     "testnet": {
-      "oracle_account_id": "0x1e24a4c2692dbf00000356aae30a6f",
-      "publisher_account_id": "0x8574664e6df0ab000003fd77194077"
+      "oracle_account_id": "0xae2a76331c47f30041602f35837b8b",
+      "publisher_account_id": "0xd7dc792436050200456c823b474eae"
     }
   }
 }

@@ -52,6 +52,7 @@ async fn test_publisher_publish_entry() -> Result<()> {
     // Create transaction script for publishing the entry
     let tx_script_code = format!(
         "
+
         use.publisher_component::publisher_module
         use.miden::contracts::auth::basic->auth_tx
         use.std::sys
@@ -64,7 +65,7 @@ async fn test_publisher_publish_entry() -> Result<()> {
 
             dropw
 
-            call.auth_tx::auth_tx_rpo_falcon512
+            call.auth_tx::auth__tx_rpo_falcon512
             exec.sys::truncate_stack
         end
         ",

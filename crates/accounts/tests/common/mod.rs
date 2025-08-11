@@ -271,7 +271,7 @@ async fn create_deployment_transaction(
 ) -> Result<TransactionResult> {
     let deployment_tx_script = TransactionScript::compile(
         "begin 
-            call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512 
+            call.::miden::contracts::auth::basic::auth__tx_rpo_falcon512 
         end",
         TransactionKernel::assembler(),
     )

@@ -13,7 +13,7 @@ const.MAX_U32=0x0000000100000000
 # =================================================================================================
 
 # Error if the publisher is already registered in the registry
-const.ERR_PUBLISHER_ALREADY_REGISTERED = 100
+# const.ERR_PUBLISHER_ALREADY_REGISTERED = 100
 
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
@@ -367,7 +367,7 @@ export.register_publisher
     # => []
 
     # Only the oracle owner should be able to call this
-    call.auth_tx::auth_tx_rpo_falcon512
+    call.auth_tx::auth__tx_rpo_falcon512
     drop
 
     exec.sys::truncate_stack

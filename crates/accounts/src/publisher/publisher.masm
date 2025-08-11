@@ -19,7 +19,7 @@ export.publish_entry
     push.ENTRIES_MAP_SLOT exec.account::set_map_item
 
     # Only the publisher owner should be able to call this
-    call.::miden::contracts::auth::basic::auth_tx_rpo_falcon512
+    call.::miden::contracts::auth::basic::auth__tx_rpo_falcon512
 
     # Truncate just in case
     exec.sys::truncate_stack

@@ -129,8 +129,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 These contracts were deployed for testing purpose only. They might change in the future.
 
-Oracle - [mtst1qq0zffxzdykm7qqqqdt24cc2du5ghx99](https://testnet.midenscan.com/account/mtst1qq0zffxzdykm7qqqqdt24cc2du5ghx99)
+Oracle - [mtst1qzhz5a3nr3rlxqzpvqhntqmm3vhrnyxn](https://testnet.midenscan.com/account/mtst1qzhz5a3nr3rlxqzpvqhntqmm3vhrnyxn)
 
-Publisher1 - [mtst1qrcdwr3wv5mrgqqqqv9qlcw8gqh6zhv9](https://testnet.midenscan.com/account/mtst1qrcdwr3wv5mrgqqqqv9qlcw8gqh6zhv9)
+Publisher1 - [mtst1qrzhcyuhchjy7qq59wtdewpe9vn5war9](https://testnet.midenscan.com/account/mtst1qrzhcyuhchjy7qq59wtdewpe9vn5war9)
 
-Publisher2 -  [mtst1qzzhgejwdhc2kqqqq07hwx2qwu0ls7jx](https://testnet.midenscan.com/account/mtst1qzzhgejwdhc2kqqqq07hwx2qwu0ls7jx)
+Publisher2 -  [mtst1qrtac7fyxczsyqz9djprk36w4cnvsvcn](https://testnet.midenscan.com/account/mtst1qrtac7fyxczsyqz9djprk36w4cnvsvcn)

@@ -11,9 +11,15 @@ use miden_client::{
     keystore::FilesystemKeyStore,
     Client, Word,
 };
+
+use miden_assembly::{
+    ast::{Module, ModuleKind},
+    LibraryPath,
+};
+
 use miden_objects::{
     account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
-    assembly::{DefaultSourceManager, Library, LibraryPath, Module, ModuleKind},
+    assembly::{Assembler, DefaultSourceManager, Library},
     crypto::dsa::rpo_falcon512::PublicKey,
 };
 
@@ -35,6 +41,17 @@ pub fn get_publisher_component_library() -> Library {
         .with_debug_mode(true)
         .assemble_library([publisher_component_module])
         .expect("assembly should succeed")
+}
+
+pub fn get_publisher_component() -> AccountComponent {
+    let assembler = TransactionKernel::assembler().with_debug_mode(true);
+    AccountComponent::compile(
+        PUBLISHER_ACCOUNT_MASM.to_string(),
+        assembler,
+        vec![StorageSlot::empty_map()],
+    )
+    .expect("assembly should succeed")
+    .with_supports_all_types()
 }
 
 pub struct PublisherAccountBuilder<'a> {
@@ -76,11 +93,6 @@ impl<'a> PublisherAccountBuilder<'a> {
     }
 
     pub async fn build(self) -> (Account, Word) {
-        let publisher_component =
-            AccountComponent::new(get_publisher_component_library(), self.storage_slots)
-                .unwrap()
-                .with_supports_all_types();
-
         let client = self.client.expect("build must have a Miden Client!");
         let client_rng = client.rng();
         let private_key = SecretKey::with_rng(client_rng);
@@ -89,8 +101,7 @@ impl<'a> PublisherAccountBuilder<'a> {
         let auth_component: RpoFalcon512 =
             RpoFalcon512::new(PublicKey::new(public_key.into())).into();
 
-        let auth_component: AccountComponent = AccountComponent::from(auth_component);
-        let publisher_component: AccountComponent = AccountComponent::from(publisher_component);
+        let publisher_component: AccountComponent = get_publisher_component();
         let from_seed = client_rng.random();
         let account_type: String = self.account_type.to_string();
         let client_account_type: ClientAccountType = account_type.parse().unwrap();

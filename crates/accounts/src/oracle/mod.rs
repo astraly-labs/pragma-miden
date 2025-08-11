@@ -20,6 +20,30 @@ use miden_objects::{
 
 pub const ORACLE_ACCOUNT_MASM: &str = include_str!("oracle.masm");
 
+// pub fn get_oracle_component_library() -> Library {
+//     let source_manager = Arc::new(DefaultSourceManager::default());
+//     let oracle_component_module = Module::parser(ModuleKind::Library)
+//         .parse_str(
+//             LibraryPath::new("oracle_component::oracle_module").unwrap(),
+//             ORACLE_ACCOUNT_MASM,
+//             &source_manager,
+//         )
+//         .unwrap();
+//     TransactionKernel::assembler()
+//         .with_debug_mode(true)
+//         .assemble_library([oracle_component_module])
+//         .expect("assembly should succeed")
+// }
+
+pub fn oracle_storage_slots() -> Vec<StorageSlot> {
+    let mut slots = vec![
+        StorageSlot::Value([Felt::new(2), ZERO, ZERO, ZERO]),
+        StorageSlot::empty_map(),
+    ];
+    slots.extend((0..252).map(|_| StorageSlot::empty_value()));
+    slots
+}
+
 pub fn get_oracle_component_library() -> Library {
     let source_manager = Arc::new(DefaultSourceManager::default());
     let oracle_component_module = Module::parser(ModuleKind::Library)
@@ -29,11 +53,21 @@ pub fn get_oracle_component_library() -> Library {
             &source_manager,
         )
         .unwrap();
-
     TransactionKernel::assembler()
         .with_debug_mode(true)
         .assemble_library([oracle_component_module])
         .expect("assembly should succeed")
+}
+
+pub fn get_oracle_component() -> AccountComponent {
+    let assembler = TransactionKernel::assembler().with_debug_mode(true);
+    AccountComponent::compile(
+        ORACLE_ACCOUNT_MASM.to_string(),
+        assembler,
+        oracle_storage_slots(),
+    )
+    .expect("assembly should succeed")
+    .with_supports_all_types()
 }
 
 pub struct OracleAccountBuilder<'a> {
@@ -45,14 +79,7 @@ pub struct OracleAccountBuilder<'a> {
 
 impl<'a> OracleAccountBuilder<'a> {
     pub fn new() -> Self {
-        let default_storage_slots = {
-            let mut slots = vec![
-                StorageSlot::Value([Felt::new(2), ZERO, ZERO, ZERO]),
-                StorageSlot::empty_map(),
-            ];
-            slots.extend((0..252).map(|_| StorageSlot::empty_value()));
-            slots
-        };
+        let default_storage_slots = oracle_storage_slots();
 
         Self {
             client: None,
@@ -84,17 +111,13 @@ impl<'a> OracleAccountBuilder<'a> {
 
     pub async fn build(self) -> (Account, Word) {
         let client_account_type: ClientAccountType = self.account_type.parse().unwrap();
-        let oracle_component =
-            AccountComponent::new(get_oracle_component_library(), self.storage_slots)
-                .unwrap()
-                .with_supports_all_types();
+        let oracle_component = get_oracle_component();
         let client = self.client.expect("build must have a Miden Client!");
         let client_rng = client.rng();
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component: RpoFalcon512 = RpoFalcon512::new(PublicKey::new(public_key.into()));
-
+        let auth_component = RpoFalcon512::new(PublicKey::new(public_key.into()));
         let from_seed = client_rng.random();
 
         let (account, account_seed) = AccountBuilder::new(from_seed)
