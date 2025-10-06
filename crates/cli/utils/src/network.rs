@@ -61,7 +61,9 @@ pub fn get_oracle_id(storage_path: &Path, network: &str) -> Result<AccountId> {
 /// Gets the first publisher account ID for a specific network (for compatibility)
 pub fn get_publisher_id(storage_path: &Path, network: &str) -> Result<AccountId> {
     let publishers = get_publisher_ids(storage_path, network)?;
-    publishers.into_iter().next()
+    publishers
+        .into_iter()
+        .next()
         .ok_or_else(|| anyhow::anyhow!("No publisher account ID found for network {}", network))
 }
 /// Updates or adds an account ID to a specific network configuration
@@ -147,23 +149,24 @@ pub fn add_publisher_id(storage_path: &Path, network: &str, account_id: &Account
     }
 
     // Get existing publishers array or create new one
-    let publishers = if let Some(existing) = config["networks"][network].get("publisher_account_ids") {
-        if let Some(arr) = existing.as_array() {
-            let mut publishers = arr.clone();
-            let id_str = account_id.to_string();
-            // Only add if not already present
-            if !publishers.iter().any(|p| p.as_str() == Some(&id_str)) {
-                publishers.push(json!(id_str));
+    let publishers =
+        if let Some(existing) = config["networks"][network].get("publisher_account_ids") {
+            if let Some(arr) = existing.as_array() {
+                let mut publishers = arr.clone();
+                let id_str = account_id.to_string();
+                // Only add if not already present
+                if !publishers.iter().any(|p| p.as_str() == Some(&id_str)) {
+                    publishers.push(json!(id_str));
+                }
+                publishers
+            } else {
+                // If it's not an array, create a new array with the existing value and new one
+                vec![json!(account_id.to_string())]
             }
-            publishers
         } else {
-            // If it's not an array, create a new array with the existing value and new one
+            // No publishers yet, create new array
             vec![json!(account_id.to_string())]
-        }
-    } else {
-        // No publishers yet, create new array
-        vec![json!(account_id.to_string())]
-    };
+        };
 
     config["networks"][network]["publisher_account_ids"] = json!(publishers);
 
@@ -185,8 +188,10 @@ pub fn get_publisher_ids(storage_path: &Path, network: &str) -> Result<Vec<Accou
             let mut account_ids = Vec::new();
             for publisher in arr {
                 if let Some(id_str) = publisher.as_str() {
-                    account_ids.push(AccountId::from_hex(id_str)
-                        .map_err(|e| anyhow::anyhow!("Invalid publisher account ID: {}", e))?);
+                    account_ids.push(
+                        AccountId::from_hex(id_str)
+                            .map_err(|e| anyhow::anyhow!("Invalid publisher account ID: {}", e))?,
+                    );
                 }
             }
             return Ok(account_ids);

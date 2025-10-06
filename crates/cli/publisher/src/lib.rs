@@ -71,6 +71,7 @@ fn py_publish(
             price,
             decimals,
             timestamp,
+            publisher_id: None, // Use default (first publisher from config)
         };
 
         cmd.call(&mut client, network_str)

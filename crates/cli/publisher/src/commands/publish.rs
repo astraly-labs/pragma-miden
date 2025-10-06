@@ -6,6 +6,7 @@ use miden_client::{
 };
 use rand::prelude::StdRng;
 
+use miden_client::account::AccountId;
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use pm_types::{Entry, Pair};
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
@@ -17,6 +18,9 @@ pub struct PublishCmd {
     pub price: u64,
     pub decimals: u32,
     pub timestamp: u64,
+    /// Optional publisher ID. If not provided, uses the first publisher from config
+    #[clap(long)]
+    pub publisher_id: Option<String>,
 }
 
 impl PublishCmd {
@@ -51,7 +55,11 @@ impl PublishCmd {
         client: &mut Client<FilesystemKeyStore<StdRng>>,
         network: &str,
     ) -> anyhow::Result<()> {
-        let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
+        let publisher_id = if let Some(id) = &self.publisher_id {
+            AccountId::from_hex(id)?
+        } else {
+            get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?
+        };
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
 

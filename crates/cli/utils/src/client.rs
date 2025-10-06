@@ -57,7 +57,9 @@ pub async fn setup_devnet_client(
             }
         }
     });
-    let keystore = FilesystemKeyStore::new(keystore_path_str.into()).unwrap().into();
+    let keystore = FilesystemKeyStore::new(keystore_path_str.into())
+        .unwrap()
+        .into();
 
     // let store = SqliteStore::new(path.into())
     //     .await
@@ -76,7 +78,7 @@ pub async fn setup_devnet_client(
         .build()
         .await?;
 
-    let sync_summary = client.sync_state().await.unwrap();
+    let _sync_summary = client.sync_state().await.unwrap();
     Ok(client)
 }
 
@@ -124,7 +126,9 @@ pub async fn setup_testnet_client(
             }
         }
     });
-    let keystore = FilesystemKeyStore::new(keystore_path_str.into()).unwrap().into();
+    let keystore = FilesystemKeyStore::new(keystore_path_str.into())
+        .unwrap()
+        .into();
 
     // // SQLite path
     // let store_path = "store.sqlite3";

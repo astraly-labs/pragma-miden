@@ -84,7 +84,6 @@ impl MedianCmd {
             .context("Failed to collect publisher array")?;
         let mut foreign_accounts: Vec<ForeignAccount> = vec![];
         for publisher_id in publisher_array {
-            println!("here is the publisher: {:?}", publisher_id.to_hex());
             let foreign_account = ForeignAccount::public(
                 publisher_id,
                 AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),

@@ -7,10 +7,10 @@
       ]
     },
     "testnet": {
-      "oracle_account_id": "0x787b5610ef379c00661fa038db2b87",
+      "oracle_account_id": "0xa80e67d8081ac80019117eeb9e875a",
       "publisher_account_ids": [
-        "0xb57cecfd7345a4006148954fa00d48",
-        "0x86ce7c13c14b1f0077dd28e7d405eb"
+        "0x0a18ce16e590b900243748391067e7",
+        "0x4772b47ef8368f002ed2b349c426ce"
       ]
     }
   }
