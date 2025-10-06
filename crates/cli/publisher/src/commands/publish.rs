@@ -1,9 +1,10 @@
 use std::{path::Path, str::FromStr};
 
 use miden_client::{
-    transaction::{TransactionKernel, TransactionRequestBuilder, TransactionScript},
-    Client, Word,
+    keystore::FilesystemKeyStore, transaction::TransactionRequestBuilder, Client, ScriptBuilder,
+    Word,
 };
+use rand::prelude::StdRng;
 
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use pm_types::{Entry, Pair};
@@ -45,7 +46,11 @@ impl PublishCmd {
     /// - The transaction script compilation fails
     /// - The transaction request building fails
     /// - The transaction creation or submission fails
-    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
+    pub async fn call(
+        &self,
+        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        network: &str,
+    ) -> anyhow::Result<()> {
         let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
@@ -62,7 +67,6 @@ impl PublishCmd {
         let tx_script_code = format!(
             "
                 use.publisher_component::publisher_module
-                use.miden::contracts::auth::basic->auth_tx
                 use.std::sys
         
                 begin
@@ -72,25 +76,17 @@ impl PublishCmd {
                     call.publisher_module::publish_entry
         
                     dropw
-        
-                    call.auth_tx::auth__tx_rpo_falcon512
-                    exec.sys::truncate_stack
+                    exec.sys::truncate_stack                    
                 end
                 ",
             pair = word_to_masm(pair_as_word),
             entry = word_to_masm(entry_as_word)
         );
-        let publish_script = TransactionScript::compile(
-            tx_script_code,
-            TransactionKernel::assembler()
-                .with_debug_mode(true)
-                .with_library(get_publisher_component_library())
-                .map_err(|e| {
-                    anyhow::anyhow!("Error while setting up the component library: {e:?}")
-                })?
-                .clone(),
-        )
-        .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
+        let publish_script = ScriptBuilder::default()
+            .with_statically_linked_library(&get_publisher_component_library())
+            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
+            .compile_tx_script(tx_script_code)
+            .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
         let transaction_request = TransactionRequestBuilder::new()
             .custom_script(publish_script)

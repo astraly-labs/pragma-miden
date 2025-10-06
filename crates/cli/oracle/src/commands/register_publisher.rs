@@ -1,10 +1,12 @@
 use std::path::Path;
 
-use miden_client::transaction::{TransactionKernel, TransactionRequestBuilder};
-use miden_client::Client;
-use miden_client::{account::AccountId, transaction::TransactionScript};
+use miden_client::account::AccountId;
+use miden_client::transaction::TransactionRequestBuilder;
+use miden_client::ScriptBuilder;
+use miden_client::{keystore::FilesystemKeyStore, Client};
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use rand::prelude::StdRng;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Registers a publisher id into the Oracle")]
@@ -40,7 +42,11 @@ impl RegisterPublisherCmd {
     /// - The transaction script compilation fails
     /// - The transaction request building fails
     /// - The transaction submission fails
-    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
+    pub async fn call(
+        &self,
+        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        network: &str,
+    ) -> anyhow::Result<()> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
         // just assert that the account exists
@@ -55,7 +61,6 @@ impl RegisterPublisherCmd {
             "
             use.oracle_component::oracle_module
             use.std::sys
-    
             begin
                 push.0.0
                 push.{account_id_suffix} push.{account_id_prefix}
@@ -66,20 +71,14 @@ impl RegisterPublisherCmd {
             account_id_prefix = publisher_id.prefix().as_u64(),
             account_id_suffix = publisher_id.suffix(),
         );
-        let median_script = TransactionScript::compile(
-            tx_script_code,
-            TransactionKernel::assembler()
-                .with_debug_mode(true)
-                .with_library(get_oracle_component_library())
-                .map_err(|e| {
-                    anyhow::anyhow!("Error while setting up the component library: {e:?}")
-                })?
-                .clone(),
-        )
-        .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
+        let register_script = ScriptBuilder::default()
+            .with_dynamically_linked_library(&get_oracle_component_library())
+            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
+            .compile_tx_script(tx_script_code)
+            .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
         let transaction_request = TransactionRequestBuilder::new()
-            .custom_script(median_script)
+            .custom_script(register_script)
             .build()
             .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 

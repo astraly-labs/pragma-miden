@@ -8,7 +8,7 @@ use anyhow::Context;
 use miden_client::{
     account::{Account, AccountId, AccountStorageMode, AccountType as ClientAccountType},
     rpc::domain::account::{AccountStorageRequirements, StorageMapKey},
-    transaction::{ForeignAccount, TransactionRequestBuilder, TransactionScript},
+    transaction::{ForeignAccount, TransactionRequestBuilder},
     Client, Felt, Word,
 };
 use miden_objects::{
@@ -23,7 +23,8 @@ use pm_utils_cli::{
 use rand::Rng;
 use std::str::FromStr;
 
-use miden_lib::transaction::TransactionKernel;
+use miden_lib::{transaction::TransactionKernel, utils::ScriptBuilder};
+use miden_tx::auth::TransactionAuthenticator;
 
 pub const EXAMPLE_ACCOUNT_MASM: &str = include_str!("example.masm");
 pub const NETWORK: &str = "devnet";
@@ -44,14 +45,17 @@ pub fn get_example_component_library() -> Library {
         .expect("assembly should succeed")
 }
 
-pub struct ExampleAccountBuilder<'a> {
-    client: Option<&'a mut Client>,
+pub struct ExampleAccountBuilder<'a, AUTH> {
+    client: Option<&'a mut Client<AUTH>>,
     account_type: AccountType,
     storage_slots: Vec<StorageSlot>,
     keystore_path: String,
 }
 
-impl<'a> ExampleAccountBuilder<'a> {
+impl<'a, AUTH> ExampleAccountBuilder<'a, AUTH>
+where
+    AUTH: TransactionAuthenticator + Sync + 'static,
+{
     pub fn new() -> Self {
         let default_storage_slots = vec![StorageSlot::empty_map()];
         Self {
@@ -72,7 +76,7 @@ impl<'a> ExampleAccountBuilder<'a> {
         self
     }
 
-    pub fn with_client(mut self, client: &'a mut Client) -> Self {
+    pub fn with_client(mut self, client: &'a mut Client<AUTH>) -> Self {
         self.client = Some(client);
         self
     }
@@ -112,7 +116,10 @@ impl<'a> ExampleAccountBuilder<'a> {
     }
 }
 
-impl<'a> Default for ExampleAccountBuilder<'a> {
+impl<'a, AUTH> Default for ExampleAccountBuilder<'a, AUTH>
+where
+    AUTH: TransactionAuthenticator + Sync + 'static,
+{
     fn default() -> Self {
         Self::new()
     }
@@ -199,14 +206,11 @@ async fn example_test() -> anyhow::Result<()> {
         oracle_id_suffix = oracle_id.suffix(),
     );
 
-    let example_script = TransactionScript::compile(
-        &tx_script_code,
-        TransactionKernel::assembler()
-            .with_debug_mode(true)
-            .with_library(get_example_component_library())
-            .map_err(|e| anyhow::anyhow!("Error setting up library: {e:?}"))?,
-    )
-    .map_err(|e| anyhow::anyhow!("Error compiling script: {e:?}"))?;
+    let example_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_example_component_library())
+        .map_err(|e| anyhow::anyhow!("Error setting up library: {e:?}"))?
+        .compile_tx_script(&tx_script_code)
+        .map_err(|e| anyhow::anyhow!("Error compiling script: {e:?}"))?;
 
     // Execute program
     let foreign_accounts_set: BTreeSet<ForeignAccount> =
@@ -250,14 +254,11 @@ async fn example_test() -> anyhow::Result<()> {
         oracle_id_prefix = oracle_id.prefix().as_u64(),
         oracle_id_suffix = oracle_id.suffix(),
     );
-    let example_script = TransactionScript::compile(
-        &tx_script_code,
-        TransactionKernel::assembler()
-            .with_debug_mode(true)
-            .with_library(get_example_component_library())
-            .map_err(|e| anyhow::anyhow!("Error setting up library: {e:?}"))?,
-    )
-    .map_err(|e| anyhow::anyhow!("Error compiling script: {e:?}"))?;
+    let example_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_example_component_library())
+        .map_err(|e| anyhow::anyhow!("Error setting up library: {e:?}"))?
+        .compile_tx_script(&tx_script_code)
+        .map_err(|e| anyhow::anyhow!("Error compiling script: {e:?}"))?;
     let transaction_request = TransactionRequestBuilder::new()
         .custom_script(example_script)
         .foreign_accounts(foreign_accounts)

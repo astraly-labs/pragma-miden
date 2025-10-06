@@ -7,6 +7,7 @@ use std::{
 use anyhow::{Context, Result};
 use miden_client::{
     account::AccountId,
+    keystore::FilesystemKeyStore,
     rpc::{
         domain::account::{AccountStorageRequirements, StorageMapKey},
         RpcError,
@@ -15,14 +16,12 @@ use miden_client::{
     sync::SyncSummary,
     transaction::{
         ForeignAccount, TransactionId, TransactionRequest, TransactionRequestBuilder,
-        TransactionResult, TransactionScript,
+        TransactionResult,
     },
-    Client, ClientError, Felt,
+    Client, ClientError, Felt, ScriptBuilder,
 };
-use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
     account::{Account, StorageMap, StorageSlot},
-    crypto::hash::rpo::RpoDigest,
     vm::AdviceInputs,
 };
 use pm_accounts::{
@@ -32,11 +31,11 @@ use pm_accounts::{
 };
 use pm_types::{Currency, Entry, Pair};
 use pm_utils_cli::setup_devnet_client;
-use rand::Rng;
+use rand::{prelude::StdRng, Rng};
 
-pub type TestClient = Client;
+pub type TestClient = Client<FilesystemKeyStore<StdRng>>;
 
-pub type Word = [miden_client::Felt; 4];
+pub type Word = miden_client::Word;
 
 /// Mocks [Entry] representing price feeds for use in tests.
 pub fn mock_entry() -> Entry {
@@ -95,7 +94,7 @@ pub async fn wait_for_node(client: &mut TestClient) {
 }
 
 pub async fn execute_tx(
-    client: &mut Client,
+    client: &mut TestClient,
     account_id: AccountId,
     tx_request: TransactionRequest,
 ) -> Result<TransactionId> {
@@ -117,7 +116,7 @@ pub async fn execute_tx(
 }
 
 pub async fn execute_tx_and_sync(
-    client: &mut Client,
+    client: &mut TestClient,
     account_id: AccountId,
     tx_request: TransactionRequest,
 ) -> Result<()> {
@@ -126,7 +125,7 @@ pub async fn execute_tx_and_sync(
     Ok(())
 }
 
-pub async fn wait_for_tx(client: &mut Client, transaction_id: TransactionId) -> Result<()> {
+pub async fn wait_for_tx(client: &mut TestClient, transaction_id: TransactionId) -> Result<()> {
     // wait until tx is committed
     let mut attempts = 0;
     const MAX_ATTEMPTS: u32 = 60;
@@ -186,7 +185,7 @@ pub async fn wait_for_blocks(client: &mut TestClient, amount_of_blocks: u32) -> 
     }
 }
 
-pub async fn setup_test_environment(store_filename: String) -> (Client, PathBuf) {
+pub async fn setup_test_environment(store_filename: String) -> (TestClient, PathBuf) {
     let crate_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let db_path = crate_path.parent().unwrap().parent().unwrap();
     let store_config = db_path.join(store_filename);
@@ -203,14 +202,14 @@ pub async fn setup_test_environment(store_filename: String) -> (Client, PathBuf)
 
 /// Creates and deploys a publisher account with the given entry data
 pub async fn create_and_deploy_publisher_account(
-    client: &mut Client,
+    client: &mut TestClient,
     pair_word: Word,
     entry_as_word: Word,
 ) -> Result<Account> {
     // Create publisher account
     let (publisher_account, publisher_seed) = PublisherAccountBuilder::new()
         .with_storage_slots(vec![StorageSlot::Map(
-            StorageMap::with_entries(vec![(RpoDigest::from(pair_word), entry_as_word)]).unwrap(),
+            StorageMap::with_entries(vec![(pair_word, entry_as_word)]).unwrap(),
         )])
         .with_client(client)
         .build()
@@ -232,7 +231,7 @@ pub async fn create_and_deploy_publisher_account(
 
 /// Creates and deploys an oracle account
 pub async fn create_and_deploy_oracle_account(
-    client: &mut Client,
+    client: &mut TestClient,
     storage_slots: Option<Vec<StorageSlot>>,
 ) -> Result<Account> {
     // Create oracle account builder
@@ -266,16 +265,14 @@ pub async fn create_and_deploy_oracle_account(
 
 /// Creates a deployment transaction for the given account
 async fn create_deployment_transaction(
-    client: &mut Client,
+    client: &mut TestClient,
     account_id: AccountId,
 ) -> Result<TransactionResult> {
-    let deployment_tx_script = TransactionScript::compile(
-        "begin 
-            call.::miden::contracts::auth::basic::auth__tx_rpo_falcon512 
+    let deployment_tx_script = ScriptBuilder::default().compile_tx_script(
+        "begin miden::auth::rpo_falcon512
+            call.::miden::auth::rpo_falcon512::authenticate_transaction
         end",
-        TransactionKernel::assembler(),
-    )
-    .context("Failed to compile deployment transaction script")?;
+    )?;
 
     client
         .new_transaction(
@@ -291,7 +288,7 @@ async fn create_deployment_transaction(
 
 /// Executes a get_entry transaction
 pub async fn execute_get_entry_transaction(
-    client: &mut Client,
+    client: &mut TestClient,
     oracle_id: AccountId,
     publisher_id: AccountId,
     pair_word: Word,
@@ -325,15 +322,11 @@ pub async fn execute_get_entry_transaction(
         publisher_id_prefix = publisher.account().id().prefix().as_felt(),
     );
 
-    let get_entry_script = TransactionScript::compile(
-        tx_script_code,
-        TransactionKernel::assembler()
-            .with_debug_mode(true)
-            .with_library(get_oracle_component_library())
-            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
-            .clone(),
-    )
-    .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
+    let get_entry_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_oracle_component_library())
+        .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
+        .compile_tx_script(tx_script_code)
+        .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
     // Create foreign account
     let storage_requirements =

@@ -1,9 +1,10 @@
 use std::path::Path;
 
 use colored::*;
-use miden_client::Client;
+use miden_client::{keystore::FilesystemKeyStore, Client};
 use pm_accounts::publisher::PublisherAccountBuilder;
-use pm_utils_cli::{set_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use pm_utils_cli::{add_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use rand::prelude::StdRng;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Publisher Account")]
@@ -37,7 +38,11 @@ impl InitCmd {
     /// - The client fails to sync state with the network
     /// - The publisher account creation fails
     /// - The configuration file cannot be updated
-    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
+    pub async fn call(
+        &self,
+        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        network: &str,
+    ) -> anyhow::Result<()> {
         // TODO: Refine this condition & logic
         // if JsonStorage::exists(PRAGMA_ACCOUNTS_STORAGE) && JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE).get_key(PUBLISHER_ACCOUNT_ID).is_some() {
         //     bail!("A Publisher has already been created! Delete it if you wanna start over.");
@@ -50,8 +55,8 @@ impl InitCmd {
             .await;
         let created_publisher_id = publisher_account.id();
 
-        // Update the storage with the new oracle ID
-        set_publisher_id(
+        // Add the new publisher ID to the storage (appends to array)
+        add_publisher_id(
             Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE),
             network,
             &created_publisher_id,

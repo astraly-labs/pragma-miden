@@ -4,8 +4,10 @@ use std::str::FromStr;
 
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
-use miden_client::transaction::{ForeignAccount, TransactionKernel, TransactionScript};
-use miden_client::{Client, Felt};
+use miden_client::transaction::ForeignAccount;
+use miden_client::ScriptBuilder;
+use miden_client::{keystore::FilesystemKeyStore, Client, Felt};
+use rand::prelude::StdRng;
 
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
@@ -35,7 +37,11 @@ impl GetEntryCmd {
     /// # Returns
     ///
     /// * `Result<Entry>` - The retrieved entry or an error with context
-    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<Entry> {
+    pub async fn call(
+        &self,
+        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        network: &str,
+    ) -> anyhow::Result<Entry> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
         let publisher_id = AccountId::from_hex(&self.publisher_id)?;
         let publisher = client
@@ -69,16 +75,11 @@ impl GetEntryCmd {
             account_id_suffix = publisher_id.suffix(),
         );
 
-        let get_entry_script = TransactionScript::compile(
-            tx_script_code,
-            TransactionKernel::assembler()
-                .with_debug_mode(true)
-                .with_library(get_oracle_component_library())
-                .map_err(|e| {
-                    anyhow::anyhow!("Error while setting up the component library: {e:?}")
-                })?,
-        )
-        .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
+        let get_entry_script = ScriptBuilder::default()
+            .with_dynamically_linked_library(&get_oracle_component_library())
+            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
+            .compile_tx_script(tx_script_code)
+            .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
         let mut foreign_accounts_set: BTreeSet<ForeignAccount> = BTreeSet::new();
         foreign_accounts_set.insert(foreign_account);
         let output_stack = client

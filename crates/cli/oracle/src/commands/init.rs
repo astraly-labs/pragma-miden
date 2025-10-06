@@ -1,9 +1,10 @@
 use std::path::Path;
 
 use colored::*;
-use miden_client::Client;
+use miden_client::{keystore::FilesystemKeyStore, Client};
 use pm_accounts::oracle::OracleAccountBuilder;
 use pm_utils_cli::{set_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use rand::prelude::StdRng;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Oracle Account")]
@@ -28,7 +29,11 @@ impl InitCmd {
     /// - The client fails to sync state with the network
     /// - The Oracle account creation fails
     /// - The configuration file cannot be updated
-    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
+    pub async fn call(
+        &self,
+        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        network: &str,
+    ) -> anyhow::Result<()> {
         println!("⏳ Initiating the Oracle...\n");
         client.sync_state().await?;
 

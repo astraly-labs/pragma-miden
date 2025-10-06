@@ -1,13 +1,15 @@
 use anyhow::Context;
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
-use miden_client::transaction::{ForeignAccount, TransactionKernel, TransactionScript};
-use miden_client::{Client, Felt};
+use miden_client::transaction::ForeignAccount;
+use miden_client::ScriptBuilder;
+use miden_client::{keystore::FilesystemKeyStore, Client, Felt};
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Pair;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use rand::prelude::StdRng;
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::str::FromStr;
@@ -48,7 +50,11 @@ impl MedianCmd {
     /// - Publisher information cannot be retrieved from storage
     /// - The transaction script compilation fails
     /// - The on-chain program execution fails
-    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<Felt> {
+    pub async fn call(
+        &self,
+        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        network: &str,
+    ) -> anyhow::Result<Felt> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
         client.sync_state().await?;
@@ -78,6 +84,7 @@ impl MedianCmd {
             .context("Failed to collect publisher array")?;
         let mut foreign_accounts: Vec<ForeignAccount> = vec![];
         for publisher_id in publisher_array {
+            println!("here is the publisher: {:?}", publisher_id.to_hex());
             let foreign_account = ForeignAccount::public(
                 publisher_id,
                 AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
@@ -98,17 +105,11 @@ impl MedianCmd {
             ",
             pair = word_to_masm(pair.to_word()),
         );
-        let median_script = TransactionScript::compile(
-            tx_script_code.clone(),
-            TransactionKernel::assembler()
-                .with_debug_mode(true)
-                .with_library(get_oracle_component_library())
-                .map_err(|e| {
-                    anyhow::anyhow!("Error while setting up the component library: {e:?}")
-                })?
-                .clone(),
-        )
-        .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
+        let median_script = ScriptBuilder::default()
+            .with_dynamically_linked_library(&get_oracle_component_library())
+            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
+            .compile_tx_script(tx_script_code.clone())
+            .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
         let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
         // We use the execute program, because median is a "view" function that does not modify the account hash
         let output_stack = client
