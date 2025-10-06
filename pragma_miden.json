@@ -2,11 +2,16 @@
   "networks": {
     "devnet": {
       "oracle_account_id": "0x2c3581d378c33500000025e6d7dcaf",
-      "publisher_account_id": "0x4512b3c6011563000000be07229c68"
+      "publisher_account_ids": [
+        "0x4512b3c6011563000000be07229c68"
+      ]
     },
     "testnet": {
-      "oracle_account_id": "0xae2a76331c47f30041602f35837b8b",
-      "publisher_account_id": "0xd7dc792436050200456c823b474eae"
+      "oracle_account_id": "0x787b5610ef379c00661fa038db2b87",
+      "publisher_account_ids": [
+        "0xb57cecfd7345a4006148954fa00d48",
+        "0x86ce7c13c14b1f0077dd28e7d405eb"
+      ]
     }
   }
 }
