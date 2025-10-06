@@ -1,8 +1,9 @@
 use chrono::{DateTime, Utc};
-use miden_client::Client;
+use miden_client::{keystore::FilesystemKeyStore, Client};
 use pm_types::{Entry, Pair};
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use prettytable::{Cell, Row, Table};
+use rand::prelude::StdRng;
 use std::{path::Path, str::FromStr};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -17,7 +18,11 @@ pub struct EntryCmd {
 const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 1;
 
 impl EntryCmd {
-    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
+    pub async fn call(
+        &self,
+        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        network: &str,
+    ) -> anyhow::Result<()> {
         client.sync_state().await.unwrap();
         let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 

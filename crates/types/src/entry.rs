@@ -21,13 +21,15 @@ impl TryInto<Word> for Entry {
             Felt::new(self.price),
             Felt::new(self.decimals as u64),
             Felt::new(self.timestamp),
-        ])
+        ]
+        .into())
     }
 }
 
 impl From<Word> for Entry {
     fn from(word: Word) -> Self {
-        let [pair_felt, price_felt, decimals_felt, timestamp_felt] = word;
+        let elements: [Felt; 4] = word.into();
+        let [pair_felt, price_felt, decimals_felt, timestamp_felt] = elements;
 
         // Convert pair from Felt
         let pair = Pair::from(pair_felt);

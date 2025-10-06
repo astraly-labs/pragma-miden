@@ -7,14 +7,9 @@ use anyhow::{Context, Result};
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{ForeignAccount, TransactionRequestBuilder};
-use miden_client::{Client, Felt, Word, ZERO};
-use miden_lib::transaction::TransactionKernel;
+use miden_client::{Client, Felt, ScriptBuilder, Word, ZERO};
+use miden_objects::account::{Account, StorageMap, StorageSlot};
 use miden_objects::vm::AdviceInputs;
-use miden_objects::{
-    account::{Account, StorageMap, StorageSlot},
-    crypto::hash::rpo::RpoDigest,
-    transaction::TransactionScript,
-};
 use pm_types::{Currency, Entry, Pair};
 
 use pm_accounts::{
@@ -52,16 +47,16 @@ async fn test_oracle_get_entry() -> Result<()> {
     ];
     let mut storage_slots = vec![
         // Storage for account (index 0)
-        StorageSlot::Value([Felt::new(4), ZERO, ZERO, ZERO]),
+        StorageSlot::Value([Felt::new(4), ZERO, ZERO, ZERO].into()),
         // Publisher registry
         StorageSlot::Map(
             StorageMap::with_entries(vec![(
-                RpoDigest::new(publisher_id_word),
-                [Felt::new(2), ZERO, ZERO, ZERO],
+                publisher_id_word.into(),
+                [Felt::new(2), ZERO, ZERO, ZERO].into(),
             )])
             .unwrap(),
         ),
-        StorageSlot::Value(publisher_id_word),
+        StorageSlot::Value(publisher_id_word.into()),
     ];
     storage_slots.extend((0..251).map(|_| StorageSlot::empty_value()));
 
@@ -122,15 +117,9 @@ async fn test_oracle_register_publisher() -> Result<()> {
         publisher_id_suffix = publisher_id.suffix(),
     );
 
-    let tx_script = TransactionScript::compile(
-        tx_script_code,
-        TransactionKernel::assembler()
-            .with_debug_mode(true)
-            .with_library(get_oracle_component_library())
-            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
-            .clone(),
-    )
-    .context("Error while compiling the script")?;
+    let tx_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_oracle_component_library())?
+        .compile_tx_script(tx_script_code)?;
 
     let transaction_request = TransactionRequestBuilder::new()
         .custom_script(tx_script)
@@ -152,11 +141,11 @@ async fn test_oracle_register_publisher() -> Result<()> {
     // Check that publisher was registered
     assert_eq!(
         oracle_account.storage().get_item(1).unwrap(),
-        RpoDigest::new([Felt::new(3), ZERO, ZERO, ZERO]) // We inserted a single publisher
+        [Felt::new(3), ZERO, ZERO, ZERO].into() // We inserted a single publisher
     );
     assert_eq!(
         oracle_account.storage().get_item(3).unwrap(),
-        RpoDigest::new(publisher_id_word)
+        publisher_id_word.into()
     );
 
     Ok(())
@@ -199,15 +188,9 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
         publisher_id_suffix = publisher_id.suffix(),
     );
 
-    let tx_script = TransactionScript::compile(
-        tx_script_code.clone(),
-        TransactionKernel::assembler()
-            .with_debug_mode(true)
-            .with_library(get_oracle_component_library())
-            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
-            .clone(),
-    )
-    .context("Error while compiling the script")?;
+    let tx_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_oracle_component_library())?
+        .compile_tx_script(tx_script_code.clone())?;
 
     let transaction_request = TransactionRequestBuilder::new()
         .custom_script(tx_script)
@@ -221,15 +204,9 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
     client.sync_state().await.context("Failed to sync state")?;
 
     // Now try to register the same publisher again - should fail
-    let tx_script = TransactionScript::compile(
-        tx_script_code,
-        TransactionKernel::assembler()
-            .with_debug_mode(true)
-            .with_library(get_oracle_component_library())
-            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
-            .clone(),
-    )
-    .context("Error while compiling the script")?;
+    let tx_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_oracle_component_library())?
+        .compile_tx_script(tx_script_code)?;
 
     let transaction_request = TransactionRequestBuilder::new()
         .custom_script(tx_script)
@@ -331,17 +308,9 @@ async fn test_oracle_get_median() -> Result<()> {
             publisher_id_suffix = publisher_id.suffix(),
         );
 
-        let tx_script = TransactionScript::compile(
-            tx_script_code,
-            TransactionKernel::assembler()
-                .with_debug_mode(true)
-                .with_library(get_oracle_component_library())
-                .map_err(|e| {
-                    anyhow::anyhow!("Error while setting up the component library: {}", e)
-                })?
-                .clone(),
-        )
-        .context("Error while compiling the script")?;
+        let tx_script = ScriptBuilder::default()
+            .with_statically_linked_library(&get_oracle_component_library())?
+            .compile_tx_script(tx_script_code)?;
 
         let transaction_request = TransactionRequestBuilder::new()
             .custom_script(tx_script)
@@ -392,15 +361,9 @@ async fn test_oracle_get_median() -> Result<()> {
         pair = word_to_masm(pair_word),
     );
 
-    let tx_script = TransactionScript::compile(
-        tx_script_code,
-        TransactionKernel::assembler()
-            .with_library(get_oracle_component_library())
-            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
-            .with_debug_mode(true)
-            .clone(),
-    )
-    .context("Error while compiling the script")?;
+    let tx_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_oracle_component_library())?
+        .compile_tx_script(tx_script_code)?;
     let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
     let output_stack = client
         .execute_program(
@@ -424,7 +387,7 @@ async fn test_oracle_get_median() -> Result<()> {
 
 pub async fn generate_publishers_and_median(
     n: usize,
-    client: &mut Client,
+    client: &mut Client<miden_client::keystore::FilesystemKeyStore<rand::prelude::StdRng>>,
 ) -> Result<(Vec<(Word, Account)>, u64)> {
     let mut generated_publishers = Vec::with_capacity(n);
     let mut prices = Vec::with_capacity(n);
@@ -436,7 +399,7 @@ pub async fn generate_publishers_and_median(
 
         let entry_as_word: Word = entry.try_into().unwrap();
         let pair: Felt = entry_as_word[0];
-        let pair_word: Word = [pair, ZERO, ZERO, ZERO];
+        let pair_word: Word = [pair, ZERO, ZERO, ZERO].into();
 
         let (publisher_account, _) = PublisherAccountBuilder::new()
             .with_storage_slots(vec![
@@ -445,7 +408,7 @@ pub async fn generate_publishers_and_median(
                 StorageSlot::Map(
                     StorageMap::with_entries(vec![(
                         // The key is the pair id
-                        RpoDigest::from(pair_word),
+                        pair_word,
                         // The value is the entry
                         entry_as_word,
                     )])
@@ -472,7 +435,7 @@ pub async fn generate_publishers_and_median(
 
 pub async fn generate_oracle_account(
     publisher_setups: &[(Word, Account)],
-    client: &mut Client,
+    client: &mut Client<miden_client::keystore::FilesystemKeyStore<rand::prelude::StdRng>>,
 ) -> Result<Account> {
     // Start building the storage slots
     let mut storage_slots = Vec::new();
@@ -482,12 +445,9 @@ pub async fn generate_oracle_account(
 
     // 2. Next publisher slot (number of publishers + 4)
     let next_publisher_slot = publisher_setups.len() as u64 + 3;
-    storage_slots.push(StorageSlot::Value([
-        Felt::new(next_publisher_slot),
-        ZERO,
-        ZERO,
-        ZERO,
-    ]));
+    storage_slots.push(StorageSlot::Value(
+        [Felt::new(next_publisher_slot), ZERO, ZERO, ZERO].into(),
+    ));
 
     // 3. Build publisher registry map
     let mut registry_entries = Vec::new();
@@ -500,24 +460,30 @@ pub async fn generate_oracle_account(
         ];
         let slot_index = (i as u64) + 4; // Start from slot 4
 
-        registry_entries.push((
-            RpoDigest::new(publisher_id_word),
-            [Felt::new(slot_index), ZERO, ZERO, ZERO],
-        ));
+        registry_entries.push((publisher_id_word, [Felt::new(slot_index), ZERO, ZERO, ZERO]));
     }
 
     storage_slots.push(StorageSlot::Map(
-        StorageMap::with_entries(registry_entries).unwrap(),
+        StorageMap::with_entries(
+            registry_entries
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect::<Vec<_>>(),
+        )
+        .unwrap(),
     ));
 
     // 4. Add publisher ID values sequentially
     for (_, publisher_account) in publisher_setups.iter() {
-        storage_slots.push(StorageSlot::Value([
-            publisher_account.id().prefix().as_felt(),
-            publisher_account.id().suffix(),
-            ZERO,
-            ZERO,
-        ]));
+        storage_slots.push(StorageSlot::Value(
+            [
+                publisher_account.id().prefix().as_felt(),
+                publisher_account.id().suffix(),
+                ZERO,
+                ZERO,
+            ]
+            .into(),
+        ));
     }
 
     let (oracle_account, _) = OracleAccountBuilder::new()

@@ -2,8 +2,6 @@ use.std::sys
 use.std::math::u64
 use.miden::account
 use.miden::tx
-use.miden::contracts::auth::basic->auth_tx
-
 # CONSTANTS
 # =================================================================================================
 
@@ -50,7 +48,7 @@ end
 #! Inputs: [PUBLISHER_ID, PAIR]
 #! Output: [ENTRY]
 proc.call_publisher_get_entry
-    push.0x2d1ea4fa1203adfd3c7d00f0961a8d29f459a59768bbe3cf12dcc80b488e1b89
+    push.0x5414e972ff32ce31d44fa36c727b7d81ff2a7b3209f4ff34dda79d849d8dd7a3
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
     swapw swap.2 drop swap.2 drop
     # => [publisher_id,publisher_id,  GET_ENTRY_HASH, PAIR]
@@ -366,8 +364,6 @@ export.register_publisher
     push.NEXT_PUBLISHER_INDEX_SLOT exec.account::set_item
     # => []
 
-    # Only the oracle owner should be able to call this
-    call.auth_tx::auth__tx_rpo_falcon512
     drop
 
     exec.sys::truncate_stack

@@ -3,9 +3,10 @@ use std::path::Path;
 use anyhow::Context;
 use colored::*;
 use miden_client::account::AccountId;
-use miden_client::{Client, ZERO};
+use miden_client::{keystore::FilesystemKeyStore, Client, ZERO};
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use prettytable::{Cell, Row, Table};
+use rand::prelude::StdRng;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Fetches the registered publishers")]
@@ -36,7 +37,11 @@ impl PublishersCmd {
     /// - The client fails to sync state with the network
     /// - The Oracle account cannot be found
     /// - Publisher information cannot be retrieved from storage
-    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<()> {
+    pub async fn call(
+        &self,
+        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        network: &str,
+    ) -> anyhow::Result<()> {
         client.sync_state().await.unwrap();
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
@@ -104,9 +109,9 @@ impl PublishersCmd {
             let status = oracle
                 .account()
                 .storage()
-                .get_map_item(2, [ZERO, ZERO, publisher_word[2], publisher_word[3]])
+                .get_map_item(2, [ZERO, ZERO, publisher_word[2], publisher_word[3]].into())
                 .map_or("Inactive ❌", |value| {
-                    if value == [ZERO, ZERO, ZERO, ZERO] {
+                    if value == [ZERO, ZERO, ZERO, ZERO].into() {
                         "Inactive ❌"
                     } else {
                         "Active ✅"

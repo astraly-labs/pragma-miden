@@ -58,16 +58,13 @@ pub fn get_oracle_id(storage_path: &Path, network: &str) -> Result<AccountId> {
         .map_err(|e| anyhow::anyhow!("Invalid oracle account ID: {}", e))
 }
 
-/// Gets publisher account ID for a specific network
+/// Gets the first publisher account ID for a specific network (for compatibility)
 pub fn get_publisher_id(storage_path: &Path, network: &str) -> Result<AccountId> {
-    let config = read_config_file(storage_path)?;
-
-    let account_id_str = config["networks"][network]["publisher_account_id"]
-        .as_str()
-        .ok_or_else(|| anyhow::anyhow!("No publisher account ID found for network {}", network))?;
-
-    AccountId::from_hex(account_id_str)
-        .map_err(|e| anyhow::anyhow!("Invalid publisher account ID: {}", e))
+    let publishers = get_publisher_ids(storage_path, network)?;
+    publishers
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("No publisher account ID found for network {}", network))
 }
 /// Updates or adds an account ID to a specific network configuration
 pub fn set_account_id(
@@ -133,7 +130,73 @@ pub fn set_oracle_id(storage_path: &Path, network: &str, account_id: &AccountId)
     set_account_id(storage_path, network, "oracle_account_id", account_id)
 }
 
-/// Sets publisher account ID for a specific network
+/// Adds a publisher account ID to the list for a specific network
+pub fn add_publisher_id(storage_path: &Path, network: &str, account_id: &AccountId) -> Result<()> {
+    // Read existing config
+    let mut config = read_config_file(storage_path)?;
+
+    // Ensure networks exists and is an object
+    if !config.get("networks").map_or(false, |v| v.is_object()) {
+        config["networks"] = json!({});
+    }
+
+    // Ensure the specific network exists and is an object
+    if !config["networks"]
+        .get(network)
+        .map_or(false, |v| v.is_object())
+    {
+        config["networks"][network] = json!({});
+    }
+
+    // Get existing publishers array or create new one
+    let publishers =
+        if let Some(existing) = config["networks"][network].get("publisher_account_ids") {
+            if let Some(arr) = existing.as_array() {
+                let mut publishers = arr.clone();
+                let id_str = account_id.to_string();
+                // Only add if not already present
+                if !publishers.iter().any(|p| p.as_str() == Some(&id_str)) {
+                    publishers.push(json!(id_str));
+                }
+                publishers
+            } else {
+                // If it's not an array, create a new array with the existing value and new one
+                vec![json!(account_id.to_string())]
+            }
+        } else {
+            // No publishers yet, create new array
+            vec![json!(account_id.to_string())]
+        };
+
+    config["networks"][network]["publisher_account_ids"] = json!(publishers);
+
+    // Write back to file
+    write_config_file(storage_path, &config)
+}
+
+/// Sets publisher account ID for a specific network (replaces all publishers with single one)
 pub fn set_publisher_id(storage_path: &Path, network: &str, account_id: &AccountId) -> Result<()> {
-    set_account_id(storage_path, network, "publisher_account_id", account_id)
+    add_publisher_id(storage_path, network, account_id)
+}
+
+/// Gets all publisher account IDs for a specific network
+pub fn get_publisher_ids(storage_path: &Path, network: &str) -> Result<Vec<AccountId>> {
+    let config = read_config_file(storage_path)?;
+
+    if let Some(publishers) = config["networks"][network].get("publisher_account_ids") {
+        if let Some(arr) = publishers.as_array() {
+            let mut account_ids = Vec::new();
+            for publisher in arr {
+                if let Some(id_str) = publisher.as_str() {
+                    account_ids.push(
+                        AccountId::from_hex(id_str)
+                            .map_err(|e| anyhow::anyhow!("Invalid publisher account ID: {}", e))?,
+                    );
+                }
+            }
+            return Ok(account_ids);
+        }
+    }
+
+    Ok(Vec::new())
 }

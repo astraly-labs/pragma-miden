@@ -4,7 +4,7 @@ use rand::Rng;
 
 use miden_client::{
     account::{
-        component::RpoFalcon512, Account, AccountStorageMode, AccountType as ClientAccountType,
+        component::AuthRpoFalcon512, Account, AccountStorageMode, AccountType as ClientAccountType,
     },
     auth::AuthSecretKey,
     keystore::FilesystemKeyStore,
@@ -37,7 +37,7 @@ pub const ORACLE_ACCOUNT_MASM: &str = include_str!("oracle.masm");
 
 pub fn oracle_storage_slots() -> Vec<StorageSlot> {
     let mut slots = vec![
-        StorageSlot::Value([Felt::new(2), ZERO, ZERO, ZERO]),
+        StorageSlot::Value([Felt::new(2), ZERO, ZERO, ZERO].into()),
         StorageSlot::empty_map(),
     ];
     slots.extend((0..252).map(|_| StorageSlot::empty_value()));
@@ -71,7 +71,7 @@ pub fn get_oracle_component() -> AccountComponent {
 }
 
 pub struct OracleAccountBuilder<'a> {
-    client: Option<&'a mut Client>,
+    client: Option<&'a mut Client<FilesystemKeyStore<rand::prelude::StdRng>>>,
     account_type: String, // Temporary fix, because AccountType is not consistent between the Client and the Object
     storage_slots: Vec<StorageSlot>,
     keystore_path: String,
@@ -99,7 +99,10 @@ impl<'a> OracleAccountBuilder<'a> {
         self
     }
 
-    pub fn with_client(mut self, client: &'a mut Client) -> Self {
+    pub fn with_client(
+        mut self,
+        client: &'a mut Client<FilesystemKeyStore<rand::prelude::StdRng>>,
+    ) -> Self {
         self.client = Some(client);
         self
     }
@@ -117,7 +120,7 @@ impl<'a> OracleAccountBuilder<'a> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component = RpoFalcon512::new(PublicKey::new(public_key.into()));
+        let auth_component = AuthRpoFalcon512::new(PublicKey::new(public_key.into()));
         let from_seed = client_rng.random();
 
         let (account, account_seed) = AccountBuilder::new(from_seed)

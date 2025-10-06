@@ -1,8 +1,7 @@
 mod common;
 use anyhow::{Context, Result};
-use miden_client::{transaction::TransactionRequestBuilder, Felt};
-use miden_lib::transaction::TransactionKernel;
-use miden_objects::{transaction::TransactionScript, vm::AdviceInputs};
+use miden_client::{transaction::TransactionRequestBuilder, Felt, ScriptBuilder};
+use miden_objects::vm::AdviceInputs;
 use pm_types::{Currency, Entry, Pair};
 use std::collections::BTreeSet;
 
@@ -10,11 +9,10 @@ use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_mas
 
 use common::{
     create_and_deploy_publisher_account, execute_tx_and_sync, mock_entry, setup_test_environment,
+    Word,
 };
 use pm_utils_cli::STORE_TEST_FILENAME;
 use uuid::Uuid;
-
-use crate::common::Word;
 
 #[tokio::test]
 async fn test_publisher_publish_entry() -> Result<()> {
@@ -54,7 +52,7 @@ async fn test_publisher_publish_entry() -> Result<()> {
         "
 
         use.publisher_component::publisher_module
-        use.miden::contracts::auth::basic->auth_tx
+        use.use.miden::auth::rpo_falcon512-> auth__tx
         use.std::sys
 
         begin
@@ -65,7 +63,7 @@ async fn test_publisher_publish_entry() -> Result<()> {
 
             dropw
 
-            call.auth_tx::auth__tx_rpo_falcon512
+            call.auth__tx::authenticate_transaction
             exec.sys::truncate_stack
         end
         ",
@@ -73,15 +71,11 @@ async fn test_publisher_publish_entry() -> Result<()> {
         entry = word_to_masm(entry_as_word)
     );
 
-    let tx_script = TransactionScript::compile(
-        tx_script_code,
-        TransactionKernel::assembler()
-            .with_debug_mode(true)
-            .with_library(get_publisher_component_library())
-            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
-            .clone(),
-    )
-    .map_err(|e| anyhow::anyhow!("Error while compiling the script: {}", e))?;
+    let tx_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_publisher_component_library())
+        .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
+        .compile_tx_script(tx_script_code)
+        .map_err(|e| anyhow::anyhow!("Error while compiling the script: {}", e))?;
 
     let transaction_request = TransactionRequestBuilder::new()
         .custom_script(tx_script)
@@ -151,15 +145,11 @@ async fn test_publisher_get_entry() -> Result<()> {
         pair = word_to_masm(pair_word),
     );
 
-    let get_entry_script = TransactionScript::compile(
-        tx_script_code,
-        TransactionKernel::assembler()
-            .with_debug_mode(true)
-            .with_library(get_publisher_component_library())
-            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
-            .clone(),
-    )
-    .map_err(|e| anyhow::anyhow!("Error while compiling the script: {}", e))?;
+    let get_entry_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_publisher_component_library())
+        .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
+        .compile_tx_script(tx_script_code)
+        .map_err(|e| anyhow::anyhow!("Error while compiling the script: {}", e))?;
 
     let output_stack = client
         .execute_program(

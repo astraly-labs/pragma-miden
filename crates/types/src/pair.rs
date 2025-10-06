@@ -21,7 +21,7 @@ impl Pair {
     }
 
     pub fn to_word(&self) -> Word {
-        [ZERO, ZERO, ZERO, self.try_into().unwrap()]
+        [ZERO, ZERO, ZERO, self.try_into().unwrap()].into()
     }
 
     /// Converts the Pair to a decimal string representation "{base}/{quote}" and
@@ -442,7 +442,7 @@ mod tests {
         let word = [Felt::new(packed), ZERO, ZERO, ZERO];
 
         // This should now succeed since we have the complete pair in one Felt
-        let result = Pair::from_felts(word);
+        let result = Pair::from_felts(word.into());
         assert!(result.is_ok());
 
         let pair = result.unwrap();
@@ -453,7 +453,7 @@ mod tests {
         let incomplete: u64 = ('B' as u64) | (('T' as u64) << 8) | (('C' as u64) << 16);
 
         let word = [Felt::new(incomplete), ZERO, ZERO, ZERO];
-        let result = Pair::from_felts(word);
+        let result = Pair::from_felts(word.into());
         assert!(result.is_err());
     }
 
@@ -544,7 +544,7 @@ mod tests {
 
         let word = [Felt::new(packed), ZERO, ZERO, ZERO];
 
-        let pair = Pair::from_felts(word).unwrap();
+        let pair = Pair::from_felts(word.into()).unwrap();
         assert_eq!(pair.base.0, "BTC");
         assert_eq!(pair.quote.0, "USD");
     }

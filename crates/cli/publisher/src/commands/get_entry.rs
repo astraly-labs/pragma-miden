@@ -1,10 +1,10 @@
-use miden_client::transaction::{TransactionKernel, TransactionScript};
-use miden_client::{Client, Felt};
+use miden_client::{keystore::FilesystemKeyStore, Client, Felt, ScriptBuilder};
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::publisher::get_publisher_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::{Entry, Pair};
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use rand::prelude::StdRng;
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::str::FromStr;
@@ -46,7 +46,11 @@ impl GetEntryCmd {
     /// - The transaction script compilation fails
     /// - The program execution fails
     /// - The returned stack doesn't contain the expected values
-    pub async fn call(&self, client: &mut Client, network: &str) -> anyhow::Result<Entry> {
+    pub async fn call(
+        &self,
+        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        network: &str,
+    ) -> anyhow::Result<Entry> {
         let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
         let pair: Pair = Pair::from_str(&self.pair).unwrap();
         let tx_script_code = format!(
@@ -64,17 +68,11 @@ impl GetEntryCmd {
             pair = word_to_masm(pair.to_word()),
         );
 
-        let get_entry_script = TransactionScript::compile(
-            tx_script_code,
-            TransactionKernel::assembler()
-                .with_debug_mode(true)
-                .with_library(get_publisher_component_library())
-                .map_err(|e| {
-                    anyhow::anyhow!("Error while setting up the component library: {e:?}")
-                })?
-                .clone(),
-        )
-        .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
+        let get_entry_script = ScriptBuilder::default()
+            .with_statically_linked_library(&get_publisher_component_library())
+            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
+            .compile_tx_script(tx_script_code)
+            .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
         let output_stack = client
             .execute_program(

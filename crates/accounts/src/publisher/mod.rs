@@ -4,7 +4,7 @@ use rand::Rng;
 
 use miden_client::{
     account::{
-        component::RpoFalcon512, Account, AccountStorageMode, AccountType as ClientAccountType,
+        component::AuthRpoFalcon512, Account, AccountStorageMode, AccountType as ClientAccountType,
     },
     auth::AuthSecretKey,
     crypto::SecretKey,
@@ -19,7 +19,7 @@ use miden_assembly::{
 
 use miden_objects::{
     account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
-    assembly::{Assembler, DefaultSourceManager, Library},
+    assembly::{DefaultSourceManager, Library},
     crypto::dsa::rpo_falcon512::PublicKey,
 };
 
@@ -55,7 +55,7 @@ pub fn get_publisher_component() -> AccountComponent {
 }
 
 pub struct PublisherAccountBuilder<'a> {
-    client: Option<&'a mut Client>,
+    client: Option<&'a mut Client<FilesystemKeyStore<rand::prelude::StdRng>>>,
     account_type: AccountType,
     storage_slots: Vec<StorageSlot>,
     keystore_path: String,
@@ -82,7 +82,10 @@ impl<'a> PublisherAccountBuilder<'a> {
         self
     }
 
-    pub fn with_client(mut self, client: &'a mut Client) -> Self {
+    pub fn with_client(
+        mut self,
+        client: &'a mut Client<FilesystemKeyStore<rand::prelude::StdRng>>,
+    ) -> Self {
         self.client = Some(client);
         self
     }
@@ -98,8 +101,7 @@ impl<'a> PublisherAccountBuilder<'a> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component: RpoFalcon512 =
-            RpoFalcon512::new(PublicKey::new(public_key.into())).into();
+        let auth_component = AuthRpoFalcon512::new(PublicKey::new(public_key.into()));
 
         let publisher_component: AccountComponent = get_publisher_component();
         let from_seed = client_rng.random();

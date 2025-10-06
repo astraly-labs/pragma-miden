@@ -1,6 +1,7 @@
-use miden_client::{account::AccountId, Client};
+use miden_client::{account::AccountId, keystore::FilesystemKeyStore, Client};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use rand::prelude::StdRng;
 use std::path::PathBuf;
 mod commands;
 use crate::commands::{
@@ -70,6 +71,7 @@ fn py_publish(
             price,
             decimals,
             timestamp,
+            publisher_id: None, // Use default (first publisher from config)
         };
 
         cmd.call(&mut client, network_str)
@@ -180,7 +182,7 @@ async fn setup_client(
     network: &str,
     store_config: PathBuf,
     keystore_path: Option<String>,
-) -> PyResult<Client> {
+) -> PyResult<Client<FilesystemKeyStore<StdRng>>> {
     match network {
         "devnet" => {
             println!("Initializing devnet client");
