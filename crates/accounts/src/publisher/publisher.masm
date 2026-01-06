@@ -1,5 +1,6 @@
 use.std::sys
-use.miden::account
+use.miden::active_account
+use.miden::native_account
 # CONSTANTS
 # =================================================================================================
 
@@ -15,7 +16,7 @@ const.ENTRIES_MAP_SLOT=0
 #! Outputs: []
 #!
 export.publish_entry
-    push.ENTRIES_MAP_SLOT exec.account::set_map_item
+    push.ENTRIES_MAP_SLOT exec.native_account::set_map_item
     # Truncate just in case
     exec.sys::truncate_stack
 end
@@ -29,7 +30,7 @@ export.get_entry
     push.ENTRIES_MAP_SLOT
 
     # => [entries_map_slot, PAIR]
-    exec.account::get_map_item
+    exec.active_account::get_map_item
 
     # => [ENTRY]
     exec.sys::truncate_stack

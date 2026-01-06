@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::Context;
+use miden_client::assembly::{Library, LibraryPath, Module, ModuleKind};
 use miden_client::{
     account::{Account, AccountId, AccountStorageMode, AccountType as ClientAccountType},
     rpc::domain::account::{AccountStorageRequirements, StorageMapKey},
@@ -13,7 +14,7 @@ use miden_client::{
 };
 use miden_objects::{
     account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
-    assembly::{DefaultSourceManager, Library, LibraryPath, Module, ModuleKind},
+    assembly::DefaultSourceManager,
     vm::AdviceInputs,
 };
 use pm_types::Pair;
@@ -98,17 +99,15 @@ where
         let account_type: String = self.account_type.to_string();
         let client_account_type: ClientAccountType = account_type.parse().unwrap();
 
-        let (account, account_seed) = AccountBuilder::new(from_seed)
+        let account = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Private)
             .with_component(example_component)
             .build()
             .unwrap();
+        let account_seed = account.seed().expect("New account should have seed");
 
-        client
-            .add_account(&account, Some(account_seed), true)
-            .await
-            .unwrap();
+        client.add_account(&account, true).await.unwrap();
 
         client.sync_state().await.unwrap();
 
@@ -265,15 +264,10 @@ async fn example_test() -> anyhow::Result<()> {
         .build()
         .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 
-    let transaction = client
-        .new_transaction(example_account.id(), transaction_request)
-        .await
-        .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
-
     client
-        .submit_transaction(transaction.clone())
+        .submit_new_transaction(example_account.id(), transaction_request)
         .await
-        .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
+        .map_err(|e| anyhow::anyhow!("Error while submitting transaction: {e:?}"))?;
 
     // Now we can check the storage
     Ok(())

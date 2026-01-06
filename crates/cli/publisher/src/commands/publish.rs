@@ -101,15 +101,10 @@ impl PublishCmd {
             .build()
             .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 
-        let transaction = client
-            .new_transaction(publisher_id, transaction_request)
-            .await
-            .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
-
         client
-            .submit_transaction(transaction.clone())
+            .submit_new_transaction(publisher_id, transaction_request)
             .await
-            .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
+            .map_err(|e| anyhow::anyhow!("Error while submitting transaction: {e:?}"))?;
 
         println!(" Publish successful!");
 
