@@ -22,7 +22,7 @@ echo "Registering first publisher: $PUBLISHER_ADDRESS_1"
 
 # Publish with first publisher
 echo "Publishing with first publisher..."
-./target/release/pm-publisher-cli publish BTC/USD 124599600000 6 1759763468 --network $NETWORK --publisher-id "$PUBLISHER_ADDRESS_1"
+./target/release/pm-publisher-cli publish BTC/USD 93599600000 6 1767717857 --network $NETWORK --publisher-id "$PUBLISHER_ADDRESS_1"
 
 # Initialize the second publisher
 echo "Initializing second publisher..."
@@ -35,10 +35,15 @@ echo "Registering second publisher: $PUBLISHER_ADDRESS_2"
 
 # Publish with second publisher
 echo "Publishing with second publisher..."
-./target/release/pm-publisher-cli publish BTC/USD 124109300000 6 1759763468 --network $NETWORK --publisher-id "$PUBLISHER_ADDRESS_2"
+./target/release/pm-publisher-cli publish BTC/USD 92599600000 6 1767717857 --network $NETWORK --publisher-id "$PUBLISHER_ADDRESS_2"
+
+# Wait for transactions to be confirmed and sync
+echo "Waiting for transactions to be confirmed..."
+sleep 10
+./target/release/pm-oracle-cli sync --network $NETWORK
 
 # Get median
 echo "Getting median..."
-./target/release/pm-oracle-cli get-median BTC/USD --network $NETWORK
+./target/release/pm-oracle-cli median BTC/USD --network $NETWORK
 
 echo "✅ Oracle and both publishers setup complete!"

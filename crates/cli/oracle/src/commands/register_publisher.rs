@@ -82,15 +82,10 @@ impl RegisterPublisherCmd {
             .build()
             .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
 
-        let tx_result = client
-            .new_transaction(oracle_id, transaction_request)
-            .await
-            .map_err(|e| anyhow::anyhow!("Error while creating a transaction: {e:?}"))?;
-
         client
-            .submit_transaction(tx_result.clone())
+            .submit_new_transaction(oracle_id, transaction_request)
             .await
-            .map_err(|e| anyhow::anyhow!("Error while submitting a transaction: {e:?}"))?;
+            .map_err(|e| anyhow::anyhow!("Error while submitting transaction: {e:?}"))?;
 
         println!("✅ Register successful!");
 

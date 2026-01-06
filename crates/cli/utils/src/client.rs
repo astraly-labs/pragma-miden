@@ -5,11 +5,12 @@ use miden_client::{
         Account, AccountBuilder, AccountStorageMode, AccountType,
     },
     builder::ClientBuilder,
-    crypto::{RpoRandomCoin, SecretKey},
+    crypto::{rpo_falcon512::SecretKey, RpoRandomCoin},
     keystore::FilesystemKeyStore,
-    rpc::{Endpoint, TonicRpcClient},
+    rpc::{Endpoint, GrpcClient},
     Client, ClientError, Felt, Word,
 };
+use miden_client_sqlite_store::SqliteStore;
 use miden_tx::auth::TransactionAuthenticator;
 use rand::{rngs::StdRng, Rng, RngCore};
 use std::{path::PathBuf, sync::Arc};
@@ -27,7 +28,7 @@ pub async fn setup_devnet_client(
     let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57123));
     let timeout_ms = 10_000;
 
-    let rpc_api = Arc::new(TonicRpcClient::new(&endpoint, timeout_ms));
+    let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
     let coin_seed: [u64; 4] = rand::random();
 
@@ -61,19 +62,16 @@ pub async fn setup_devnet_client(
         .unwrap()
         .into();
 
-    // let store = SqliteStore::new(path.into())
-    //     .await
-    //     .map_err(ClientError::StoreError)?;
-    // let arc_store = Arc::new(store);
-    // let auth_path = temp_dir().join(format!("keystore-{}", Uuid::new_v4()));
-    // std::fs::create_dir_all(&auth_path).unwrap();
-    let str_path = path.to_str().expect("Path should be valid");
+    let store = SqliteStore::new(path.try_into().expect("Path should be valid"))
+        .await
+        .map_err(ClientError::StoreError)?;
+    let arc_store = Arc::new(store);
+
     let mut client = ClientBuilder::new()
         .authenticator(keystore)
         .rpc(rpc_api)
         .rng(rng)
-        .sqlite_store(str_path)
-        // .with_store(arc_store)
+        .store(arc_store)
         .in_debug_mode(miden_client::DebugMode::Enabled)
         .build()
         .await?;
@@ -91,7 +89,7 @@ pub async fn setup_testnet_client(
     let timeout_ms = 10_000;
 
     // Build RPC client
-    let rpc_api = Arc::new(TonicRpcClient::new(&endpoint, timeout_ms));
+    let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
 
     // Seed RNG
     let mut seed_rng = rand::rng();
@@ -108,8 +106,6 @@ pub async fn setup_testnet_client(
             p
         }
     };
-
-    let str_path = path.to_str().expect("Path must be valid");
 
     let keystore_path_str = keystore_path.unwrap_or_else(|| {
         // Find the project root by looking for Cargo.toml
@@ -130,23 +126,16 @@ pub async fn setup_testnet_client(
         .unwrap()
         .into();
 
-    // // SQLite path
-    // let store_path = "store.sqlite3";
+    let store = SqliteStore::new(path.try_into().expect("Path must be valid"))
+        .await
+        .map_err(ClientError::StoreError)?;
+    let arc_store = Arc::new(store);
 
-    // // Initialize SQLite store
-    // let store = SqliteStore::new(store_path.into())
-    //     .await
-    //     .map_err(ClientError::StoreError)?;
-    // let arc_store = Arc::new(store);
-
-    // Create authenticator referencing the store and RNG
-
-    // Instantiate client (toggle debug mode as needed)
     let client = ClientBuilder::new()
         .authenticator(keystore)
         .rpc(rpc_api)
         .rng(rng)
-        .sqlite_store(str_path)
+        .store(arc_store)
         .in_debug_mode(miden_client::DebugMode::Enabled)
         .build()
         .await?;
@@ -164,14 +153,15 @@ where
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
     let key_pair = SecretKey::with_rng(client.rng());
-    let (account, seed) = AccountBuilder::new(init_seed)
+    let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(storage_mode)
-        .with_component(AuthRpoFalcon512::new(key_pair.public_key()))
+        .with_component(AuthRpoFalcon512::new(key_pair.public_key().into()))
         .with_component(BasicWallet)
         .build()
         .unwrap();
 
-    client.add_account(&account, Some(seed), false).await?;
+    let seed = account.seed().expect("New account should have seed");
+    client.add_account(&account, false).await?;
     Ok((account, seed))
 }

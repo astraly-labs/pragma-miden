@@ -7,18 +7,25 @@ use miden_client::{
         component::AuthRpoFalcon512, Account, AccountStorageMode, AccountType as ClientAccountType,
     },
     auth::AuthSecretKey,
+    crypto::rpo_falcon512::SecretKey,
     keystore::FilesystemKeyStore,
-    Client,
+    Client, Felt, Word, ZERO,
 };
-use miden_client::{crypto::SecretKey, Felt, Word, ZERO};
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
     account::{AccountBuilder, AccountComponent, StorageSlot},
     assembly::{DefaultSourceManager, Library, LibraryPath, Module, ModuleKind},
-    crypto::dsa::rpo_falcon512::PublicKey,
 };
 
-pub const ORACLE_ACCOUNT_MASM: &str = include_str!("oracle.masm");
+use crate::publisher::get_entry_procedure_hash;
+
+const ORACLE_ACCOUNT_MASM_TEMPLATE: &str = include_str!("oracle.masm");
+
+/// Returns the oracle MASM code with the publisher's get_entry hash injected.
+fn get_oracle_masm() -> String {
+    let get_entry_hash = get_entry_procedure_hash();
+    ORACLE_ACCOUNT_MASM_TEMPLATE.replace("{GET_ENTRY_HASH}", &get_entry_hash)
+}
 
 // pub fn get_oracle_component_library() -> Library {
 //     let source_manager = Arc::new(DefaultSourceManager::default());
@@ -46,10 +53,11 @@ pub fn oracle_storage_slots() -> Vec<StorageSlot> {
 
 pub fn get_oracle_component_library() -> Library {
     let source_manager = Arc::new(DefaultSourceManager::default());
+    let oracle_masm = get_oracle_masm();
     let oracle_component_module = Module::parser(ModuleKind::Library)
         .parse_str(
             LibraryPath::new("oracle_component::oracle_module").unwrap(),
-            ORACLE_ACCOUNT_MASM,
+            &oracle_masm,
             &source_manager,
         )
         .unwrap();
@@ -61,13 +69,10 @@ pub fn get_oracle_component_library() -> Library {
 
 pub fn get_oracle_component() -> AccountComponent {
     let assembler = TransactionKernel::assembler().with_debug_mode(true);
-    AccountComponent::compile(
-        ORACLE_ACCOUNT_MASM.to_string(),
-        assembler,
-        oracle_storage_slots(),
-    )
-    .expect("assembly should succeed")
-    .with_supports_all_types()
+    let oracle_masm = get_oracle_masm();
+    AccountComponent::compile(oracle_masm, assembler, oracle_storage_slots())
+        .expect("assembly should succeed")
+        .with_supports_all_types()
 }
 
 pub struct OracleAccountBuilder<'a> {
@@ -120,20 +125,18 @@ impl<'a> OracleAccountBuilder<'a> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component = AuthRpoFalcon512::new(PublicKey::new(public_key.into()));
+        let auth_component = AuthRpoFalcon512::new(public_key.into());
         let from_seed = client_rng.random();
 
-        let (account, account_seed) = AccountBuilder::new(from_seed)
+        let account = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Public)
             .with_auth_component(auth_component)
             .with_component(oracle_component)
             .build()
             .unwrap();
-        client
-            .add_account(&account, Some(account_seed), true)
-            .await
-            .unwrap();
+        let account_seed = account.seed().expect("New account should have seed");
+        client.add_account(&account, true).await.unwrap();
 
         let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
             FilesystemKeyStore::new(self.keystore_path.into()).unwrap();

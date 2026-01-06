@@ -1,6 +1,7 @@
 use.std::sys
 use.std::math::u64
-use.miden::account
+use.miden::active_account
+use.miden::native_account
 use.miden::tx
 # CONSTANTS
 # =================================================================================================
@@ -48,7 +49,7 @@ end
 #! Inputs: [PUBLISHER_ID, PAIR]
 #! Output: [ENTRY]
 proc.call_publisher_get_entry
-    push.0x5414e972ff32ce31d44fa36c727b7d81ff2a7b3209f4ff34dda79d849d8dd7a3
+    push.{GET_ENTRY_HASH}
     # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
     swapw swap.2 drop swap.2 drop
     # => [publisher_id,publisher_id,  GET_ENTRY_HASH, PAIR]
@@ -65,13 +66,13 @@ end
 proc.ram_swap
     dup
     # => [i, i, j]
-    push.0.0.0.0 movup.4 mul.4 mem_loadw
+    push.0.0.0.0 movup.4 mul.4 mem_loadw_be
     # => [mem_i, i, j]
-    movup.5 dup push.0.0.0.0 movup.4 mul.4 mem_loadw
+    movup.5 dup push.0.0.0.0 movup.4 mul.4 mem_loadw_be
     # => [mem_j, j, mem_i, i]
     movup.9
     # => [i, mem_j, j, mem_i]
-    mul.4 mem_storew dropw mul.4 mem_storew dropw
+    mul.4 mem_storew_be dropw mul.4 mem_storew_be dropw
 end
 
 #! Updates the top word on the stack that is an entry to its price
@@ -90,9 +91,9 @@ end
 #! returns
 #! => [0, i, j]
 proc.ram_is_lower
-    dup push.0.0.0.0 movup.5 mul.4 mem_loadw exec.entry_to_price
+    dup push.0.0.0.0 movup.5 mul.4 mem_loadw_be exec.entry_to_price
     # => [mem_i, i, j]
-    movup.2 dup push.0.0.0.0 movup.4 mul.4 mem_loadw exec.entry_to_price
+    movup.2 dup push.0.0.0.0 movup.4 mul.4 mem_loadw_be exec.entry_to_price
     # => [mem_j, j, mem_i, i]
     movup.2 swap.1 lt
     # => [BOOL, j, i]
@@ -211,7 +212,7 @@ proc.ram_get_median
         # => [index_to_read]
         # = nb_of_entries / 2
 
-        push.0.0.0.0 movup.4 mul.4 mem_loadw
+        push.0.0.0.0 movup.4 mul.4 mem_loadw_be
         # => [MEDIAN_ENTRY]
 
         exec.entry_to_price
@@ -224,10 +225,10 @@ proc.ram_get_median
         dup sub.1
         # => [index_to_read - 1, index_to_read]
 
-        push.0.0.0.0 movup.4 mul.4 mem_loadw
+        push.0.0.0.0 movup.4 mul.4 mem_loadw_be
         # => [ENTRY_N_MINUS_1, index_to_read]
 
-        push.0.0.0.0 movup.8 mul.4 mem_loadw
+        push.0.0.0.0 movup.8 mul.4 mem_loadw_be
 
         exec.entry_to_price
         # => [price_n, ENTRY_N_MINUS_1]
@@ -248,7 +249,7 @@ end
 #! Outputs: [ENTRY]
 export.get_entry
     # Verifies if the publisher is registered, panics if not
-    # dupw push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item dropw
+    # dupw push.PUBLISHER_REGISTRY_MAP_SLOT exec.active_account::get_map_item dropw
     # => [PUBLISHER_ID, PAIR]
 
     # Push the get_entry hash function for the publisher account
@@ -264,7 +265,7 @@ end
 #! Outputs: [median_price]
 export.get_median
     # Iterate from 3 to NEXT_PUBLISHER_INDEX_SLOT value.
-    push.0.0.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item drop drop drop
+    push.0.0.NEXT_PUBLISHER_INDEX_SLOT exec.active_account::get_item drop drop drop
     # => [next_publisher_slot, 0, 0, PAIR]
 
     push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
@@ -272,7 +273,7 @@ export.get_median
 
     while.true
         # Get the publisher id at slot [top of the stack]
-        dup exec.account::get_item
+        dup exec.active_account::get_item
         # => [PUBLISHER_ID, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, PAIR]
 
         dupw.2 swapw.1
@@ -284,7 +285,7 @@ export.get_median
 
         # Store the entry in the RAM from index 0 to index N
         dup.4 push.PUBLISHERS_STORAGE_SLOT sub mul.4  # we multiplied the result by 4 because se can store with % 4!=0 addresses
-        mem_storew dropw
+        mem_storew_be dropw
         # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, PAIR]
         # Increment the next index and check if there's still publishers to process
         add.1 exec.felt_is_lower
@@ -324,7 +325,7 @@ export.register_publisher
     #dupw
     # => [PUBLISHER_ID, PUBLISHER_ID]
     # The goal here is to retrieve the index associated to the publisher id in the registry. If the index is 0, it is not registered
-    #push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::get_map_item
+    #push.PUBLISHER_REGISTRY_MAP_SLOT exec.active_account::get_map_item
     # => [REGISTERED_INDEX, PUBLISHER_ID]
     # push.0.0.0.0
     # => [ZERO,REGISTERED_INDEX, PUBLISHER_ID]
@@ -337,7 +338,7 @@ export.register_publisher
     # => [PUBLISHER_ID, PUBLISHER_ID]
 
     # Retrieve the next_publisher_slot available from the slot
-    push.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
+    push.NEXT_PUBLISHER_INDEX_SLOT exec.active_account::get_item
 
     # => [NEXT_PUBLISHER_SLOT, PUBLISHER_ID, PUBLISHER_ID]
 
@@ -346,22 +347,22 @@ export.register_publisher
     # => [next_publisher_slot, PUBLISHER_ID, NEXT_PUBLISHER_SLOT, PUBLISHER_ID]
 
     # Store the publisher into its assigned slot
-    exec.account::set_item dropw dropw swapw
+    exec.native_account::set_item dropw dropw swapw
     # => [PUBLISHER_ID, NEXT_PUBLISHER_SLOT]
 
     # Register the publisher into its mapping
-    push.PUBLISHER_REGISTRY_MAP_SLOT exec.account::set_map_item
+    push.PUBLISHER_REGISTRY_MAP_SLOT exec.native_account::set_map_item
     # => []
 
     # Increment NEXT_PUBLISHER_INDEX_SLOT
-    push.NEXT_PUBLISHER_INDEX_SLOT exec.account::get_item
+    push.NEXT_PUBLISHER_INDEX_SLOT exec.active_account::get_item
     # => [PUBLISHER_INDEX_SLOT]
 
     # Update the storage value
     swap.3 add.1 swap.3
     # => [PUBLISHER_INDEX_SLOT+1]
 
-    push.NEXT_PUBLISHER_INDEX_SLOT exec.account::set_item
+    push.NEXT_PUBLISHER_INDEX_SLOT exec.native_account::set_item
     # => []
 
     drop
