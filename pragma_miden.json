@@ -1,16 +1,9 @@
 {
   "networks": {
-    "devnet": {
-      "oracle_account_id": "0x2c3581d378c33500000025e6d7dcaf",
-      "publisher_account_ids": [
-        "0x4512b3c6011563000000be07229c68"
-      ]
-    },
     "testnet": {
-      "oracle_account_id": "0xd491c19eb484a4004b56d7eab5e6f9",
+      "oracle_account_id": "0xbe9ee9b4a8cc4f004a724bd6eb2450",
       "publisher_account_ids": [
-        "0x1cde497cfbd4f400476ff1a63dff47",
-        "0x6c9b6f3059d0a8001a0617492f502c"
+        "0x7260fa28a190f7005526d5e6f0058e"
       ]
     }
   }

@@ -30,3 +30,23 @@ keystore/
 # Store 
 **/store/
 store/
+
+# Deployed keys (demo workspaces)
+.deployed-keys/
+**/.deployed-keys/
+
+# Node modules
+node_modules/
+**/node_modules/
+
+# Next.js build output
+.next/
+**/.next/
+out/
+**/out/
+
+# Environment variables (local config)
+.env.local
+.env*.local
+**/.env.local
+**/.env*.local
