@@ -1,0 +1,11 @@
+{
+  "networks": {
+    "testnet": {
+      "oracle_account_id": "0x1380e7b926a9e90039215dfbf0a453",
+      "publisher_account_ids": [
+        "0xa57b8211a33dea0059e994573671ed",
+        "0x4d2859f1c466c600303b74668bd4b4"
+      ]
+    }
+  }
+}

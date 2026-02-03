@@ -30,3 +30,7 @@ keystore/
 # Store 
 **/store/
 store/
+
+# Deployed keys (demo workspaces)
+.deployed-keys/
+**/.deployed-keys/

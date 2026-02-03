@@ -11,6 +11,7 @@ use miden_client::{
     keystore::FilesystemKeyStore,
     Client, Felt, Word, ZERO,
 };
+use miden_objects::assembly::mast::MastNodeExt;
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
     account::{AccountBuilder, AccountComponent, StorageSlot},
@@ -128,6 +129,7 @@ impl<'a> OracleAccountBuilder<'a> {
         let auth_component = AuthRpoFalcon512::new(public_key.into());
         let from_seed = client_rng.random();
 
+        
         let account = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Public)
