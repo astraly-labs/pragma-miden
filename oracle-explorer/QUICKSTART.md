@@ -1,5 +1,15 @@
 # Quick Start - Oracle Explorer
 
+## Setup (première fois uniquement)
+
+```bash
+# Copier le fichier d'exemple
+cp .env.example .env.local
+
+# Les chemins par défaut devraient fonctionner si tu es dans oracle-explorer/
+# Sinon, édite .env.local avec tes chemins
+```
+
 ## Lancer avec les prix en live
 
 ### 1. Démarrer les publishers
