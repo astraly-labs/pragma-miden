@@ -1,7 +1,7 @@
 {
   "networks": {
     "testnet": {
-      "oracle_account_id": "0xbe9ee9b4a8cc4f004a724bd6eb2450",
+      "oracle_account_id": "0x1380e7b926a9e90039215dfbf0a453",
       "publisher_account_ids": [
         "0x7260fa28a190f7005526d5e6f0058e"
       ]

@@ -25,17 +25,31 @@ const PAIR_NAMES: Record<string, string> = {
   'SOL/USD': 'Solana',
 };
 
-async function fetchMedianWithRetry(pair: string): Promise<number> {
+interface MedianResult {
+  pair: string;
+  median: number;
+}
+
+async function fetchAllMediansWithRetry(pairs: string[]): Promise<Map<string, number>> {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const { stdout } = await execAsync(
-        `cd ${ORACLE_WORKSPACE} && ${CLI_PATH}/pm-oracle-cli median ${pair} --network testnet`,
+        `cd ${ORACLE_WORKSPACE} && ${CLI_PATH}/pm-oracle-cli median-batch ${pairs.join(' ')} --network testnet --json`,
         { timeout: 30000 }
       );
       
-      const match = stdout.match(/Median value: (\d+)/);
-      if (match) {
-        return parseInt(match[1]) / 1_000_000;
+      const lines = stdout.trim().split('\n');
+      const jsonLine = lines.find(line => line.startsWith('['));
+      
+      if (jsonLine) {
+        const results: MedianResult[] = JSON.parse(jsonLine);
+        const priceMap = new Map<string, number>();
+        
+        results.forEach(({ pair, median }) => {
+          priceMap.set(pair, median / 1_000_000);
+        });
+        
+        return priceMap;
       }
     } catch (error) {
       if (attempt === MAX_RETRIES - 1) {
@@ -45,7 +59,7 @@ async function fetchMedianWithRetry(pair: string): Promise<number> {
     }
   }
   
-  throw new Error('Failed to fetch median after retries');
+  throw new Error('Failed to fetch medians after retries');
 }
 
 export async function GET() {
@@ -58,23 +72,14 @@ export async function GET() {
     }
     
     const [midenPrices, binanceStats] = await Promise.all([
-      Promise.all(PAIRS.map(async (pair) => {
-        try {
-          const price = await fetchMedianWithRetry(pair);
-          return { pair, price };
-        } catch (error) {
-          console.error(`Failed to fetch Miden price for ${pair}:`, error);
-          return { pair, price: null };
-        }
-      })),
+      fetchAllMediansWithRetry(PAIRS),
       fetchMultiple24hStats(PAIRS),
     ]);
 
     const assets: Asset[] = PAIRS.map((pair) => {
-      const midenData = midenPrices.find(p => p.pair === pair);
       const binanceData = binanceStats.get(pair);
       
-      const price = midenData?.price || 0;
+      const price = midenPrices.get(pair) || 0;
       const symbol = pair;
       const name = PAIR_NAMES[pair] || pair.split('/')[0];
       const marketCap = MARKET_CAPS[pair] || 0;

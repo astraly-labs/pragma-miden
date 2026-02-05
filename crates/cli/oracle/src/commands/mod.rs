@@ -1,6 +1,7 @@
 pub mod get_entry;
 pub mod init;
 pub mod median;
+pub mod median_batch;
 pub mod publishers;
 pub mod register_publisher;
 pub mod sync;
@@ -13,6 +14,7 @@ use miden_client::Felt;
 use get_entry::GetEntryCmd;
 use init::InitCmd;
 use median::MedianCmd;
+use median_batch::MedianBatchCmd;
 use pm_types::Entry;
 use publishers::PublishersCmd;
 use register_publisher::RegisterPublisherCmd;
@@ -22,33 +24,26 @@ use pm_utils_cli::{setup_devnet_client, setup_testnet_client, STORE_FILENAME};
 
 #[derive(Debug)]
 pub enum CommandOutput {
-    /// No specific output value
     None,
-    /// A single Felt value
     Felt(Felt),
-    // Entry
     Entry(Entry),
+    MedianBatch(Vec<median_batch::MedianResult>),
 }
 
 #[derive(Debug, Parser, Clone)]
 pub enum SubCommand {
-    // Init an Oracle account
     #[clap(name = "init", bin_name = "init")]
     Init(InitCmd),
-    // Sync the local state with the node
     #[clap(name = "sync", bin_name = "sync")]
     Sync(SyncCmd),
-    // Publish an entry
     #[clap(name = "register-publisher", bin_name = "register-publisher")]
     RegisterPublisher(RegisterPublisherCmd),
-    // Get the median for a pair
     #[clap(name = "median", bin_name = "median")]
     Median(MedianCmd),
-    // Shows the registered publishers
+    #[clap(name = "median-batch", bin_name = "median-batch")]
+    MedianBatch(MedianBatchCmd),
     #[clap(name = "publishers", bin_name = "publishers")]
     Publishers(PublishersCmd),
-    // TO BE REMOVED
-    // Get an entry for a given pair id
     #[clap(name = "get-entry", bin_name = "get-entry")]
     GetEntry(GetEntryCmd),
 }
@@ -90,6 +85,10 @@ impl SubCommand {
             Self::Median(cmd) => {
                 let median = cmd.call(&mut client, network).await?;
                 Ok(CommandOutput::Felt(median))
+            }
+            Self::MedianBatch(cmd) => {
+                let results = cmd.call(&mut client, network).await?;
+                Ok(CommandOutput::MedianBatch(results))
             }
             Self::Publishers(cmd) => {
                 cmd.call(&mut client, network).await?;

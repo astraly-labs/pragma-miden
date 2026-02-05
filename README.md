@@ -117,7 +117,28 @@ The Oracle will now include your price data when calculating median values for t
 
 ## Integrate as consumer
 
-For developers who want to consume oracle data in their applications, please refer to our detailed integration guide in the [demo folder](./crates/demo/README.md). The demo includes examples of how to query prices, calculate medians, and integrate Pragma Miden into your dApps.
+### Query Single Pair
+
+```bash
+./target/release/pm-oracle-cli median BTC/USD --network testnet
+# Output: Median value: 76436215000
+```
+
+### Query Multiple Pairs (Batch - 47% Faster)
+
+```bash
+./target/release/pm-oracle-cli median-batch BTC/USD ETH/USD SOL/USD --network testnet --json
+# Output: [{"pair":"BTC/USD","median":76436215000},{"pair":"ETH/USD","median":2294430000},{"pair":"SOL/USD","median":100730000}]
+```
+
+The batch command optimizes performance by syncing state once instead of per-pair, reducing query time from ~4.7s to ~2.5s for 3 pairs.
+
+### Integration Guides
+
+For developers who want to consume oracle data in their applications:
+- **CLI Integration**: See [OPTIMIZATION.md](./OPTIMIZATION.md) for batch query performance details
+- **Demo Examples**: Refer to the [demo folder](./crates/demo/README.md) for integration examples
+- **Frontend Integration**: Check [oracle-explorer/ARCHITECTURE.md](./oracle-explorer/ARCHITECTURE.md) for Next.js integration
 
 ## License
 

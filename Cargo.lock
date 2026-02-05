@@ -2447,6 +2447,7 @@ dependencies = [
  "pyo3",
  "rand",
  "rusqlite",
+ "serde",
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
