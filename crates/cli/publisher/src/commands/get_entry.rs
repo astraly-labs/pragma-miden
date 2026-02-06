@@ -85,7 +85,7 @@ impl GetEntryCmd {
             .unwrap();
         println!("Here is the output stack: {:?}", output_stack);
         Ok(Entry {
-            pair: Pair::from_str(&self.pair).unwrap(),
+            pair,
             price: output_stack[2].into(),
             decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
             timestamp: output_stack[0].into(),
