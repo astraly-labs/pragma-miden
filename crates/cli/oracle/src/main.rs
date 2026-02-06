@@ -7,7 +7,7 @@ use commands::SubCommand;
 #[command(name = "pm-oracle")]
 #[command(about = "Pragma Miden oracle CLI")]
 struct Cli {
-    /// Network to use (devnet or testnet)
+    /// Network to use (local, devnet or testnet)
     #[clap(short = 'n', long = "network", default_value = "devnet", global = true)]
     pub network: String,
     #[command(subcommand)]

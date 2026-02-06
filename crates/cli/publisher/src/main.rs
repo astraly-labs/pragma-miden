@@ -6,7 +6,7 @@ use commands::SubCommand;
 #[command(name = "pm-publisher")]
 #[command(about = "Pragma Miden publisher CLI")]
 struct Cli {
-    /// Network to use (devnet or testnet)
+    /// Network to use (local, devnet or testnet)
     #[clap(short = 'n', long = "network", default_value = "devnet", global = true)]
     pub network: String,
 

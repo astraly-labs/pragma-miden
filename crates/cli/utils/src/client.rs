@@ -18,6 +18,62 @@ use std::{path::PathBuf, sync::Arc};
 // Client Setup
 // ================================================================================================
 
+pub async fn setup_local_client(
+    path: Option<PathBuf>,
+    keystore_path: Option<String>,
+) -> Result<Client<FilesystemKeyStore<StdRng>>, ClientError> {
+    let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57291));
+    let timeout_ms = 10_000;
+
+    let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
+
+    let coin_seed: [u64; 4] = rand::random();
+
+    let rng = Box::new(RpoRandomCoin::new(coin_seed.map(Felt::new).into()));
+
+    let path = match path {
+        Some(p) => p,
+        None => {
+            let exec_dir = PathBuf::new();
+            let p = exec_dir.join(STORE_FILENAME);
+            p
+        }
+    };
+
+    let keystore_path_str = keystore_path.unwrap_or_else(|| {
+        let mut current_dir = std::env::current_dir().expect("Failed to get current directory");
+        loop {
+            if current_dir.join("Cargo.toml").exists() {
+                return current_dir.join("keystore").to_string_lossy().to_string();
+            }
+            if let Some(parent) = current_dir.parent() {
+                current_dir = parent.to_path_buf();
+            } else {
+                return "./keystore".to_string();
+            }
+        }
+    });
+    let keystore = FilesystemKeyStore::new(keystore_path_str.into())
+        .unwrap()
+        .into();
+
+    let store = SqliteStore::new(path.try_into().expect("Path should be valid"))
+        .await
+        .map_err(ClientError::StoreError)?;
+    let arc_store = Arc::new(store);
+
+    let client = ClientBuilder::new()
+        .authenticator(keystore)
+        .rpc(rpc_api)
+        .rng(rng)
+        .store(arc_store)
+        .in_debug_mode(miden_client::DebugMode::Enabled)
+        .build()
+        .await?;
+
+    Ok(client)
+}
+
 pub async fn setup_devnet_client(
     path: Option<PathBuf>,
     keystore_path: Option<String>,
@@ -67,7 +123,7 @@ pub async fn setup_devnet_client(
         .map_err(ClientError::StoreError)?;
     let arc_store = Arc::new(store);
 
-    let mut client = ClientBuilder::new()
+    let client = ClientBuilder::new()
         .authenticator(keystore)
         .rpc(rpc_api)
         .rng(rng)
@@ -76,7 +132,6 @@ pub async fn setup_devnet_client(
         .build()
         .await?;
 
-    let _sync_summary = client.sync_state().await.unwrap();
     Ok(client)
 }
 

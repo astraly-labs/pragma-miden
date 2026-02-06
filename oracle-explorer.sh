@@ -2,8 +2,8 @@
 
 set -e
 
-NETWORK="testnet"
-DEFAULT_PAIRS=("BTC/USD" "ETH/USD" "SOL/USD")
+NETWORK="${NETWORK:-testnet}"
+DEFAULT_PAIRS=("BTC/USD" "ETH/USD" "SOL/USD" "BNB/USD" "XRP/USD" "ADA/USD" "AVAX/USD")
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -15,7 +15,12 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 ROOT_DIR=$(pwd)
-ORACLE_DIR="${ROOT_DIR}/.demo-workspaces/oracle"
+
+if [ "$NETWORK" = "local" ]; then
+    ORACLE_DIR="${ROOT_DIR}/local-node"
+else
+    ORACLE_DIR="${ROOT_DIR}/.demo-workspaces/oracle"
+fi
 
 MODE="${1:-interactive}"
 PAIR_ARG="${2:-all}"
@@ -26,11 +31,20 @@ else
     PAIRS=("$PAIR_ARG")
 fi
 
-if [ ! -d "$ORACLE_DIR/local-node" ] || [ ! -f "$ORACLE_DIR/pragma_miden.json" ]; then
-    echo -e "${RED}Error: Oracle workspace not found!${NC}"
-    echo -e "${YELLOW}Run the setup first:${NC}"
-    echo -e "  ${CYAN}./demo-live.sh${NC} (it will create accounts and exit)"
-    exit 1
+if [ "$NETWORK" = "local" ]; then
+    if [ ! -f "$ORACLE_DIR/pragma_miden.json" ]; then
+        echo -e "${RED}Error: Local oracle not initialized!${NC}"
+        echo -e "${YELLOW}Run the init script first:${NC}"
+        echo -e "  ${CYAN}./init-local.sh${NC}"
+        exit 1
+    fi
+else
+    if [ ! -d "$ORACLE_DIR/local-node" ] || [ ! -f "$ORACLE_DIR/pragma_miden.json" ]; then
+        echo -e "${RED}Error: Oracle workspace not found!${NC}"
+        echo -e "${YELLOW}Run the setup first:${NC}"
+        echo -e "  ${CYAN}./demo-live.sh${NC} (it will create accounts and exit)"
+        exit 1
+    fi
 fi
 
 ORACLE_ID=$(jq -r ".networks.$NETWORK.oracle_account_id" "$ORACLE_DIR/pragma_miden.json")
@@ -69,7 +83,7 @@ fetch_median() {
         else
             echo -e "  ${CYAN}$pair${NC} → ${RED}Failed after $max_retries retries${NC}"
             if echo "$output" | grep -q "Merkle store"; then
-                echo -e "    ${YELLOW}Reason:${NC} Testnet RPC issue"
+                echo -e "    ${YELLOW}Reason:${NC} RPC issue"
             else
                 local err=$(echo "$output" | grep -i "error" | head -1 | cut -c1-60)
                 if [[ -n "$err" ]]; then
@@ -91,6 +105,7 @@ echo -e "${CYAN}╔════════════════════�
 echo -e "${CYAN}║${NC}  ${BOLD}${MAGENTA}🔮 Pragma Oracle Explorer${NC}                                     ${CYAN}║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}\n"
 
+echo -e "${GREEN}🌐 Network: ${BOLD}${CYAN}${NETWORK}${NC}"
 echo -e "${GREEN}Oracle ID: ${CYAN}$ORACLE_ID${NC}"
 if [[ "${#PAIRS[@]}" -eq 1 ]]; then
     echo -e "${GREEN}Pair: ${CYAN}${PAIRS[0]}${NC}\n"
