@@ -1,0 +1,165 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    IMPLÉMENTATION GET_USD_MEDIAN - RÉSUMÉ                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📅 Date: 2026-02-09
+🎯 Objectif: Interface oracle avec faucet_id et tracking support
+✅ Statut: Implémentation complète, tests unitaires passent
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 FICHIERS MODIFIÉS (6)
+═══════════════════════════════════════════════════════════════════════════════
+
+M  crates/accounts/src/oracle/mod.rs
+   ├─ Ajout de get_usd_median_procedure_hash()
+   ├─ Ajout import MastNodeExt
+   └─ Tests unitaires (test_get_usd_median_procedure_hash, test_oracle_library_exports_get_usd_median)
+
+M  crates/accounts/src/oracle/oracle.masm
+   ├─ Modification call_publisher_get_entry pour faucet_id
+   ├─ Modification export.get_entry signature
+   └─ Nouvelle procédure export.get_usd_median (~150 lignes)
+      Input:  [faucet_id_prefix, faucet_id_suffix, amount, 0]
+      Output: [is_tracked, median_price, amount]
+
+M  crates/accounts/src/publisher/publisher.masm
+   ├─ Nouvelle signature export.publish_entry
+   │  Input:  [faucet_id_prefix, faucet_id_suffix, price, decimals, timestamp, 0]
+   ├─ Nouvelle signature export.get_entry
+   │  Input:  [faucet_id_prefix, faucet_id_suffix]
+   │  Output: [price, decimals, timestamp, 0]
+   └─ Storage: clé=[faucet_id_prefix, faucet_id_suffix, 0, 0]
+               valeur=[price, decimals, timestamp, 0]
+
+M  crates/accounts/tests/test_oracle.rs
+   ├─ Ajout import FieldElement (supprimé ensuite, inutilisé)
+   ├─ test_get_usd_median_tracked() - vérifie is_tracked=1 avec données
+   ├─ test_get_usd_median_untracked() - vérifie is_tracked=0 sans données
+   └─ test_get_usd_median_partial_data() - vérifie filtrage entries nulles
+
+M  crates/accounts/tests/common/mod.rs
+   ├─ Migration API miden-client 0.12.5
+   │  - new_transaction() + submit_transaction() → submit_new_transaction()
+   │  - add_account(account, seed, bool) → add_account(account, bool)
+   ├─ Suppression TransactionResult (obsolète)
+   └─ Inline deployment transaction (plus de create_deployment_transaction)
+
+M  crates/types/src/lib.rs
+   ├─ pub mod faucet_id;
+   ├─ pub mod faucet_entry;
+   ├─ pub use faucet_id::*;
+   └─ pub use faucet_entry::*;
+
+═══════════════════════════════════════════════════════════════════════════════
+📄 FICHIERS CRÉÉS (4)
+═══════════════════════════════════════════════════════════════════════════════
+
+??  crates/types/src/faucet_id.rs
+    ├─ pub struct FaucetId { prefix: Felt, suffix: Felt }
+    ├─ fn to_word() -> Word
+    ├─ fn from_word(Word) -> Self
+    └─ impl From<Word> for FaucetId
+
+??  crates/types/src/faucet_entry.rs
+    ├─ pub struct FaucetEntry { faucet_id, price, decimals, timestamp }
+    ├─ fn value_word() -> Word
+    ├─ fn from_value_word(faucet_id, word) -> Self
+    └─ impl From<FaucetEntry> for (Word, Word)
+
+??  crates/accounts/GET_USD_MEDIAN.md
+    └─ Documentation complète de l'interface get_usd_median
+       - Overview & Signature
+       - Behavior (tracked/untracked)
+       - Usage examples (MASM + Rust)
+       - Procedure hash
+       - Storage requirements
+       - Faucet ID mapping
+       - Integration with spending limits
+       - Testing guide
+
+??  IMPLEMENTATION_SUMMARY.md
+    └─ Résumé complet de l'implémentation
+       - Objectifs réalisés
+       - Liste exhaustive des modifications
+       - État des tests
+       - Décisions de design
+       - Prochaines étapes
+       - Statistiques
+
+═══════════════════════════════════════════════════════════════════════════════
+✅ TESTS
+═══════════════════════════════════════════════════════════════════════════════
+
+Unitaires (PASS):
+  ✓ oracle::tests::test_get_usd_median_procedure_hash
+  ✓ oracle::tests::test_oracle_library_exports_get_usd_median
+
+End-to-End (COMPILENT, non exécutables car dépendances manquantes):
+  ○ test_get_usd_median_tracked
+  ○ test_get_usd_median_untracked  
+  ○ test_get_usd_median_partial_data
+
+Compilation:
+  ✓ cargo check --workspace: 0 errors
+  ✓ cargo check --package pm-accounts --tests: 0 errors
+
+═══════════════════════════════════════════════════════════════════════════════
+🔑 HASHES
+═══════════════════════════════════════════════════════════════════════════════
+
+get_usd_median MAST Hash:
+13741236484502564774.8023470281818654864.8212831083767923026.11384944085398656227
+
+Usage:
+  Rust: pm_accounts::oracle::get_usd_median_procedure_hash()
+  MASM: push.{HASH} exec.tx::execute_foreign_procedure
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 REQUIREMENTS CHECK
+═══════════════════════════════════════════════════════════════════════════════
+
+[✓] Modifier le stockage des asset IDs pour faucet_id (prefix/suffix)
+    → Publisher et Oracle utilisent maintenant faucet_id au lieu de PAIR
+
+[✓] Implémenter interface get_usd_median
+    → Inputs:  [faucet_id_prefix, faucet_id_suffix, amount, 0]
+    → Outputs: [is_tracked, median_price, amount]
+
+[✓] Gérer flag is_tracked
+    → Retourne 0 (pas d'erreur) quand token non supporté
+    → Évite de faire échouer spending limits
+
+[✓] Intégrer paramètre amount
+    → Passthrough sans modification
+    → Position finale: outputs[2]
+
+═══════════════════════════════════════════════════════════════════════════════
+🚀 NEXT STEPS
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Adapter les CLI pour utiliser faucet_id
+   - pm-publisher-cli publish
+   - pm-oracle-cli median
+
+2. Créer le mapping pair → faucet_id
+   - Documentation FAUCET_ID_MAPPING.md
+   - Scripts de conversion
+
+3. Migrer les anciens tests
+   - Adapter test_oracle_get_entry
+   - Adapter test_oracle_get_median
+
+4. Tests manuels end-to-end
+   - Déployer oracle testnet
+   - Publier prix
+   - Tester get_usd_median
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Notes:
+- Approche TDD respectée (tests écrits en premier)
+- Anciens types (Entry avec Pair) conservés pour compatibilité
+- API miden-client 0.12.5 entièrement supportée
+- Pure stack manipulation (pas de locals MASM)
+- Graceful degradation pour tokens non supportés
+

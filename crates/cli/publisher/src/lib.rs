@@ -48,7 +48,7 @@ fn py_init(
 #[pyfunction]
 #[pyo3(name = "publish")]
 fn py_publish(
-    pair: String,
+    faucet_id: String,
     price: u64,
     decimals: u32,
     timestamp: u64,
@@ -58,7 +58,6 @@ fn py_publish(
 ) -> PyResult<()> {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        // Create client inside the function like the other functions
         let store_config = get_store_config(storage_path);
 
         let network_str = network.as_deref().unwrap_or("testnet");
@@ -66,11 +65,11 @@ fn py_publish(
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
 
         let cmd = PublishCmd {
-            pair,
+            faucet_id,
             price,
             decimals,
             timestamp,
-            publisher_id: None, // Use default (first publisher from config)
+            publisher_id: None,
         };
 
         cmd.call(&mut client, network_str)
@@ -85,7 +84,7 @@ fn py_publish(
 #[pyfunction]
 #[pyo3(name = "get_entry")]
 fn py_get_entry(
-    pair: String,
+    faucet_id: String,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
@@ -97,10 +96,9 @@ fn py_get_entry(
 
         let network_str = network.as_deref().unwrap_or("testnet");
 
-        // Use appropriate client setup based on network parameter
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
 
-        let cmd = GetEntryCmd { pair };
+        let cmd = GetEntryCmd { faucet_id };
         cmd.call(&mut client, network_str)
             .await
             .map_err(|e| PyValueError::new_err(format!("Get entry failed: {}", e)))?;
@@ -113,7 +111,7 @@ fn py_get_entry(
 #[pyfunction]
 #[pyo3(name = "entry")]
 fn py_entry(
-    pair: String,
+    faucet_id: String,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
@@ -125,10 +123,9 @@ fn py_entry(
 
         let network_str = network.as_deref().unwrap_or("testnet");
 
-        // Use appropriate client setup based on network parameter
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
 
-        let cmd = EntryCmd { pair };
+        let cmd = EntryCmd { faucet_id };
         cmd.call(&mut client, network_str)
             .await
             .map_err(|e| PyValueError::new_err(format!("Entry failed: {}", e)))?;
@@ -183,11 +180,11 @@ async fn setup_client(
     keystore_path: Option<String>,
 ) -> PyResult<Client<FilesystemKeyStore<StdRng>>> {
     match network {
-        "devnet" => {
-            println!("Initializing devnet client");
+        "devnet" | "local" => {
+            println!("Initializing {} client", network);
             setup_devnet_client(Some(store_config), keystore_path)
                 .await
-                .map_err(|e| PyValueError::new_err(format!("Failed to setup devnet client: {}", e)))
+                .map_err(|e| PyValueError::new_err(format!("Failed to setup {} client: {}", network, e)))
         }
         "testnet" => {
             println!("Initializing testnet client");
@@ -207,7 +204,7 @@ async fn setup_client(
         }
         other => {
             return Err(PyValueError::new_err(format!(
-                "Unknown network '{}'. Must be 'local', 'devnet' or 'testnet'",
+                "Unknown network '{}'. Must be 'devnet', 'testnet', or 'local'",
                 other
             )));
         }

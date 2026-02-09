@@ -3,7 +3,7 @@
 set -e
 
 NETWORK="${NETWORK:-testnet}"
-PAIRS=("BTC/USD" "ETH/USD" "SOL/USD" "BNB/USD" "XRP/USD" "HYPE/USD" "POL/USD")
+PAIRS=("BTC/USD" "ETH/USD" "SOL/USD")
 DECIMALS=6
 PUBLISH_INTERVAL=5
 
@@ -24,23 +24,15 @@ get_bybit_symbol() {
         "BTC/USD") echo "BTCUSDT" ;;
         "ETH/USD") echo "ETHUSDT" ;;
         "SOL/USD") echo "SOLUSDT" ;;
-        "BNB/USD") echo "BNBUSDT" ;;
-        "XRP/USD") echo "XRPUSDT" ;;
-        "HYPE/USD") echo "HYPEUSDT" ;;
-        "POL/USD") echo "POLUSDT" ;;
         *) echo "" ;;
     esac
 }
 
-get_coinbase_symbol() {
+get_faucet_id() {
     case "$1" in
-        "BTC/USD") echo "BTC-USD" ;;
-        "ETH/USD") echo "ETH-USD" ;;
-        "SOL/USD") echo "SOL-USD" ;;
-        "BNB/USD") echo "BNB-USD" ;;
-        "XRP/USD") echo "XRP-USD" ;;
-        "HYPE/USD") echo "HYPE-USD" ;;
-        "POL/USD") echo "POL-USD" ;;
+        "BTC/USD") echo "1:0" ;;
+        "ETH/USD") echo "2:0" ;;
+        "SOL/USD") echo "3:0" ;;
         *) echo "" ;;
     esac
 }
@@ -141,26 +133,20 @@ publisher1_loop() {
         local temp_dir="/tmp/publisher1_$$"
         mkdir -p "$temp_dir"
         
-        for i in "${!PAIRS[@]}"; do
-            pair="${PAIRS[$i]}"
-            (
-                price=$(fetch_source1_price "$pair")
-                echo "$pair|$price" > "$temp_dir/$i"
-            ) &
-        done
-        wait
-        
-        for i in "${!PAIRS[@]}"; do
-            if [[ -f "$temp_dir/$i" ]]; then
-                IFS='|' read -r pair price < "$temp_dir/$i"
+        for pair in "${PAIRS[@]}"; do
+            pair_count=$((pair_count + 1))
+            timestamp=$(date +%s)
+            price=$(fetch_source1_price "$pair")
+            faucet_id=$(get_faucet_id "$pair")
+            
+            if [[ "$price" != "0" && "$price" != "null" && -n "$price" ]]; then
+                price_int=$(printf '%.0f' $(echo "$price * 1000000" | bc 2>/dev/null))
+                price_display=$(printf "%.2f" "$price")
                 
-                if [[ "$price" != "0" && "$price" != "null" && -n "$price" ]]; then
-                    price_int=$(printf '%.0f' $(echo "$price * 1000000" | bc 2>/dev/null))
-                    price_display=$(printf "%.2f" "$price")
-                    
-                    echo -e "  ${CYAN}$pair${NC} → ${GREEN}\$$price_display${NC}"
-                    
-                    batch_entries+=("${pair}:${price_int}:${DECIMALS}:${timestamp}")
+                echo -e "  ${CYAN}$pair${NC} ($faucet_id) → ${GREEN}\$$price_display${NC}"
+                
+                if "${ROOT_DIR}/target/release/pm-publisher-cli" publish "$faucet_id" $price_int $DECIMALS $timestamp --network $NETWORK --publisher-id "$PUBLISHER_ADDRESS_1" > /dev/null 2>&1; then
+                    echo -e "    ${GREEN}✓${NC} Published"
                 else
                     echo -e "  ${CYAN}$pair${NC} → ${RED}Failed to fetch${NC}"
                 fi
@@ -203,91 +189,29 @@ publisher2_loop() {
         local temp_dir="/tmp/publisher2_$$"
         mkdir -p "$temp_dir"
         
-        for i in "${!PAIRS[@]}"; do
-            pair="${PAIRS[$i]}"
-            (
-                price=$(fetch_source2_price "$pair")
-                echo "$pair|$price" > "$temp_dir/$i"
-            ) &
-        done
-        wait
-        
-        for i in "${!PAIRS[@]}"; do
-            if [[ -f "$temp_dir/$i" ]]; then
-                IFS='|' read -r pair price < "$temp_dir/$i"
+        for pair in "${PAIRS[@]}"; do
+            pair_count=$((pair_count + 1))
+            timestamp=$(date +%s)
+            price=$(fetch_source2_price "$pair")
+            faucet_id=$(get_faucet_id "$pair")
+            
+            if [[ "$price" != "0" && "$price" != "null" && -n "$price" ]]; then
+                price_int=$(printf '%.0f' $(echo "$price * 1000000" | bc 2>/dev/null))
+                price_display=$(printf "%.2f" "$price")
                 
-                if [[ "$price" != "0" && "$price" != "null" && -n "$price" ]]; then
-                    price_int=$(printf '%.0f' $(echo "$price * 1000000" | bc 2>/dev/null))
-                    price_display=$(printf "%.2f" "$price")
-                    
-                    echo -e "  ${CYAN}$pair${NC} → ${GREEN}\$$price_display${NC}"
-                    
-                    batch_entries+=("${pair}:${price_int}:${DECIMALS}:${timestamp}")
+                echo -e "  ${CYAN}$pair${NC} ($faucet_id) → ${GREEN}\$$price_display${NC}"
+                
+                if "${ROOT_DIR}/target/release/pm-publisher-cli" publish "$faucet_id" $price_int $DECIMALS $timestamp --network $NETWORK --publisher-id "$PUBLISHER_ADDRESS_2" > /dev/null 2>&1; then
+                    echo -e "    ${GREEN}✓${NC} Published"
                 else
-                    echo -e "  ${CYAN}$pair${NC} → ${RED}Failed to fetch${NC}"
+                    echo -e "    ${RED}✗${NC} Failed"
                 fi
-            fi
-        done
-        
-        rm -rf "$temp_dir"
-        
-        if [[ ${#batch_entries[@]} -gt 0 ]]; then
-            if "${ROOT_DIR}/target/release/pm-publisher-cli" publish-batch "${batch_entries[@]}" --network $NETWORK --publisher-id "$PUBLISHER_ADDRESS_2" > /dev/null 2>&1; then
-                echo -e "  ${GREEN}✓ Batch published (${#batch_entries[@]} pairs)${NC}"
+                
+                if [[ $pair_count -lt $total_pairs ]]; then
+                    sleep $PAIR_DELAY
+                fi
             else
-                echo -e "  ${RED}✗ Batch publish failed${NC}"
-            fi
-        fi
-        
-        echo ""
-        
-        local end_time=$(date +%s)
-        local elapsed=$((end_time - start_time))
-        local remaining=$((PUBLISH_INTERVAL - elapsed))
-        if [[ $remaining -gt 0 ]]; then
-            sleep $remaining
-        fi
-    done
-}
-
-publisher3_loop() {
-    cd "$PUBLISHER3_DIR"
-    local iteration=0
-    
-    while true; do
-        iteration=$((iteration + 1))
-        local start_time=$(date +%s)
-        
-        echo -e "${BOLD}${YELLOW}[SOURCE3]${NC} #$iteration - $(date +%H:%M:%S)"
-        
-        timestamp=$start_time
-        local batch_entries=()
-        local temp_dir="/tmp/publisher3_$$"
-        mkdir -p "$temp_dir"
-        
-        for i in "${!PAIRS[@]}"; do
-            pair="${PAIRS[$i]}"
-            (
-                price=$(fetch_source3_price "$pair")
-                echo "$pair|$price" > "$temp_dir/$i"
-            ) &
-        done
-        wait
-        
-        for i in "${!PAIRS[@]}"; do
-            if [[ -f "$temp_dir/$i" ]]; then
-                IFS='|' read -r pair price < "$temp_dir/$i"
-                
-                if [[ "$price" != "0" && "$price" != "null" && -n "$price" ]]; then
-                    price_int=$(printf '%.0f' $(echo "$price * 1000000" | bc 2>/dev/null))
-                    price_display=$(printf "%.2f" "$price")
-                    
-                    echo -e "  ${CYAN}$pair${NC} → ${GREEN}\$$price_display${NC}"
-                    
-                    batch_entries+=("${pair}:${price_int}:${DECIMALS}:${timestamp}")
-                else
-                    echo -e "  ${CYAN}$pair${NC} → ${RED}Failed to fetch${NC}"
-                fi
+                echo -e "  ${CYAN}$pair${NC} → ${RED}Failed to fetch${NC}"
             fi
         done
         

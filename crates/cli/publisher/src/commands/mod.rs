@@ -11,18 +11,16 @@ use clap::Parser;
 use entry::EntryCmd;
 use get_entry::GetEntryCmd;
 use init::InitCmd;
-use pm_types::Entry;
-use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client, STORE_FILENAME};
+use pm_types::FaucetEntry;
+use pm_utils_cli::{setup_devnet_client, setup_testnet_client, STORE_FILENAME};
 use publish::PublishCmd;
 use publish_batch::PublishBatchCmd;
 use sync::SyncCmd;
 
 #[derive(Debug)]
 pub enum CommandOutput {
-    /// No specific output value
     None,
-    // Entry
-    Entry(Entry),
+    FaucetEntry(FaucetEntry),
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -54,8 +52,8 @@ impl SubCommand {
                 println!("Using testnet client");
                 setup_testnet_client(Some(store_config), None).await?
             }
-            "devnet" => {
-                println!("Using devnet client");
+            "devnet" | "local" => {
+                println!("Using {} client", network);
                 setup_devnet_client(Some(store_config), None).await?
             }
             "local" => {
@@ -64,7 +62,7 @@ impl SubCommand {
             }
             other => {
                 return Err(anyhow::anyhow!(
-                    "Unknown network '{}'. Must be 'local', 'devnet' or 'testnet'",
+                    "Unknown network '{}'. Must be 'devnet', 'testnet', or 'local'",
                     other
                 ));
             }
@@ -92,7 +90,7 @@ impl SubCommand {
             }
             Self::Get(cmd) => {
                 let entry = cmd.call(&mut client, network).await?;
-                Ok(CommandOutput::Entry(entry))
+                Ok(CommandOutput::FaucetEntry(entry))
             }
         }
     }

@@ -11,7 +11,6 @@ use miden_client::{
     keystore::FilesystemKeyStore,
     Client, Felt, Word, ZERO,
 };
-use miden_objects::assembly::mast::MastNodeExt;
 use miden_lib::transaction::TransactionKernel;
 use miden_objects::{
     account::{AccountBuilder, AccountComponent, StorageSlot},
@@ -19,6 +18,7 @@ use miden_objects::{
 };
 
 use crate::publisher::get_entry_procedure_hash;
+use miden_objects::assembly::mast::MastNodeExt;
 
 const ORACLE_ACCOUNT_MASM_TEMPLATE: &str = include_str!("oracle.masm");
 
@@ -26,6 +26,30 @@ const ORACLE_ACCOUNT_MASM_TEMPLATE: &str = include_str!("oracle.masm");
 fn get_oracle_masm() -> String {
     let get_entry_hash = get_entry_procedure_hash();
     ORACLE_ACCOUNT_MASM_TEMPLATE.replace("{GET_ENTRY_HASH}", &get_entry_hash)
+}
+
+/// Returns the hash of the `get_usd_median` procedure as a dot-separated string of felt integers.
+/// This can be used by external callers to invoke the oracle's get_usd_median procedure.
+pub fn get_usd_median_procedure_hash() -> String {
+    let lib = get_oracle_component_library();
+    let export = lib
+        .exports()
+        .find(|e| e.name.name.as_str() == "get_usd_median")
+        .expect("get_usd_median procedure not found in oracle library");
+
+    let node_id = lib.get_export_node_id(&export.name);
+    let digest = lib
+        .mast_forest()
+        .get_node_by_id(node_id)
+        .expect("node not found")
+        .digest();
+
+    digest
+        .as_elements()
+        .iter()
+        .map(|f| f.as_int().to_string())
+        .collect::<Vec<_>>()
+        .join(".")
 }
 
 // pub fn get_oracle_component_library() -> Library {
@@ -153,5 +177,42 @@ impl<'a> OracleAccountBuilder<'a> {
 impl<'a> Default for OracleAccountBuilder<'a> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_usd_median_procedure_hash() {
+        let hash = get_usd_median_procedure_hash();
+        assert!(!hash.is_empty(), "Hash should not be empty");
+        assert!(hash.contains('.'), "Hash should be dot-separated");
+        
+        let parts: Vec<&str> = hash.split('.').collect();
+        assert_eq!(parts.len(), 4, "Hash should have 4 parts (digest has 4 elements)");
+        
+        for part in parts {
+            assert!(
+                part.parse::<u64>().is_ok(),
+                "Each part should be a valid u64"
+            );
+        }
+        
+        println!("get_usd_median hash: {}", hash);
+    }
+
+    #[test]
+    fn test_oracle_library_exports_get_usd_median() {
+        let lib = get_oracle_component_library();
+        let export = lib
+            .exports()
+            .find(|e| e.name.name.as_str() == "get_usd_median");
+        
+        assert!(
+            export.is_some(),
+            "get_usd_median should be exported from oracle library"
+        );
     }
 }

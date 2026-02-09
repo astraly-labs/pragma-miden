@@ -1,6 +1,6 @@
 #!/bin/bash
-# Starts a fresh local Miden Node.
-# See: https://docs.miden.xyz/miden-tutorials/miden_node_setup
+#! Starts a fresh local Miden Node.
+#! See: https://docs.miden.xyz/miden-tutorials/miden_node_setup
 
 rm -rf ./accounts ./data
 

@@ -482,7 +482,7 @@ mod tests {
         for (i, felt) in felts.iter().enumerate() {
             current_word[i % 4] = *felt;
             if i % 4 == 3 || i == felts.len() - 1 {
-                words.push(current_word);
+                words.push(current_word.into());
                 current_word = [ZERO; 4];
             }
         }
@@ -527,7 +527,8 @@ mod tests {
         assert_eq!(felts[0], Felt::new(expected));
 
         // Test round trip conversion
-        let round_trip = Pair::from_felts([felts[0], ZERO, ZERO, ZERO]).unwrap();
+        let word: Word = [felts[0], ZERO, ZERO, ZERO].into();
+        let round_trip = Pair::from_felts(word).unwrap();
         assert_eq!(round_trip.to_string(), "BTC/USD");
     }
 
@@ -567,7 +568,7 @@ mod tests {
             for (i, &felt) in chunk.iter().enumerate() {
                 word[i] = felt;
             }
-            words.push(word);
+            words.push(word.into());
         }
 
         // Convert back to Pair

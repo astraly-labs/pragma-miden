@@ -4,34 +4,67 @@ use.miden::native_account
 # CONSTANTS
 # =================================================================================================
 
-#! Mapping containing the prices published for the fetcher.
 const.ENTRIES_MAP_SLOT=0
 
-#! Writes a new entry.
-#! Must be called by the publisher.
-#! The price will be stored in the publisher map for the given asset, overriding the
-#! last value.
+# EXPORTS
+# =================================================================================================
+
+#! Writes a new entry for a faucet asset.
 #!
-#! Inputs:  [PAIR, ENTRY]
+#! Inputs:  [faucet_id_prefix, faucet_id_suffix, price, decimals, timestamp, 0]
 #! Outputs: []
-#!
 export.publish_entry
-    push.ENTRIES_MAP_SLOT exec.native_account::set_map_item
-    # Truncate just in case
+    # Stack: [faucet_id_prefix, faucet_id_suffix, price, decimals, timestamp, 0]
+    
+    # Drop trailing 0
+    drop
+    # Stack: [faucet_id_prefix, faucet_id_suffix, price, decimals, timestamp]
+    
+    # Reorder to: [key(4), value(4)] for set_map_item
+    # Need: [faucet_id_prefix, faucet_id_suffix, 0, 0, price, decimals, timestamp, 0]
+    
+    # Add 0 to value
+    push.0
+    # Stack: [0, faucet_id_prefix, faucet_id_suffix, price, decimals, timestamp]
+    
+    # Move to correct position (end of value word)
+    movdn.5
+    # Stack: [faucet_id_prefix, faucet_id_suffix, price, decimals, timestamp, 0]
+    
+    # Add padding for key
+    push.0.0
+    # Stack: [0, 0, faucet_id_prefix, faucet_id_suffix, price, decimals, timestamp, 0]
+    
+    # Rearrange: move key parts to front
+    movdn.3 movdn.3
+    # Stack: [faucet_id_prefix, faucet_id_suffix, 0, 0, price, decimals, timestamp, 0]
+    
+    push.ENTRIES_MAP_SLOT
+    # Stack: [ENTRIES_MAP_SLOT, faucet_id_prefix, faucet_id_suffix, 0, 0, price, decimals, timestamp, 0]
+    
+    exec.native_account::set_map_item
     exec.sys::truncate_stack
 end
 
-#! Get the published entry for a pair.
+#! Get the published entry for a faucet asset.
 #!
-#! Inputs:  [PAIR]
-#! Outputs: [ENTRY] ; Word being [pair, price, decimals, timestamp]
-#!
+#! Inputs:  [faucet_id_prefix, faucet_id_suffix]
+#! Outputs: [price, decimals, timestamp, 0]
 export.get_entry
+    # Stack: [faucet_id_prefix, faucet_id_suffix]
+    
+    # Prepare key: [faucet_id_prefix, faucet_id_suffix, 0, 0]
+    push.0.0
+    # Stack: [0, 0, faucet_id_prefix, faucet_id_suffix]
+    
+    movdn.3 movdn.3
+    # Stack: [faucet_id_prefix, faucet_id_suffix, 0, 0]
+    
     push.ENTRIES_MAP_SLOT
-
-    # => [entries_map_slot, PAIR]
+    # Stack: [ENTRIES_MAP_SLOT, faucet_id_prefix, faucet_id_suffix, 0, 0]
+    
     exec.active_account::get_map_item
-
-    # => [ENTRY]
+    # => [price, decimals, timestamp, 0]
+    
     exec.sys::truncate_stack
 end

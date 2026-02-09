@@ -26,7 +26,7 @@ You can learn more about Miden [here](https://docs.polygon.technology/miden/).
 
 The Oracle acts as a central registry and aggregator with these key functions:
 * Maintains a registry of trusted publisher ids (Supports up to 253 publishers),
-* Retrieves the price of a publisher for a given pair,
+* Retrieves the price of a publisher for a given faucet_id,
 * Aggregates all the available prices into a median.
 
 Storage Structure:
@@ -36,35 +36,31 @@ Storage Structure:
 
 Procedures:
 * `register_publisher`: Add new trusted price sources (admin only),
-* `get_entry`: Fetch a specific publisher's price for a trading pair,
-* `get_median`: Calculate median price across all publishers for a pair.
+* `get_entry`: Fetch a specific publisher's price for a faucet_id,
+* `get_usd_median`: Calculate median price across all publishers for a faucet_id with tracking status.
 
 ### Publisher
 
-Since a publisher cannot directly ask the Oracle to update its a storage with a provided value, the publisher will be responsible of its own storage and publish prices to itself.
+Since a publisher cannot directly ask the Oracle to update its storage with a provided value, the publisher will be responsible for its own storage and publish prices to itself.
 
-Its storage will only be a single map. The key is a word containing the pair, example:
+Its storage is a single map where the key is a word containing the faucet_id:
 ```
-[pair, ZERO, ZERO, ZERO]
-```
-For now, it only contains the pair but we can imagine that it will hold more information later, for example the source, the type of the asset etc...:
-```
-[SPOT, BINANCE, pair_name, ZERO]
-or
-[FUTURE, BYBIT, pair_name, ZERO]
+[faucet_id_prefix, faucet_id_suffix, ZERO, ZERO]
 ```
 
-The value is an Entry type:
+The faucet_id is a 128-bit identifier that maps to specific price feeds. See [FAUCET_ID_MAPPING.md](./FAUCET_ID_MAPPING.md) for details on mapping trading pairs to faucet IDs.
+
+The value is a FaucetEntry type:
 ```rust
-pub struct Entry {
-    pub pair: Pair,
+pub struct FaucetEntry {
+    pub faucet_id: FaucetId,
     pub price: u64,
     pub decimals: u32,
     pub timestamp: u64,
 }
 ```
 
-Converted to a Word.
+Stored as: `[price, decimals, timestamp, ZERO]`
 
 
 ## Integrate as publisher
@@ -99,43 +95,52 @@ Send your publisher ID to the Oracle administrator and request registration. The
 ### Step 4: Start publishing price feeds
 After your publisher has been registered, you can start pushing price data:
 ```bash
-./target/release/pm-publisher-cli publish PAIR PRICE DECIMALS TIMESTAMP
+./target/release/pm-publisher-cli publish FAUCET_ID PRICE DECIMALS TIMESTAMP
 ```
 
 For example:
 ```bash
-./target/release/pm-publisher-cli publish BTC/USD 98179840000 6 1738593825
+./target/release/pm-publisher-cli publish 1:0 98179840000 6 1738593825
 ```
 
 In this example:
-- `BTC/USD` is the trading pair
+- `1:0` is the faucet_id (representing BTC/USD in our reference mapping)
 - `98179840000` is the price (98,179.84 with 6 decimal places)
 - `6` is the number of decimal places 
 - `1738593825` is the Unix timestamp when the price was observed
 
-The Oracle will now include your price data when calculating median values for the specified pairs.
+**See [FAUCET_ID_MAPPING.md](./FAUCET_ID_MAPPING.md) for the complete faucet_id mapping reference.**
+
+The Oracle will now include your price data when calculating median values for the specified faucet_ids.
 
 ## Integrate as consumer
 
-### Query Single Pair
+### Query Single Faucet ID
 
 ```bash
-./target/release/pm-oracle-cli median BTC/USD --network testnet
-# Output: Median value: 76436215000
+./target/release/pm-oracle-cli median 1:0 --network testnet
+# Output:
+# ✓ Faucet ID 1:0 is tracked
+# Median value: 76436215000
+# Amount (preserved): 1000000
 ```
 
-### Query Multiple Pairs (Batch - 47% Faster)
+### Query Multiple Faucet IDs (Batch - 47% Faster)
 
 ```bash
-./target/release/pm-oracle-cli median-batch BTC/USD ETH/USD SOL/USD --network testnet --json
-# Output: [{"pair":"BTC/USD","median":76436215000},{"pair":"ETH/USD","median":2294430000},{"pair":"SOL/USD","median":100730000}]
+./target/release/pm-oracle-cli median-batch 1:0 2:0 3:0 --network testnet --json
+# Output: [{"faucet_id":"1:0","median":76436215000,"is_tracked":true},{"faucet_id":"2:0","median":2294430000,"is_tracked":true},{"faucet_id":"3:0","median":100730000,"is_tracked":true}]
 ```
 
-The batch command optimizes performance by syncing state once instead of per-pair, reducing query time from ~4.7s to ~2.5s for 3 pairs.
+The batch command optimizes performance by syncing state once instead of per-faucet_id, reducing query time from ~4.7s to ~2.5s for 3 queries.
+
+**Note:** The new `get_usd_median` interface includes an `is_tracked` flag. If a faucet_id is not supported by the oracle, it returns `is_tracked=false` instead of throwing an error, preventing transaction failures for spending limits and other use cases.
 
 ### Integration Guides
 
 For developers who want to consume oracle data in their applications:
+- **Faucet ID Mapping**: See [FAUCET_ID_MAPPING.md](./FAUCET_ID_MAPPING.md) for pair-to-faucet_id mapping and migration guide
+- **API Documentation**: See [GET_USD_MEDIAN.md](./crates/accounts/GET_USD_MEDIAN.md) for complete `get_usd_median` API reference
 - **CLI Integration**: See [OPTIMIZATION.md](./OPTIMIZATION.md) for batch query performance details
 - **Demo Examples**: Refer to the [demo folder](./crates/demo/README.md) for integration examples
 - **Frontend Integration**: Check [oracle-explorer/ARCHITECTURE.md](./oracle-explorer/ARCHITECTURE.md) for Next.js integration

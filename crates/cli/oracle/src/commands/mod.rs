@@ -15,7 +15,7 @@ use get_entry::GetEntryCmd;
 use init::InitCmd;
 use median::MedianCmd;
 use median_batch::MedianBatchCmd;
-use pm_types::Entry;
+use pm_types::FaucetEntry;
 use publishers::PublishersCmd;
 use register_publisher::RegisterPublisherCmd;
 use sync::SyncCmd;
@@ -26,7 +26,7 @@ use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client
 pub enum CommandOutput {
     None,
     Felt(Felt),
-    Entry(Entry),
+    FaucetEntry(FaucetEntry),
     MedianBatch(Vec<median_batch::MedianResult>),
 }
 
@@ -62,8 +62,8 @@ impl SubCommand {
                 println!("Using testnet client");
                 setup_testnet_client(Some(store_config), None).await?
             }
-            "devnet" => {
-                println!("Using devnet client");
+            "devnet" | "local" => {
+                println!("Using {} client", network);
                 setup_devnet_client(Some(store_config), None).await?
             }
             "local" => {
@@ -72,7 +72,7 @@ impl SubCommand {
             }
             other => {
                 return Err(anyhow::anyhow!(
-                    "Unknown network '{}'. Must be 'local', 'devnet' or 'testnet'",
+                    "Unknown network '{}'. Must be 'devnet', 'testnet', or 'local'",
                     other
                 ));
             }
@@ -104,7 +104,7 @@ impl SubCommand {
             }
             Self::GetEntry(cmd) => {
                 let entry = cmd.call(&mut client, network).await?;
-                Ok(CommandOutput::Entry(entry))
+                Ok(CommandOutput::FaucetEntry(entry))
             }
         }
     }

@@ -46,16 +46,16 @@ end
 
 #! Calls the PUBLISHER_ID get_entry procedure of the provided account.
 #!
-#! Inputs: [PUBLISHER_ID, PAIR]
-#! Output: [ENTRY]
+#! Inputs: [PUBLISHER_ID, faucet_id_prefix, faucet_id_suffix]
+#! Output: [price, decimals, timestamp, 0]
 proc.call_publisher_get_entry
     push.{GET_ENTRY_HASH}
-    # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
+    # => [GET_ENTRY_HASH, PUBLISHER_ID, faucet_id_prefix, faucet_id_suffix]
     swapw swap.2 drop swap.2 drop
-    # => [publisher_id,publisher_id,  GET_ENTRY_HASH, PAIR]
+    # => [publisher_id, publisher_id, GET_ENTRY_HASH, faucet_id_prefix, faucet_id_suffix]
 
     exec.tx::execute_foreign_procedure
-    # => [ENTRY]
+    # => [price, decimals, timestamp, 0]
 end
 
 #! Swaps two elements stored in the ram at index (i, j).
@@ -245,17 +245,10 @@ end
 
 #! Gets entry from the oracle's data slots.
 #!
-#! Inputs:  [PUBLISHER_ID, PAIR]
-#! Outputs: [ENTRY]
+#! Inputs:  [PUBLISHER_ID, faucet_id_prefix, faucet_id_suffix]
+#! Outputs: [price, decimals, timestamp, 0]
 export.get_entry
-    # Verifies if the publisher is registered, panics if not
-    # dupw push.PUBLISHER_REGISTRY_MAP_SLOT exec.active_account::get_map_item dropw
-    # => [PUBLISHER_ID, PAIR]
-
-    # Push the get_entry hash function for the publisher account
     exec.call_publisher_get_entry
-
-    # Truncate if necessary
     exec.sys::truncate_stack
 end
 
@@ -367,5 +360,152 @@ export.register_publisher
 
     drop
 
+    exec.sys::truncate_stack
+end
+
+#! Gets the USD median price for a faucet asset with tracking.
+#!
+#! Inputs:  [faucet_id_prefix, faucet_id_suffix, amount, 0]
+#! Outputs: [is_tracked, median_price, amount]
+export.get_usd_median
+    # Stack: [faucet_id_prefix, faucet_id_suffix, amount, 0]
+    
+    # Drop padding and save amount for later
+    drop
+    # Stack: [faucet_id_prefix, faucet_id_suffix, amount]
+    
+    # We'll keep amount on position 2, and faucet_id at positions 0-1
+    # Stack layout: [faucet_id_prefix, faucet_id_suffix, amount]
+    
+    # Initialize tracking variables  
+    push.0  # valid_entry_count
+    push.0  # is_tracked flag
+    # Stack: [is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix, amount]
+    
+    # Get number of publishers
+    push.0.0.NEXT_PUBLISHER_INDEX_SLOT exec.active_account::get_item drop drop drop
+    # Stack: [next_publisher_slot, is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix, amount]
+    
+    # Setup loop
+    push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
+    # Stack: [current_slot, next_publisher_slot, is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix, amount]
+    
+    while.true
+        # Get publisher ID at current slot
+        dup exec.active_account::get_item
+        # Stack: [PUBLISHER_ID(4), current_slot, next_publisher_slot, is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix, amount]
+        
+        # Get faucet_id from deeper in stack
+        dup.8 dup.8
+        # Stack: [faucet_id_prefix, faucet_id_suffix, PUBLISHER_ID(4), current_slot, next_publisher_slot, is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix, amount]
+        
+        # Reorder for foreign call: need [PUBLISHER_ID, faucet_id_prefix, faucet_id_suffix]
+        movdn.4 movdn.4
+        # Stack: [PUBLISHER_ID(4), faucet_id_prefix, faucet_id_suffix, current_slot, next_publisher_slot, is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix, amount]
+        
+        # Call publisher get_entry
+        exec.call_publisher_get_entry
+        # Stack: [price, decimals, timestamp, 0, current_slot, next_publisher_slot, is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix, amount]
+        
+        # Check if price != 0 (valid entry)
+        dup
+        push.0
+        neq
+        # Stack: [has_data, price, decimals, timestamp, 0, current_slot, next_publisher_slot, is_tracked, valid_entry_count, ...]
+        
+        if.true
+            # Valid entry found!
+            # Update is_tracked flag to 1
+            movup.8  # Bring is_tracked to top
+            drop
+            push.1
+            movdn.8  # Put it back
+            # Stack: [price, decimals, timestamp, 0, current_slot, next_publisher_slot, is_tracked=1, valid_entry_count, ...]
+            
+            # Get RAM address from valid_entry_count
+            dup.8  # Get valid_entry_count
+            mul.4  # Word-aligned address
+            # Stack: [ram_addr, price, decimals, timestamp, 0, current_slot, next_publisher_slot, is_tracked, valid_entry_count, ...]
+            
+            # Store entry in RAM
+            mem_storew_be dropw
+            # Stack: [current_slot, next_publisher_slot, is_tracked, valid_entry_count, ...]
+            
+            # Increment valid_entry_count
+            movup.3
+            add.1
+            movdn.3
+            # Stack: [current_slot, next_publisher_slot, is_tracked, valid_entry_count+1, ...]
+        else
+            # No valid data, drop the entry
+            dropw
+            # Stack: [current_slot, next_publisher_slot, is_tracked, valid_entry_count, ...]
+        end
+        
+        # Move to next slot
+        add.1 exec.felt_is_lower
+        # Stack: [current_slot+1, next_publisher_slot, is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix, amount]
+    end
+    
+    # Loop done
+    # Stack: [current_slot, next_publisher_slot, is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix, amount]
+    drop drop
+    # Stack: [is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix, amount]
+    
+    # We don't need faucet_id anymore, but we need amount
+    # Move amount to accessible position
+    movup.4
+    # Stack: [amount, is_tracked, valid_entry_count, faucet_id_prefix, faucet_id_suffix]
+    
+    # Drop faucet_id
+    movdn.4 drop drop
+    # Stack: [amount, is_tracked, valid_entry_count]
+    
+    # Save amount deeper for now
+    movdn.2
+    # Stack: [is_tracked, valid_entry_count, amount]
+    
+    # Check if we have valid entries
+    dup.1
+    push.0
+    neq
+    # Stack: [has_valid_entries, is_tracked, valid_entry_count, amount]
+    
+    if.true
+        # Calculate median from valid entries
+        drop
+        # Stack: [is_tracked, valid_entry_count, amount]
+        
+        swap
+        # Stack: [valid_entry_count, is_tracked, amount]
+        
+        # Save valid_entry_count for ram_get_median (bubble_sort consumes it)
+        dup
+        # Stack: [valid_entry_count, valid_entry_count, is_tracked, amount]
+        
+        # Sort entries in RAM
+        exec.ram_bubble_sort
+        # Stack: [valid_entry_count, is_tracked, amount]
+        
+        # Get median
+        exec.ram_get_median
+        # Stack: [median_price, is_tracked, amount]
+        
+        swap
+        # Stack: [is_tracked, median_price, amount]
+    else
+        # No valid entries
+        drop drop
+        # Stack: [is_tracked, amount]  (is_tracked=0)
+        
+        push.0
+        # Stack: [0, is_tracked, amount]
+        
+        swap
+        # Stack: [is_tracked, 0, amount]
+    end
+    
+    # Stack is now: [is_tracked, median_price, amount]
+    
     exec.sys::truncate_stack
 end

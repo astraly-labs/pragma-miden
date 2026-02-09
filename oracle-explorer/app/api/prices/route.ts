@@ -10,10 +10,17 @@ const execAsync = promisify(exec);
 const NETWORK = process.env.NETWORK || 'testnet';
 const ORACLE_WORKSPACE = process.env.ORACLE_WORKSPACE_PATH || '';
 const CLI_PATH = process.env.CLI_PATH || '';
-const CACHE_TTL = 4000;
+const NETWORK = process.env.NETWORK || 'testnet';
+const CACHE_TTL = 10000;
 const MAX_RETRIES = 3;
 
-const PAIRS = ['BTC/USD', 'ETH/USD', 'SOL/USD', 'BNB/USD', 'XRP/USD', 'HYPE/USD', 'POL/USD'];
+const FAUCET_IDS = ['1:0', '2:0', '3:0'];
+
+const FAUCET_ID_TO_PAIR: Record<string, string> = {
+  '1:0': 'BTC/USD',
+  '2:0': 'ETH/USD',
+  '3:0': 'SOL/USD',
+};
 
 const MARKET_CAPS: Record<string, number> = {
   'BTC/USD': 1_280_000_000_000,
@@ -36,15 +43,16 @@ const PAIR_NAMES: Record<string, string> = {
 };
 
 interface MedianResult {
-  pair: string;
+  faucet_id: string;
   median: number;
+  is_tracked: boolean;
 }
 
-async function fetchAllMediansWithRetry(pairs: string[]): Promise<Map<string, number>> {
+async function fetchAllMediansWithRetry(faucetIds: string[]): Promise<Map<string, number>> {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const { stdout } = await execAsync(
-        `cd ${ORACLE_WORKSPACE} && ${CLI_PATH}/pm-oracle-cli median-batch ${pairs.join(' ')} --network ${NETWORK} --json`,
+        `cd ${ORACLE_WORKSPACE} && ${CLI_PATH}/pm-oracle-cli median-batch ${faucetIds.join(' ')} --network ${NETWORK} --json`,
         { timeout: 30000 }
       );
       
@@ -55,8 +63,11 @@ async function fetchAllMediansWithRetry(pairs: string[]): Promise<Map<string, nu
         const results: MedianResult[] = JSON.parse(jsonLine);
         const priceMap = new Map<string, number>();
         
-        results.forEach(({ pair, median }) => {
-          priceMap.set(pair, median / 1_000_000);
+        results.forEach(({ faucet_id, median, is_tracked }) => {
+          const pair = FAUCET_ID_TO_PAIR[faucet_id];
+          if (pair && is_tracked) {
+            priceMap.set(pair, median / 1_000_000);
+          }
         });
         
         return priceMap;
@@ -98,12 +109,16 @@ export async function GET() {
       return Response.json(cached);
     }
     
+    const pairs = Object.values(FAUCET_ID_TO_PAIR);
+    
     const [midenPrices, binanceStats] = await Promise.all([
-      fetchAllMediansWithRetry(PAIRS),
-      fetchMultiple24hStats(PAIRS),
+      fetchAllMediansWithRetry(FAUCET_IDS),
+      fetchMultiple24hStats(pairs),
     ]);
 
-    const assets: Asset[] = PAIRS.map((pair) => {
+    const assets: Asset[] = pairs.map((pair) => {
+      const binanceData = binanceStats.get(pair);
+      
       const price = midenPrices.get(pair) || 0;
       const symbol = pair;
       const name = PAIR_NAMES[pair] || pair.split('/')[0];

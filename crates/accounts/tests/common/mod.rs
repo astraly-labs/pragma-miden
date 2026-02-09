@@ -7,17 +7,8 @@ use std::{
 use anyhow::{Context, Result};
 use miden_client::{
     account::AccountId,
-    keystore::FilesystemKeyStore,
-    rpc::{
-        domain::account::{AccountStorageRequirements, StorageMapKey},
-        RpcError,
-    },
-    store::TransactionFilter,
-    sync::SyncSummary,
-    transaction::{
-        ForeignAccount, TransactionId, TransactionRequest, TransactionRequestBuilder,
-        TransactionResult,
-    },
+    rpc::domain::account::{AccountStorageRequirements, StorageMapKey},
+    transaction::{ForeignAccount, TransactionRequest},
     Client, ClientError, Felt, ScriptBuilder,
 };
 use miden_objects::{
@@ -99,18 +90,10 @@ pub async fn execute_tx(
     tx_request: TransactionRequest,
 ) -> Result<TransactionId> {
     println!("Executing transaction...");
-    let transaction_execution_result = client
-        .new_transaction(account_id, tx_request)
+    let transaction_id = client
+        .submit_new_transaction(account_id, tx_request)
         .await
-        .context("Failed to create new transaction")?;
-
-    let transaction_id = transaction_execution_result.executed_transaction().id();
-
-    println!("Sending transaction to node");
-    client
-        .submit_transaction(transaction_execution_result)
-        .await
-        .context("Failed to submit transaction")?;
+        .context("Failed to submit new transaction")?;
 
     Ok(transaction_id)
 }
@@ -207,7 +190,7 @@ pub async fn create_and_deploy_publisher_account(
     entry_as_word: Word,
 ) -> Result<Account> {
     // Create publisher account
-    let (publisher_account, publisher_seed) = PublisherAccountBuilder::new()
+    let (publisher_account, _publisher_seed) = PublisherAccountBuilder::new()
         .with_storage_slots(vec![StorageSlot::Map(
             StorageMap::with_entries(vec![(pair_word, entry_as_word)]).unwrap(),
         )])
@@ -216,15 +199,26 @@ pub async fn create_and_deploy_publisher_account(
         .await;
 
     // Deploy publisher account
-    let deployment_tx = create_deployment_transaction(client, publisher_account.id()).await?;
-    let tx_id = deployment_tx.executed_transaction().id();
-    client
-        .submit_transaction(deployment_tx)
+    let deployment_tx_script = ScriptBuilder::default().compile_tx_script(
+        "begin miden::auth::rpo_falcon512
+            call.::miden::auth::rpo_falcon512::authenticate_transaction
+        end",
+    )?;
+
+    let tx_id = client
+        .submit_new_transaction(
+            publisher_account.id(),
+            TransactionRequestBuilder::new()
+                .custom_script(deployment_tx_script)
+                .build()
+                .context("Failed to build deployment transaction request")?,
+        )
         .await
         .context("Failed to submit deployment transaction for publisher account")?;
+    
     let _ = wait_for_tx(client, tx_id).await;
     let _ = client
-        .add_account(&publisher_account, Some(publisher_seed), true)
+        .add_account(&publisher_account, false)
         .await;
     Ok(publisher_account)
 }
@@ -246,13 +240,20 @@ pub async fn create_and_deploy_oracle_account(
     let (oracle_account, _) = builder.build().await;
 
     // Deploy oracle account
-    let deployment_tx = create_deployment_transaction(client, oracle_account.id())
-        .await
-        .context("Failed to create deployment transaction for oracle account")?;
+    let deployment_tx_script = ScriptBuilder::default().compile_tx_script(
+        "begin miden::auth::rpo_falcon512
+            call.::miden::auth::rpo_falcon512::authenticate_transaction
+        end",
+    )?;
 
-    let tx_id = deployment_tx.executed_transaction().id();
-    client
-        .submit_transaction(deployment_tx)
+    let tx_id = client
+        .submit_new_transaction(
+            oracle_account.id(),
+            TransactionRequestBuilder::new()
+                .custom_script(deployment_tx_script)
+                .build()
+                .context("Failed to build deployment transaction request")?,
+        )
         .await
         .context("Failed to submit deployment transaction for oracle account")?;
 
@@ -261,29 +262,6 @@ pub async fn create_and_deploy_oracle_account(
         .context("Failed to wait for oracle account deployment transaction")?;
 
     Ok(oracle_account)
-}
-
-/// Creates a deployment transaction for the given account
-async fn create_deployment_transaction(
-    client: &mut TestClient,
-    account_id: AccountId,
-) -> Result<TransactionResult> {
-    let deployment_tx_script = ScriptBuilder::default().compile_tx_script(
-        "begin miden::auth::rpo_falcon512
-            call.::miden::auth::rpo_falcon512::authenticate_transaction
-        end",
-    )?;
-
-    client
-        .new_transaction(
-            account_id,
-            TransactionRequestBuilder::new()
-                .custom_script(deployment_tx_script)
-                .build()
-                .context("Failed to build deployment transaction request")?,
-        )
-        .await
-        .context("Failed to create new deployment transaction")
 }
 
 /// Executes a get_entry transaction
@@ -297,7 +275,7 @@ pub async fn execute_get_entry_transaction(
     client.sync_state().await.unwrap();
 
     // Get the publisher account from the node
-    let publisher = client
+    let _publisher = client
         .get_account(publisher_id)
         .await
         .unwrap()
@@ -311,49 +289,36 @@ pub async fn execute_get_entry_transaction(
 
         begin
             push.{pair}
-            push.0.0
-            push.{publisher_id_suffix} push.{publisher_id_prefix}
+            push.{account_id_suffix} push.{account_id_prefix}
             call.oracle_module::get_entry
             exec.sys::truncate_stack
         end
         ",
+        account_id_prefix = publisher_id.prefix().as_u64(),
+        account_id_suffix = publisher_id.suffix(),
         pair = word_to_masm(pair_word),
-        publisher_id_suffix = publisher.account().id().suffix(),
-        publisher_id_prefix = publisher.account().id().prefix().as_felt(),
     );
 
-    let get_entry_script = ScriptBuilder::default()
+    let script = ScriptBuilder::default()
         .with_statically_linked_library(&get_oracle_component_library())
         .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
         .compile_tx_script(tx_script_code)
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
-    // Create foreign account
-    let storage_requirements =
-        AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]);
+    let foreign_account =
+        ForeignAccount::public(publisher_id, AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]))
+            .unwrap();
+    let mut foreign_accounts = BTreeSet::new();
+    foreign_accounts.insert(foreign_account);
 
-    let foreign_account = ForeignAccount::public(
-        publisher_id,
-        AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]),
-    )
-    .unwrap();
-
-    let mut foreign_accounts_set: BTreeSet<ForeignAccount> = BTreeSet::new();
-    foreign_accounts_set.insert(foreign_account);
-    let output_stack = client
-        .execute_program(
-            oracle_id,
-            get_entry_script,
-            AdviceInputs::default(),
-            foreign_accounts_set,
-        )
+    // Execute transaction
+    let result = client
+        .execute_program(oracle_id, script, AdviceInputs::default(), foreign_accounts)
         .await
-        .unwrap();
-    let pair: Pair = pair_word[3].into();
-    Ok(Entry {
-        pair: pair,
-        price: output_stack[2].into(),
-        decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
-        timestamp: output_stack[0].into(),
-    })
+        .map_err(|e| anyhow::anyhow!("Error executing transaction: {}", e))?;
+
+    // Parse result
+    let entry_word: Word = [result[0], result[1], result[2], result[3]];
+
+    Ok(entry_word.into())
 }

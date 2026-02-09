@@ -81,7 +81,7 @@ pub async fn setup_devnet_client(
     // let exec_dir = PathBuf::new();
     // let store_config = exec_dir.join(path);
     // RPC endpoint and timeout
-    let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57123));
+    let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57291));
     let timeout_ms = 10_000;
 
     let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));

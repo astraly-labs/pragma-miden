@@ -11,37 +11,22 @@ use rand::prelude::StdRng;
 
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
-use pm_accounts::utils::word_to_masm;
-use pm_types::{Entry, Pair};
+use pm_types::{FaucetEntry, FaucetId};
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Gets entry")]
 pub struct GetEntryCmd {
-    // Input pair (format example: "BTC/USD")
     publisher_id: String,
-    pair: String,
+    faucet_id: String,
 }
 
 impl GetEntryCmd {
-    /// Retrieves an entry from the publisher account for the specified trading pair.
-    ///
-    /// This function executes an on-chain program that calls the publisher's `get_entry` function
-    /// and returns the result as an Entry object containing price, decimals, and timestamp.
-    ///
-    /// # Arguments
-    ///
-    /// * `client` - Mutable reference to miden client. Must be initialized first.
-    /// * `network` - Network identifier (e.g., "devnet", "testnet")
-    ///
-    /// # Returns
-    ///
-    /// * `Result<Entry>` - The retrieved entry or an error with context
     pub async fn call(
         &self,
         client: &mut Client<FilesystemKeyStore<StdRng>>,
         network: &str,
-    ) -> anyhow::Result<Entry> {
+    ) -> anyhow::Result<FaucetEntry> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
         let publisher_id = AccountId::from_hex(&self.publisher_id)?;
         let publisher = client
@@ -52,10 +37,10 @@ impl GetEntryCmd {
             .get_account(oracle_id)
             .await?
             .expect("Oracle account not found");
-        let pair: Pair = Pair::from_str(&self.pair)?;
+        let faucet_id = FaucetId::from_str(&self.faucet_id)?;
         let foreign_account = ForeignAccount::public(
             publisher.account().id(),
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(faucet_id.to_word())])]),
         )?;
         let tx_script_code = format!(
             "
@@ -63,14 +48,14 @@ impl GetEntryCmd {
             use.std::sys
     
             begin
-                push.{pair}
-                push.0.0
+                push.{faucet_id_prefix}.{faucet_id_suffix}.0.0
                 push.{account_id_suffix} push.{account_id_prefix}
                 call.oracle_module::get_entry
                 exec.sys::truncate_stack
             end
             ",
-            pair = word_to_masm(pair.to_word()),
+            faucet_id_prefix = faucet_id.prefix.as_int(),
+            faucet_id_suffix = faucet_id.suffix.as_int(),
             account_id_prefix = publisher_id.prefix().as_u64(),
             account_id_suffix = publisher_id.suffix(),
         );
@@ -91,11 +76,11 @@ impl GetEntryCmd {
             )
             .await
             .map_err(|e| anyhow::anyhow!("Error executing transaction: {}", e))?;
-        Ok(Entry {
-            pair: Pair::from_str(&self.pair)?,
-            price: output_stack[2].into(),
-            decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
-            timestamp: output_stack[0].into(),
+        Ok(FaucetEntry {
+            faucet_id,
+            price: output_stack[3].into(),
+            decimals: <Felt as Into<u64>>::into(output_stack[2]) as u32,
+            timestamp: output_stack[1].into(),
         })
     }
 }

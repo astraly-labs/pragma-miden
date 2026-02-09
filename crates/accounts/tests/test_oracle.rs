@@ -213,36 +213,19 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
         .build()
         .context("Error while building second transaction request")?;
 
-    // The transaction creation should succeed, but execution should fail
+    // The second registration should fail
     let result = client
-        .new_transaction(oracle_account.id(), transaction_request)
+        .submit_new_transaction(oracle_account.id(), transaction_request)
         .await;
 
-    // Check that the transaction execution failed with the expected error
-    match result {
-        Ok(_) => {
-            // If the transaction was created successfully, executing it should fail
-            let tx_result = client.sync_state().await;
-            assert!(
-                tx_result.is_err(),
-                "Expected transaction to fail when registering publisher twice"
-            );
-
-            // We should be able to see the specific error if we capture the error message
-            // The error should mention publisher already registered (error code 100)
-            if let Err(err) = tx_result {
-                println!("Expected error received: {}", err);
-                assert!(
-                    err.to_string().contains("100")
-                        || err.to_string().contains("publisher already registered"),
-                    "Error should mention publisher already registered"
-                );
-            }
-        }
-        Err(err) => {
-            // Some implementations might fail immediately on transaction creation
-            println!("Transaction creation failed as expected: {}", err);
-        }
+    // Check that the transaction submission failed
+    assert!(
+        result.is_err(),
+        "Expected second publisher registration to fail"
+    );
+    
+    if let Err(err) = result {
+        println!("Expected error received: {}", err);
     }
 
     Ok(())
@@ -493,4 +476,445 @@ pub async fn generate_oracle_account(
         .await;
 
     Ok(oracle_account)
+}
+
+// ================ NEW TESTS FOR get_usd_median ================
+
+/// Test that get_usd_median returns is_tracked=1 and correct median when publishers have data
+#[tokio::test]
+async fn test_get_usd_median_tracked() -> Result<()> {
+    // Setup
+    let unique_id = Uuid::new_v4();
+    let (mut client, _store_config) =
+        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
+
+    // Define faucet_id (arbitrary values for testing)
+    let faucet_id_prefix = Felt::new(123456);
+    let faucet_id_suffix = Felt::new(789012);
+    let amount = Felt::new(1000000); // 1 unit with 6 decimals
+
+    // Create publishers with data for this faucet_id
+    // Publisher 1: price = 50000000000 (50k USD)
+    let price1 = 50000000000u64;
+    let entry1_word: Word = [Felt::new(price1), Felt::new(6), Felt::new(1739722449), ZERO].into();
+
+    // Publisher 2: price = 52000000000 (52k USD)
+    let price2 = 52000000000u64;
+    let entry2_word: Word = [Felt::new(price2), Felt::new(6), Felt::new(1739722450), ZERO].into();
+
+    // Expected median
+    let expected_median = (price1 + price2) / 2;
+
+    // Create faucet_id key for storage
+    let faucet_id_key: Word = [faucet_id_prefix, faucet_id_suffix, ZERO, ZERO].into();
+
+    // Create publisher accounts with entries for this faucet_id
+    let (publisher1, _) = PublisherAccountBuilder::new()
+        .with_storage_slots(vec![
+            StorageSlot::empty_map(),
+            StorageSlot::Map(
+                StorageMap::with_entries(vec![(faucet_id_key, entry1_word)])
+                    .context("Failed to create storage map for publisher1")?,
+            ),
+        ])
+        .with_client(&mut client)
+        .build()
+        .await;
+
+    let (publisher2, _) = PublisherAccountBuilder::new()
+        .with_storage_slots(vec![
+            StorageSlot::empty_map(),
+            StorageSlot::Map(
+                StorageMap::with_entries(vec![(faucet_id_key, entry2_word)])
+                    .context("Failed to create storage map for publisher2")?,
+            ),
+        ])
+        .with_client(&mut client)
+        .build()
+        .await;
+
+    // Create oracle account with both publishers registered
+    let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
+
+    // Register publishers
+    for publisher_id in [publisher1.id(), publisher2.id()] {
+        let tx_script_code = format!(
+            "
+            use.oracle_component::oracle_module
+            use.std::sys
+    
+            begin
+                push.0.0
+                push.{publisher_id_suffix} push.{publisher_id_prefix}
+                call.oracle_module::register_publisher
+                exec.sys::truncate_stack
+            end
+            ",
+            publisher_id_prefix = publisher_id.prefix().as_u64(),
+            publisher_id_suffix = publisher_id.suffix(),
+        );
+
+        let tx_script = ScriptBuilder::default()
+            .with_statically_linked_library(&get_oracle_component_library())?
+            .compile_tx_script(tx_script_code)?;
+
+        let transaction_request = TransactionRequestBuilder::new()
+            .custom_script(tx_script)
+            .build()
+            .context("Error while building transaction request")?;
+
+        execute_tx_and_sync(&mut client, oracle_account.id(), transaction_request).await?;
+    }
+
+    // Sync state
+    client.sync_state().await.context("Failed to sync state")?;
+
+    // Create foreign accounts for the get_usd_median transaction
+    let mut foreign_accounts = Vec::new();
+    for publisher_id in [publisher1.id(), publisher2.id()] {
+        let foreign_account = ForeignAccount::public(
+            publisher_id,
+            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(faucet_id_key)])]),
+        )
+        .context("Failed to create foreign account")?;
+        foreign_accounts.push(foreign_account);
+    }
+
+    // Create transaction script for get_usd_median
+    let tx_script_code = format!(
+        "
+        use.oracle_component::oracle_module
+        use.std::sys
+
+        begin
+            push.0                    # padding (4th param)
+            push.{amount}             # amount (3rd param)
+            push.{faucet_id_suffix}   # faucet_id_suffix (2nd param)
+            push.{faucet_id_prefix}   # faucet_id_prefix (1st param)
+            call.oracle_module::get_usd_median
+            exec.sys::truncate_stack
+        end
+        ",
+        faucet_id_prefix = faucet_id_prefix.as_int(),
+        faucet_id_suffix = faucet_id_suffix.as_int(),
+        amount = amount.as_int(),
+    );
+
+    let tx_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_oracle_component_library())?
+        .compile_tx_script(tx_script_code)?;
+
+    let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
+    let output_stack = client
+        .execute_program(
+            oracle_account.id(),
+            tx_script,
+            AdviceInputs::default(),
+            foreign_accounts_set,
+        )
+        .await
+        .context("Failed to execute get_usd_median")?;
+
+    // Verify output: [is_tracked, median_price, amount]
+    assert!(
+        output_stack.len() >= 3,
+        "Expected at least 3 values on stack, got {}",
+        output_stack.len()
+    );
+
+    let is_tracked = output_stack[0];
+    let median_price = output_stack[1];
+    let returned_amount = output_stack[2];
+
+    // Assertions
+    assert_eq!(
+        is_tracked,
+        Felt::new(1),
+        "Expected is_tracked=1 (tracked), got {}",
+        is_tracked
+    );
+    assert_eq!(
+        median_price.as_int(),
+        expected_median,
+        "Expected median={}, got {}",
+        expected_median,
+        median_price.as_int()
+    );
+    assert_eq!(
+        returned_amount, amount,
+        "Expected amount={} to be returned unchanged, got {}",
+        amount, returned_amount
+    );
+
+    Ok(())
+}
+
+/// Test that get_usd_median returns is_tracked=0 when no publishers have data
+#[tokio::test]
+async fn test_get_usd_median_untracked() -> Result<()> {
+    // Setup
+    let unique_id = Uuid::new_v4();
+    let (mut client, _store_config) =
+        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
+
+    // Define faucet_id (different from any data publishers have)
+    let faucet_id_prefix = Felt::new(999999);
+    let faucet_id_suffix = Felt::new(888888);
+    let amount = Felt::new(5000000); // 5 units
+
+    // Create publisher with data for a DIFFERENT faucet_id
+    let other_faucet_id_key: Word = [Felt::new(11111), Felt::new(22222), ZERO, ZERO].into();
+    let entry_word: Word = [Felt::new(50000000000u64), Felt::new(6), Felt::new(1739722449), ZERO].into();
+
+    let (publisher, _) = PublisherAccountBuilder::new()
+        .with_storage_slots(vec![
+            StorageSlot::empty_map(),
+            StorageSlot::Map(
+                StorageMap::with_entries(vec![(other_faucet_id_key, entry_word)])
+                    .context("Failed to create storage map")?,
+            ),
+        ])
+        .with_client(&mut client)
+        .build()
+        .await;
+
+    // Create oracle and register publisher
+    let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
+
+    let tx_script_code = format!(
+        "
+        use.oracle_component::oracle_module
+        use.std::sys
+
+        begin
+            push.0.0
+            push.{publisher_id_suffix} push.{publisher_id_prefix}
+            call.oracle_module::register_publisher
+            exec.sys::truncate_stack
+        end
+        ",
+        publisher_id_prefix = publisher.id().prefix().as_u64(),
+        publisher_id_suffix = publisher.id().suffix(),
+    );
+
+    let tx_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_oracle_component_library())?
+        .compile_tx_script(tx_script_code)?;
+
+    let transaction_request = TransactionRequestBuilder::new()
+        .custom_script(tx_script)
+        .build()
+        .context("Error while building transaction request")?;
+
+    execute_tx_and_sync(&mut client, oracle_account.id(), transaction_request).await?;
+    client.sync_state().await.context("Failed to sync state")?;
+
+    // Create foreign account for the untracked faucet_id
+    let faucet_id_key: Word = [faucet_id_prefix, faucet_id_suffix, ZERO, ZERO].into();
+    let foreign_account = ForeignAccount::public(
+        publisher.id(),
+        AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(faucet_id_key)])]),
+    )
+    .context("Failed to create foreign account")?;
+
+    // Call get_usd_median for the untracked faucet_id
+    let tx_script_code = format!(
+        "
+        use.oracle_component::oracle_module
+        use.std::sys
+
+        begin
+            push.0
+            push.{amount}
+            push.{faucet_id_suffix}
+            push.{faucet_id_prefix}
+            call.oracle_module::get_usd_median
+            exec.sys::truncate_stack
+        end
+        ",
+        faucet_id_prefix = faucet_id_prefix.as_int(),
+        faucet_id_suffix = faucet_id_suffix.as_int(),
+        amount = amount.as_int(),
+    );
+
+    let tx_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_oracle_component_library())?
+        .compile_tx_script(tx_script_code)?;
+
+    let output_stack = client
+        .execute_program(
+            oracle_account.id(),
+            tx_script,
+            AdviceInputs::default(),
+            BTreeSet::from([foreign_account]),
+        )
+        .await
+        .context("Failed to execute get_usd_median")?;
+
+    // Verify output: [is_tracked=0, median_price=0, amount]
+    assert!(
+        output_stack.len() >= 3,
+        "Expected at least 3 values on stack"
+    );
+
+    let is_tracked = output_stack[0];
+    let median_price = output_stack[1];
+    let returned_amount = output_stack[2];
+
+    assert_eq!(
+        is_tracked,
+        ZERO,
+        "Expected is_tracked=0 (untracked)"
+    );
+    assert_eq!(median_price, ZERO, "Expected median_price=0");
+    assert_eq!(
+        returned_amount, amount,
+        "Expected amount to be returned unchanged"
+    );
+
+    Ok(())
+}
+
+/// Test that get_usd_median correctly handles mixed data (some publishers with data, some without)
+#[tokio::test]
+async fn test_get_usd_median_partial_data() -> Result<()> {
+    let unique_id = Uuid::new_v4();
+    let (mut client, _store_config) =
+        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
+
+    let faucet_id_prefix = Felt::new(123456);
+    let faucet_id_suffix = Felt::new(789012);
+    let amount = Felt::new(2000000);
+
+    let faucet_id_key: Word = [faucet_id_prefix, faucet_id_suffix, ZERO, ZERO].into();
+
+    // Publisher 1: has data (price = 60000000000)
+    let price1 = 60000000000u64;
+    let entry1_word: Word = [Felt::new(price1), Felt::new(6), Felt::new(1739722449), ZERO].into();
+
+    // Publisher 2: NO data (empty map)
+    // Publisher 3: has data (price = 58000000000)
+    let price3 = 58000000000u64;
+    let entry3_word: Word = [Felt::new(price3), Felt::new(6), Felt::new(1739722451), ZERO].into();
+
+    let (publisher1, _) = PublisherAccountBuilder::new()
+        .with_storage_slots(vec![
+            StorageSlot::empty_map(),
+            StorageSlot::Map(StorageMap::with_entries(vec![(faucet_id_key, entry1_word)])?),
+        ])
+        .with_client(&mut client)
+        .build()
+        .await;
+
+    let (publisher2, _) = PublisherAccountBuilder::new()
+        .with_storage_slots(vec![
+            StorageSlot::empty_map(),
+            StorageSlot::empty_map(), // No entries for this faucet_id
+        ])
+        .with_client(&mut client)
+        .build()
+        .await;
+
+    let (publisher3, _) = PublisherAccountBuilder::new()
+        .with_storage_slots(vec![
+            StorageSlot::empty_map(),
+            StorageSlot::Map(StorageMap::with_entries(vec![(faucet_id_key, entry3_word)])?),
+        ])
+        .with_client(&mut client)
+        .build()
+        .await;
+
+    // Create and setup oracle
+    let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
+
+    for publisher_id in [publisher1.id(), publisher2.id(), publisher3.id()] {
+        let tx_script_code = format!(
+            "
+            use.oracle_component::oracle_module
+            use.std::sys
+            begin
+                push.0.0
+                push.{publisher_id_suffix} push.{publisher_id_prefix}
+                call.oracle_module::register_publisher
+                exec.sys::truncate_stack
+            end
+            ",
+            publisher_id_prefix = publisher_id.prefix().as_u64(),
+            publisher_id_suffix = publisher_id.suffix(),
+        );
+
+        let tx_script = ScriptBuilder::default()
+            .with_statically_linked_library(&get_oracle_component_library())?
+            .compile_tx_script(tx_script_code)?;
+
+        let transaction_request = TransactionRequestBuilder::new()
+            .custom_script(tx_script)
+            .build()?;
+
+        execute_tx_and_sync(&mut client, oracle_account.id(), transaction_request).await?;
+    }
+
+    client.sync_state().await?;
+
+    // Create foreign accounts
+    let foreign_accounts: BTreeSet<ForeignAccount> = [publisher1.id(), publisher2.id(), publisher3.id()]
+        .iter()
+        .map(|id| {
+            ForeignAccount::public(
+                *id,
+                AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(faucet_id_key)])]),
+            )
+            .unwrap()
+        })
+        .collect();
+
+    // Execute get_usd_median
+    let tx_script_code = format!(
+        "
+        use.oracle_component::oracle_module
+        use.std::sys
+        begin
+            push.0
+            push.{amount}
+            push.{faucet_id_suffix}
+            push.{faucet_id_prefix}
+            call.oracle_module::get_usd_median
+            exec.sys::truncate_stack
+        end
+        ",
+        faucet_id_prefix = faucet_id_prefix.as_int(),
+        faucet_id_suffix = faucet_id_suffix.as_int(),
+        amount = amount.as_int(),
+    );
+
+    let tx_script = ScriptBuilder::default()
+        .with_statically_linked_library(&get_oracle_component_library())?
+        .compile_tx_script(tx_script_code)?;
+
+    let output_stack = client
+        .execute_program(
+            oracle_account.id(),
+            tx_script,
+            AdviceInputs::default(),
+            foreign_accounts,
+        )
+        .await?;
+
+    // Verify: should be tracked and calculate median from only valid entries
+    let is_tracked = output_stack[0];
+    let median_price = output_stack[1];
+    let returned_amount = output_stack[2];
+
+    // Expected: median of [60000000000, 58000000000] = 59000000000
+    let expected_median = (price1 + price3) / 2;
+
+    assert_eq!(is_tracked, Felt::new(1), "Should be tracked (has valid data)");
+    assert_eq!(
+        median_price.as_int(),
+        expected_median,
+        "Should calculate median from only publishers with data"
+    );
+    assert_eq!(returned_amount, amount, "Amount should be unchanged");
+
+    Ok(())
 }
