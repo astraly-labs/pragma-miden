@@ -56,10 +56,6 @@ impl SubCommand {
                 println!("Using {} client", network);
                 setup_devnet_client(Some(store_config), None).await?
             }
-            "local" => {
-                println!("Using local client");
-                setup_local_client(Some(store_config), None).await?
-            }
             other => {
                 return Err(anyhow::anyhow!(
                     "Unknown network '{}'. Must be 'devnet', 'testnet', or 'local'",
