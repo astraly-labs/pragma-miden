@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { AssetCard } from "@/components/AssetCard";
+import { ChartModal } from "@/components/ChartModal";
 import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 import type { Asset } from "@/types/asset";
 import { fetchPrices } from "@/lib/api";
 
@@ -14,6 +16,8 @@ export default function Home() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [priceChanges, setPriceChanges] = useState<Record<string, 'up' | 'down' | null>>({});
   const previousPricesRef = useRef<Record<string, number>>({});
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     loadPrices();
@@ -61,28 +65,55 @@ export default function Home() {
     }
   };
 
+  const handleAssetClick = (asset: Asset) => {
+    setSelectedAsset(asset);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setTimeout(() => setSelectedAsset(null), 300);
+  };
+
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-gradient-to-br from-background via-background to-surface-elevated flex flex-col">
       <Header lastUpdate={lastUpdate} />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {loading && assets.length === 0 ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+          <div className="flex flex-col items-center justify-center h-96 gap-6">
+            <div className="relative">
+              <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary shadow-lg shadow-primary/20"></div>
+              <div className="absolute inset-0 rounded-full bg-primary/10 animate-pulse"></div>
+            </div>
+            <p className="text-text-secondary font-medium animate-pulse">Loading oracle data...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {assets.map((asset) => (
-              <AssetCard 
-                key={asset.symbol} 
-                asset={asset} 
-                loading={loading}
-                priceChange={priceChanges[asset.symbol] || null}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+            {assets.map((asset, index) => (
+              <div
+                key={asset.symbol}
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <AssetCard 
+                  asset={asset} 
+                  loading={loading}
+                  priceChange={priceChanges[asset.symbol] || null}
+                  onClick={() => handleAssetClick(asset)}
+                />
+              </div>
             ))}
           </div>
         )}
       </div>
+
+      <Footer />
+
+      <ChartModal 
+        asset={selectedAsset}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
     </main>
   );
 }

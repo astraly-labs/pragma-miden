@@ -20,7 +20,7 @@ use publishers::PublishersCmd;
 use register_publisher::RegisterPublisherCmd;
 use sync::SyncCmd;
 
-use pm_utils_cli::{setup_devnet_client, setup_testnet_client, STORE_FILENAME};
+use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client, STORE_FILENAME};
 
 #[derive(Debug)]
 pub enum CommandOutput {
@@ -51,7 +51,11 @@ pub enum SubCommand {
 impl SubCommand {
     pub async fn call(&self, network: &str) -> anyhow::Result<CommandOutput> {
         let crate_path = PathBuf::new();
-        let store_config = crate_path.join(STORE_FILENAME);
+        let store_config = if network == "local" {
+            crate_path.join("store.sqlite3")
+        } else {
+            crate_path.join(STORE_FILENAME)
+        };
         // Set up client based on network parameter
         let mut client = match network {
             "testnet" => {
@@ -62,9 +66,13 @@ impl SubCommand {
                 println!("Using devnet client");
                 setup_devnet_client(Some(store_config), None).await?
             }
+            "local" => {
+                println!("Using local client");
+                setup_local_client(Some(store_config), None).await?
+            }
             other => {
                 return Err(anyhow::anyhow!(
-                    "Unknown network '{}'. Must be 'devnet' or 'testnet'",
+                    "Unknown network '{}'. Must be 'local', 'devnet' or 'testnet'",
                     other
                 ));
             }

@@ -145,7 +145,6 @@ impl<'a> OracleAccountBuilder<'a> {
         keystore
             .add_key(&AuthSecretKey::RpoFalcon512(private_key))
             .unwrap();
-        client.sync_state().await.unwrap();
 
         (account, account_seed)
     }

@@ -7,7 +7,7 @@ mod commands;
 use crate::commands::{
     entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, publish::PublishCmd, sync::SyncCmd,
 };
-use pm_utils_cli::{setup_devnet_client, setup_testnet_client};
+use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client};
 
 pub const STORE_SIMPLE_FILENAME: &str = "miden_storage/store.sqlite3";
 
@@ -30,7 +30,6 @@ fn py_init(
         let network_str = network.as_deref().unwrap_or("testnet");
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
 
-        client.sync_state().await.unwrap();
         let oracle = AccountId::from_hex(&oracle_id).unwrap();
         client.import_account_by_id(oracle).await.unwrap();
         let cmd = InitCmd {
@@ -198,9 +197,17 @@ async fn setup_client(
                     PyValueError::new_err(format!("Failed to setup testnet client: {}", e))
                 })
         }
+        "local" => {
+            println!("Initializing local client");
+            setup_local_client(Some(store_config), keystore_path)
+                .await
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to setup local client: {}", e))
+                })
+        }
         other => {
             return Err(PyValueError::new_err(format!(
-                "Unknown network '{}'. Must be 'devnet' or 'testnet'",
+                "Unknown network '{}'. Must be 'local', 'devnet' or 'testnet'",
                 other
             )));
         }

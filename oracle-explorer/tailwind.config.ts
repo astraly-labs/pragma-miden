@@ -26,12 +26,25 @@ const config: Config = {
       animation: {
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "fade-in": "fadeIn 0.3s ease-in-out",
+        "shimmer": "shimmer 2s linear infinite",
+        "glow": "glow 2s ease-in-out infinite alternate",
       },
       keyframes: {
         fadeIn: {
           "0%": { opacity: "0", transform: "translateY(10px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+        glow: {
+          "0%": { boxShadow: "0 0 5px rgba(0, 255, 136, 0.2)" },
+          "100%": { boxShadow: "0 0 20px rgba(0, 255, 136, 0.4)" },
+        },
+      },
+      backgroundImage: {
+        "shimmer-gradient": "linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.03), transparent)",
       },
     },
   },

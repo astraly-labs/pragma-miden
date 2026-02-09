@@ -16,6 +16,9 @@ const SYMBOL_MAP: Record<string, string> = {
   'BTC/USD': 'BTCUSDT',
   'ETH/USD': 'ETHUSDT',
   'SOL/USD': 'SOLUSDT',
+  'BNB/USD': 'BNBUSDT',
+  'XRP/USD': 'XRPUSDT',
+  'POL/USD': 'POLUSDT',
 };
 
 /**
@@ -29,6 +32,33 @@ export async function fetch24hStats(pair: string): Promise<{
   low24h: number;
 } | null> {
   try {
+    if (pair === 'HYPE/USD') {
+      const response = await fetch(
+        `https://api.bybit.com/v5/market/tickers?category=spot&symbol=HYPEUSDT`,
+        {
+          next: { revalidate: 10 },
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`Bybit API error: ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      const ticker = data.result?.list?.[0];
+      
+      if (!ticker) {
+        return null;
+      }
+
+      return {
+        change24h: parseFloat(ticker.price24hPcnt) * 100,
+        high24h: parseFloat(ticker.highPrice24h),
+        low24h: parseFloat(ticker.lowPrice24h),
+      };
+    }
+
     const binanceSymbol = SYMBOL_MAP[pair];
     if (!binanceSymbol) {
       console.warn(`No Binance mapping for pair: ${pair}`);
@@ -38,7 +68,7 @@ export async function fetch24hStats(pair: string): Promise<{
     const response = await fetch(
       `https://api.binance.com/api/v3/ticker/24hr?symbol=${binanceSymbol}`,
       {
-        next: { revalidate: 10 }, // Cache for 10s in Next.js
+        next: { revalidate: 10 },
       }
     );
 
