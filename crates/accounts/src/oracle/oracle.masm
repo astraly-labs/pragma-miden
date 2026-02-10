@@ -259,37 +259,37 @@ export.get_entry
     exec.sys::truncate_stack
 end
 
-#! Gets the median price of a given asset.
+#! Gets the median price of a given asset in USD value.
 #!
-#! Inputs:  [PAIR]
-#! Outputs: [median_price]
+#! Inputs:  [faucet_id_prefix, faucet_id_suffix, 0, 0]
+#! Outputs: [is_tracked, median_price]
 export.get_median
     # Iterate from 3 to NEXT_PUBLISHER_INDEX_SLOT value.
     push.0.0.NEXT_PUBLISHER_INDEX_SLOT exec.active_account::get_item drop drop drop
-    # => [next_publisher_slot, 0, 0, PAIR]
+    # => [next_publisher_slot, 0, 0, FAUCET_ID]
 
     push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
-    # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, PAIR]
+    # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, FAUCET_ID]
 
     while.true
         # Get the publisher id at slot [top of the stack]
         dup exec.active_account::get_item
-        # => [PUBLISHER_ID, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, PAIR]
+        # => [PUBLISHER_ID, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, FAUCET_ID]
 
         dupw.2 swapw.1
-        # => [PUBLISHER_ID, PAIR, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, PAIR]
+        # => [PUBLISHER_ID, FAUCET_ID, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, FAUCET_ID]
 
         # Call get_entry
         exec.call_publisher_get_entry
-        # => [ENTRY, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, PAIR]
+        # => [ENTRY, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, FAUCET_ID]
 
         # Store the entry in the RAM from index 0 to index N
         dup.4 push.PUBLISHERS_STORAGE_SLOT sub mul.4  # we multiplied the result by 4 because se can store with % 4!=0 addresses
         mem_storew_be dropw
-        # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, PAIR]
+        # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, FAUCET_ID]
         # Increment the next index and check if there's still publishers to process
         add.1 exec.felt_is_lower
-        # => [PUBLISHERS_STORAGE_SLOT +1 , next_publisher_slot, PAIR]
+        # => [PUBLISHERS_STORAGE_SLOT +1 , next_publisher_slot, FAUCET_ID]
     end
     # Drop the utilities used to get all the entries - only keep the length on the ram.
 
@@ -297,7 +297,7 @@ export.get_median
     # => [4]
 
     push.PUBLISHERS_STORAGE_SLOT
-    # =>  [PUBLISHER_STORAGE_SLOT, 4]
+    # =>  [PUBLISHER_STORAGE_SLOT, 4]
 
     sub
     # => [Number of entries]
@@ -308,6 +308,10 @@ export.get_median
     # Retrieves the median from the sorted RAM entries
     exec.ram_get_median
     # => [median_price]
+
+    # Compute is_tracked flag: 1 if median != 0, else 0
+    dup push.0 neq
+    # => [is_tracked, median_price]
 
     exec.sys::truncate_stack
 end

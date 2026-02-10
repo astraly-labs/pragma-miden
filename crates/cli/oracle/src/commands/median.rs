@@ -133,13 +133,22 @@ impl MedianCmd {
             )
             .await?;
 
-        // Get the median value from the stack
-        let median = output_stack
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No median value returned"))?;
+        // Get the is_tracked and median values from the stack
+        // Stack output: [is_tracked, median_price]
+        if output_stack.len() < 2 {
+            return Err(anyhow::anyhow!("Invalid output: expected [is_tracked, median_price]"));
+        }
+        
+        let is_tracked = output_stack[0];
+        let median = output_stack[1];
 
         // Print for CLI users
-        println!("Median value: {}", median);
-        Ok(*median)
+        if is_tracked.as_int() == 0 {
+            println!("Asset not tracked (median: 0)");
+        } else {
+            println!("Median value: {}", median);
+        }
+        
+        Ok(median)
     }
 }

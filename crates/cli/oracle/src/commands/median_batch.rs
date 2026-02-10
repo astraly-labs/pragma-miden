@@ -26,6 +26,7 @@ pub struct MedianBatchCmd {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MedianResult {
     pub faucet_id: String,
+    pub is_tracked: bool,
     pub median: u64,
 }
 
@@ -164,13 +165,17 @@ impl MedianBatchCmd {
                 .await
                 .with_context(|| format!("Failed to execute median for faucet_id: {}", faucet_id_str))?;
 
-            let median = output_stack
-                .first()
-                .ok_or_else(|| anyhow::anyhow!("No median value returned for {}", faucet_id_str))?;
+            if output_stack.len() < 2 {
+                return Err(anyhow::anyhow!("Invalid output for {}: expected [is_tracked, median_price]", faucet_id_str));
+            }
+            
+            let is_tracked = output_stack[0].as_int();
+            let median = output_stack[1].as_int();
 
             results.push(MedianResult {
                 faucet_id: faucet_id_str.clone(),
-                median: median.as_int(),
+                is_tracked: is_tracked != 0,
+                median,
             });
         }
 
@@ -181,7 +186,11 @@ impl MedianBatchCmd {
             println!("{}", json_output);
         } else {
             for result in &results {
-                println!("{}: {}", result.faucet_id, result.median);
+                if result.is_tracked {
+                    println!("{}: {}", result.faucet_id, result.median);
+                } else {
+                    println!("{}: not tracked", result.faucet_id);
+                }
             }
         }
 
