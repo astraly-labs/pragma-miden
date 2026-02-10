@@ -1,4 +1,4 @@
-use std::{path::Path, str::FromStr};
+use std::path::Path;
 
 use miden_client::{
     keystore::FilesystemKeyStore, transaction::TransactionRequestBuilder, Client, ScriptBuilder,
@@ -8,13 +8,13 @@ use rand::prelude::StdRng;
 
 use miden_client::account::AccountId;
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
-use pm_types::{Entry, Pair};
+use miden_client::Felt;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Publish an entry(Callable by the publisher itself)")]
 pub struct PublishCmd {
-    pub pair: String, //"BTC/USD"
+    pub faucet_id: String, //"1:0"
     pub price: u64,
     pub decimals: u32,
     pub timestamp: u64,
@@ -61,17 +61,23 @@ impl PublishCmd {
             get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?
         };
 
-        let pair: Pair = Pair::from_str(&self.pair).unwrap();
+        let parts: Vec<&str> = self.faucet_id.split(':').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!("Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"));
+        }
+        
+        let prefix = parts[0].parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix: {}", parts[0]))?;
+        let suffix = parts[1].parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
 
-        let entry: Entry = Entry {
-            pair: pair.clone(),
-            price: self.price,
-            decimals: self.decimals,
-            timestamp: self.timestamp,
-        };
-
-        let entry_as_word: Word = entry.try_into().unwrap();
-        let pair_as_word: Word = pair.to_word();
+        let entry_as_word: Word = [
+            Felt::new(0),
+            Felt::new(self.price),
+            Felt::new(self.decimals as u64),
+            Felt::new(self.timestamp),
+        ].into();
+        
         let tx_script_code = format!(
             "
                 use.publisher_component::publisher_module
@@ -79,7 +85,7 @@ impl PublishCmd {
         
                 begin
                     push.{entry}
-                    push.{pair}
+                    push.{prefix}.{suffix}.0.0
 
                     call.publisher_module::publish_entry
         
@@ -87,7 +93,8 @@ impl PublishCmd {
                     exec.sys::truncate_stack                    
                 end
                 ",
-            pair = word_to_masm(pair_as_word),
+            prefix = prefix,
+            suffix = suffix,
             entry = word_to_masm(entry_as_word)
         );
         let publish_script = ScriptBuilder::default()

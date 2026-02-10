@@ -48,7 +48,7 @@ fn py_init(
 #[pyfunction]
 #[pyo3(name = "publish")]
 fn py_publish(
-    pair: String,
+    faucet_id: String,
     price: u64,
     decimals: u32,
     timestamp: u64,
@@ -66,11 +66,11 @@ fn py_publish(
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
 
         let cmd = PublishCmd {
-            pair,
+            faucet_id,
             price,
             decimals,
             timestamp,
-            publisher_id: None, // Use default (first publisher from config)
+            publisher_id: None,
         };
 
         cmd.call(&mut client, network_str)
