@@ -20,7 +20,7 @@ def test_publisher():
     # Publish a price
     result = pm_publisher.publish(
         publisher=publisher_id,
-        pair="BTC/USD",
+        faucet_id="1:0",
         price=45000,
         decimals=5,
         timestamp=1234567890
@@ -28,7 +28,7 @@ def test_publisher():
     print(f"Publish result: {result}")
 
     # Get entry
-    entry = pm_publisher.entry(publisher_id, "BTC/USD")
+    entry = pm_publisher.entry(publisher_id, "1:0")
     print(f"Entry result: {entry}")
 
     # Sync state

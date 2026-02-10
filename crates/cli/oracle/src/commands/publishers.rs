@@ -131,8 +131,9 @@ impl PublishersCmd {
             "\n{}",
             r#"
         💡 Tips:
-        • View publisher entries: pm-oracle-cli entry [PUBLISHER_ID] [PAIR]
+        • Calculate median: pm-oracle-cli median [FAUCET_ID]
         • Register new publisher: pm-oracle-cli register-publisher [PUBLISHER_ID]
+        • Faucet IDs: 1:0=BTC/USD, 2:0=ETH/USD, 3:0=SOL/USD
         "#
             .bright_blue()
         );

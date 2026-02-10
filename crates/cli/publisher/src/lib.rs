@@ -85,7 +85,7 @@ fn py_publish(
 #[pyfunction]
 #[pyo3(name = "get_entry")]
 fn py_get_entry(
-    pair: String,
+    faucet_id: String,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
@@ -97,10 +97,9 @@ fn py_get_entry(
 
         let network_str = network.as_deref().unwrap_or("testnet");
 
-        // Use appropriate client setup based on network parameter
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
 
-        let cmd = GetEntryCmd { pair };
+        let cmd = GetEntryCmd { faucet_id };
         cmd.call(&mut client, network_str)
             .await
             .map_err(|e| PyValueError::new_err(format!("Get entry failed: {}", e)))?;
@@ -113,7 +112,7 @@ fn py_get_entry(
 #[pyfunction]
 #[pyo3(name = "entry")]
 fn py_entry(
-    pair: String,
+    faucet_id: String,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
@@ -125,10 +124,9 @@ fn py_entry(
 
         let network_str = network.as_deref().unwrap_or("testnet");
 
-        // Use appropriate client setup based on network parameter
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
 
-        let cmd = EntryCmd { pair };
+        let cmd = EntryCmd { faucet_id };
         cmd.call(&mut client, network_str)
             .await
             .map_err(|e| PyValueError::new_err(format!("Entry failed: {}", e)))?;

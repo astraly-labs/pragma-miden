@@ -1,4 +1,4 @@
-use std::{path::Path, str::FromStr};
+use std::path::Path;
 
 use miden_client::{
     keystore::FilesystemKeyStore, transaction::TransactionRequestBuilder, Client, ScriptBuilder,

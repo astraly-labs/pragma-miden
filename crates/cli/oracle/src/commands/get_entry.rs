@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::str::FromStr;
 
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
@@ -12,19 +11,19 @@ use rand::prelude::StdRng;
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_accounts::utils::word_to_masm;
-use pm_types::{Entry, Pair};
+use pm_types::Entry;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Gets entry")]
 pub struct GetEntryCmd {
-    // Input pair (format example: "BTC/USD")
     publisher_id: String,
-    pair: String,
+    // Input faucet_id (format example: "1:0" for BTC/USD)
+    faucet_id: String,
 }
 
 impl GetEntryCmd {
-    /// Retrieves an entry from the publisher account for the specified trading pair.
+    /// Retrieves an entry from the publisher account for the specified faucet ID.
     ///
     /// This function executes an on-chain program that calls the publisher's `get_entry` function
     /// and returns the result as an Entry object containing price, decimals, and timestamp.
@@ -52,10 +51,31 @@ impl GetEntryCmd {
             .get_account(oracle_id)
             .await?
             .expect("Oracle account not found");
-        let pair: Pair = Pair::from_str(&self.pair)?;
+
+        let parts: Vec<&str> = self.faucet_id.split(':').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!(
+                "Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"
+            ));
+        }
+        let prefix = parts[0]
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix"))?;
+        let suffix = parts[1]
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix"))?;
+
+        let faucet_id_word: miden_objects::Word = [
+            Felt::new(prefix),
+            Felt::new(suffix),
+            Felt::new(0),
+            Felt::new(0),
+        ]
+        .into();
+
         let foreign_account = ForeignAccount::public(
             publisher.account().id(),
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(faucet_id_word)])]),
         )?;
         let tx_script_code = format!(
             "
@@ -63,14 +83,14 @@ impl GetEntryCmd {
             use.std::sys
     
             begin
-                push.{pair}
+                push.{faucet_id}
                 push.0.0
                 push.{account_id_suffix} push.{account_id_prefix}
                 call.oracle_module::get_entry
                 exec.sys::truncate_stack
             end
             ",
-            pair = word_to_masm(pair.to_word()),
+            faucet_id = word_to_masm(faucet_id_word),
             account_id_prefix = publisher_id.prefix().as_u64(),
             account_id_suffix = publisher_id.suffix(),
         );
@@ -92,7 +112,7 @@ impl GetEntryCmd {
             .await
             .map_err(|e| anyhow::anyhow!("Error executing transaction: {}", e))?;
         Ok(Entry {
-            pair: Pair::from_str(&self.pair)?,
+            faucet_id: self.faucet_id.clone(),
             price: output_stack[2].into(),
             decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
             timestamp: output_stack[0].into(),

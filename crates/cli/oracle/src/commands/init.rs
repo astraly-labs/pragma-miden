@@ -121,7 +121,7 @@ impl InitCmd {
             r#"
         - Calculate Median Price
         ╭────────────────────────────────────────────────────────────╮
-        │ pm-oracle-cli median [PAIR]                                │
+        │ pm-oracle-cli median [FAUCET_ID]                           │
         ╰────────────────────────────────────────────────────────────╯
         "#
             .bright_blue()
@@ -133,9 +133,11 @@ impl InitCmd {
             r#"
         ╭────────────────────────────────────────────────────────────────────╮
         │ pm-oracle-cli register-publisher 0x64cbfe4bc88cfe00000556901757eb  │
-        │ pm-oracle-cli entry 96310150000 BTC/USD                            │
-        │ pm-oracle-cli median BTC/USD                                       │
+        │ pm-oracle-cli median 1:0                                           │
+        │ pm-oracle-cli median-batch 1:0 2:0 3:0 --json                      │
         ╰────────────────────────────────────────────────────────────────────╯
+        
+        💡 Faucet IDs: 1:0=BTC/USD, 2:0=ETH/USD, 3:0=SOL/USD
         "#
             .bright_blue()
         );

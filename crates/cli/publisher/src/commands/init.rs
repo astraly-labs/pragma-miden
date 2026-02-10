@@ -117,7 +117,7 @@ impl InitCmd {
             r#"
                 📊 Command Structure:
                 ╭────────────────────────────────────────────────────────────╮
-                │ pm-publisher-cli push [PAIR] [PRICE] [DECIMALS] [TIMESTAMP]│
+                │ pm-publisher-cli publish [FAUCET_ID] [PRICE] [DECIMALS] [TS]│
                 ╰────────────────────────────────────────────────────────────╯
                 "#
             .bright_blue()
@@ -128,7 +128,7 @@ impl InitCmd {
             "{}",
             r#"
                 ╭────────────────────────────────────────────────────────────╮
-                │ pm-publisher-cli push BTC/USD 95000 5 1733844099           │
+                │ pm-publisher-cli publish 1:0 95000000000 6 1733844099      │
                 ╰────────────────────────────────────────────────────────────╯
                 "#
             .bright_blue()
@@ -138,10 +138,14 @@ impl InitCmd {
             "{}",
             r#"
                 💡 Parameters Explained:
-                • PAIR     : Trading pair (e.g., BTC/USD)
-                • PRICE    : Current price (e.g., 95000)
-                • DECIMALS : Number of decimal places (e.g., 5)
+                • FAUCET_ID: Asset identifier (e.g., 1:0 for BTC/USD)
+                • PRICE    : Current price (e.g., 95000000000)
+                • DECIMALS : Number of decimal places (e.g., 6)
                 • TIMESTAMP: Current Unix timestamp
+                
+                📋 Faucet ID Mapping:
+                • 1:0 = BTC/USD  • 2:0 = ETH/USD  • 3:0 = SOL/USD
+                • 4:0 = BNB/USD  • 5:0 = XRP/USD  • 6:0 = HYPE/USD
                 "#
             .bright_yellow()
         );
