@@ -97,41 +97,55 @@ Send your publisher ID to the Oracle administrator and request registration. The
 ```
 
 ### Step 4: Start publishing price feeds
-After your publisher has been registered, you can start pushing price data:
+After your publisher has been registered, you can start pushing price data using faucet IDs:
 ```bash
-./target/release/pm-publisher-cli publish PAIR PRICE DECIMALS TIMESTAMP
+./target/release/pm-publisher-cli publish FAUCET_ID PRICE DECIMALS TIMESTAMP
 ```
 
 For example:
 ```bash
-./target/release/pm-publisher-cli publish BTC/USD 98179840000 6 1738593825
+./target/release/pm-publisher-cli publish 1:0 98179840000 6 1738593825
 ```
 
 In this example:
-- `BTC/USD` is the trading pair
+- `1:0` is the faucet ID (represents BTC/USD)
 - `98179840000` is the price (98,179.84 with 6 decimal places)
 - `6` is the number of decimal places 
 - `1738593825` is the Unix timestamp when the price was observed
 
-The Oracle will now include your price data when calculating median values for the specified pairs.
+#### Faucet ID Mapping
+The oracle uses numeric faucet IDs to identify assets:
+- `1:0` = BTC/USD
+- `2:0` = ETH/USD
+- `3:0` = SOL/USD
+- `4:0` = BNB/USD
+- `5:0` = XRP/USD
+- `6:0` = HYPE/USD
+- `7:0` = POL/USD
+
+The Oracle will now include your price data when calculating median values for the specified assets.
 
 ## Integrate as consumer
 
-### Query Single Pair
+### Query Single Asset
 
 ```bash
-./target/release/pm-oracle-cli median BTC/USD --network testnet
+./target/release/pm-oracle-cli median 1:0 --network testnet
 # Output: Median value: 76436215000
 ```
 
-### Query Multiple Pairs (Batch - 47% Faster)
+The oracle returns two values:
+- `is_tracked`: Flag indicating if the asset is supported (1) or not (0)
+- `median_price`: The computed median price in USD
+
+### Query Multiple Assets (Batch - 47% Faster)
 
 ```bash
-./target/release/pm-oracle-cli median-batch BTC/USD ETH/USD SOL/USD --network testnet --json
-# Output: [{"pair":"BTC/USD","median":76436215000},{"pair":"ETH/USD","median":2294430000},{"pair":"SOL/USD","median":100730000}]
+./target/release/pm-oracle-cli median-batch 1:0 2:0 3:0 --network testnet --json
+# Output: [{"faucet_id":"1:0","is_tracked":true,"median":76436215000},{"faucet_id":"2:0","is_tracked":true,"median":2294430000},{"faucet_id":"3:0","is_tracked":true,"median":100730000}]
 ```
 
-The batch command optimizes performance by syncing state once instead of per-pair, reducing query time from ~4.7s to ~2.5s for 3 pairs.
+The batch command optimizes performance by syncing state once instead of per-asset, reducing query time from ~4.7s to ~2.5s for 3 assets.
 
 ### Integration Guides
 

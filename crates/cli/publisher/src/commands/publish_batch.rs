@@ -1,4 +1,4 @@
-use std::{path::Path, str::FromStr};
+use std::path::Path;
 
 use miden_client::{
     keystore::FilesystemKeyStore, transaction::TransactionRequestBuilder, Client, ScriptBuilder,
@@ -8,14 +8,14 @@ use rand::prelude::StdRng;
 
 use miden_client::account::AccountId;
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
-use pm_types::{Entry, Pair};
+use miden_client::Felt;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Publish multiple entries in a single transaction (Callable by the publisher itself)")]
 pub struct PublishBatchCmd {
-    /// Pairs to publish in format: "BTC/USD:98000000000:6:1234567890 ETH/USD:1900000000:6:1234567890"
-    /// Format per entry: PAIR:PRICE:DECIMALS:TIMESTAMP
+    /// Faucet IDs to publish in format: "1:0:98000000000:6:1234567890 2:0:1900000000:6:1234567890"
+    /// Format per entry: FAUCET_ID:PRICE:DECIMALS:TIMESTAMP (e.g., "1:0" for BTC/USD)
     #[clap(required = true)]
     pub entries: Vec<String>,
     /// Optional publisher ID. If not provided, uses the first publisher from config
@@ -62,50 +62,57 @@ impl PublishBatchCmd {
         let mut entries_data = Vec::new();
         for entry_str in &self.entries {
             let parts: Vec<&str> = entry_str.split(':').collect();
-            if parts.len() != 4 {
+            if parts.len() != 5 {
                 return Err(anyhow::anyhow!(
-                    "Invalid entry format: {}. Expected PAIR:PRICE:DECIMALS:TIMESTAMP",
+                    "Invalid entry format: {}. Expected FAUCET_PREFIX:FAUCET_SUFFIX:PRICE:DECIMALS:TIMESTAMP",
                     entry_str
                 ));
             }
 
-            let pair = Pair::from_str(parts[0])
-                .map_err(|e| anyhow::anyhow!("Invalid pair '{}': {}", parts[0], e))?;
-            let price = parts[1]
+            let prefix = parts[0]
                 .parse::<u64>()
-                .map_err(|e| anyhow::anyhow!("Invalid price '{}': {}", parts[1], e))?;
-            let decimals = parts[2]
+                .map_err(|e| anyhow::anyhow!("Invalid faucet_id prefix '{}': {}", parts[0], e))?;
+            let suffix = parts[1]
+                .parse::<u64>()
+                .map_err(|e| anyhow::anyhow!("Invalid faucet_id suffix '{}': {}", parts[1], e))?;
+            let price = parts[2]
+                .parse::<u64>()
+                .map_err(|e| anyhow::anyhow!("Invalid price '{}': {}", parts[2], e))?;
+            let decimals = parts[3]
                 .parse::<u32>()
-                .map_err(|e| anyhow::anyhow!("Invalid decimals '{}': {}", parts[2], e))?;
-            let timestamp = parts[3]
+                .map_err(|e| anyhow::anyhow!("Invalid decimals '{}': {}", parts[3], e))?;
+            let timestamp = parts[4]
                 .parse::<u64>()
-                .map_err(|e| anyhow::anyhow!("Invalid timestamp '{}': {}", parts[3], e))?;
+                .map_err(|e| anyhow::anyhow!("Invalid timestamp '{}': {}", parts[4], e))?;
 
-            let entry = Entry {
-                pair: pair.clone(),
-                price,
-                decimals,
-                timestamp,
-            };
+            let faucet_id_word: Word = [
+                Felt::new(prefix),
+                Felt::new(suffix),
+                Felt::new(0),
+                Felt::new(0),
+            ].into();
 
-            let entry_as_word: Word = entry.try_into().unwrap();
-            let pair_as_word: Word = pair.to_word();
+            let entry_word: Word = [
+                Felt::new(0),
+                Felt::new(price),
+                Felt::new(decimals as u64),
+                Felt::new(timestamp),
+            ].into();
 
-            entries_data.push((pair.to_string(), pair_as_word, entry_as_word));
+            let faucet_id_str = format!("{}:{}", prefix, suffix);
+            entries_data.push((faucet_id_str, faucet_id_word, entry_word));
         }
 
         let mut publish_calls = String::new();
-        for (pair_str, pair_word, entry_word) in &entries_data {
+        for (faucet_id_str, faucet_id_word, entry_word) in &entries_data {
             publish_calls.push_str(&format!(
                 "
-                    # Publishing {pair}
                     push.{entry}
-                    push.{pair_word}
+                    push.{faucet_id_word}
                     call.publisher_module::publish_entry
                     dropw
                 ",
-                pair = pair_str,
-                pair_word = word_to_masm(*pair_word),
+                faucet_id_word = word_to_masm(*faucet_id_word),
                 entry = word_to_masm(*entry_word)
             ));
         }

@@ -3,23 +3,20 @@ use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::ForeignAccount;
 use miden_client::ScriptBuilder;
-use miden_client::{keystore::FilesystemKeyStore, Client};
+use miden_client::{keystore::FilesystemKeyStore, Client, Felt, Word};
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
-use pm_accounts::utils::word_to_masm;
-use pm_types::Pair;
+
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use rand::prelude::StdRng;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::str::FromStr;
 
 #[derive(clap::Parser, Debug, Clone)]
-#[clap(about = "Compute the median for multiple pairs in one batch")]
+#[clap(about = "Compute the median for multiple faucet_ids in one batch")]
 pub struct MedianBatchCmd {
-    /// Trading pairs (format example: "BTC/USD ETH/USD SOL/USD")
-    pub pairs: Vec<String>,
+    pub faucet_ids: Vec<String>,
 
     /// Output results as JSON array
     #[clap(short = 'j', long = "json")]
@@ -28,7 +25,8 @@ pub struct MedianBatchCmd {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MedianResult {
-    pub pair: String,
+    pub faucet_id: String,
+    pub is_tracked: bool,
     pub median: u64,
 }
 
@@ -62,8 +60,8 @@ impl MedianBatchCmd {
         client: &mut Client<FilesystemKeyStore<StdRng>>,
         network: &str,
     ) -> anyhow::Result<Vec<MedianResult>> {
-        if self.pairs.is_empty() {
-            return Err(anyhow::anyhow!("No pairs provided"));
+        if self.faucet_ids.is_empty() {
+            return Err(anyhow::anyhow!("No faucet_ids provided"));
         }
 
         // STEP 1: Setup - done ONCE for all pairs
@@ -98,12 +96,26 @@ impl MedianBatchCmd {
             .collect::<Result<_, _>>()
             .context("Failed to collect publisher array")?;
 
-        // STEP 2: Process each pair
-        let mut results = Vec::with_capacity(self.pairs.len());
+        // STEP 2: Process each faucet_id
+        let mut results = Vec::with_capacity(self.faucet_ids.len());
 
-        for pair_str in &self.pairs {
-            let pair: Pair = Pair::from_str(pair_str)
-                .with_context(|| format!("Invalid pair format: {}", pair_str))?;
+        for faucet_id_str in &self.faucet_ids {
+            let parts: Vec<&str> = faucet_id_str.split(':').collect();
+            if parts.len() != 2 {
+                return Err(anyhow::anyhow!("Invalid faucet_id format: {}. Expected PREFIX:SUFFIX (e.g., 1:0)", faucet_id_str));
+            }
+            
+            let prefix = parts[0].parse::<u64>()
+                .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix: {}", parts[0]))?;
+            let suffix = parts[1].parse::<u64>()
+                .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
+            
+            let faucet_id_word: Word = [
+                Felt::new(prefix),
+                Felt::new(suffix),
+                Felt::new(0),
+                Felt::new(0),
+            ].into();
 
             let mut foreign_accounts: Vec<ForeignAccount> = vec![];
             for publisher_id in &publisher_array {
@@ -111,7 +123,7 @@ impl MedianBatchCmd {
                     *publisher_id,
                     AccountStorageRequirements::new([(
                         1u8,
-                        &[StorageMapKey::from(pair.to_word())],
+                        &[StorageMapKey::from(faucet_id_word)],
                     )]),
                 )?;
                 foreign_accounts.push(foreign_account);
@@ -123,12 +135,13 @@ impl MedianBatchCmd {
                 use.std::sys
         
                 begin
-                    push.{pair}
+                    push.{prefix}.{suffix}.0.0
                     call.oracle_module::get_median
                     exec.sys::truncate_stack
                 end
                 ",
-                pair = word_to_masm(pair.to_word()),
+                prefix = prefix,
+                suffix = suffix,
             );
 
             let median_script = ScriptBuilder::default()
@@ -150,15 +163,19 @@ impl MedianBatchCmd {
                     foreign_accounts_set,
                 )
                 .await
-                .with_context(|| format!("Failed to execute median for pair: {}", pair_str))?;
+                .with_context(|| format!("Failed to execute median for faucet_id: {}", faucet_id_str))?;
 
-            let median = output_stack
-                .first()
-                .ok_or_else(|| anyhow::anyhow!("No median value returned for {}", pair_str))?;
+            if output_stack.len() < 2 {
+                return Err(anyhow::anyhow!("Invalid output for {}: expected [is_tracked, median_price]", faucet_id_str));
+            }
+            
+            let is_tracked = output_stack[0].as_int();
+            let median = output_stack[1].as_int();
 
             results.push(MedianResult {
-                pair: pair_str.clone(),
-                median: median.as_int(),
+                faucet_id: faucet_id_str.clone(),
+                is_tracked: is_tracked != 0,
+                median,
             });
         }
 
@@ -169,7 +186,11 @@ impl MedianBatchCmd {
             println!("{}", json_output);
         } else {
             for result in &results {
-                println!("{}: {}", result.pair, result.median);
+                if result.is_tracked {
+                    println!("{}: {}", result.faucet_id, result.median);
+                } else {
+                    println!("{}: not tracked", result.faucet_id);
+                }
             }
         }
 

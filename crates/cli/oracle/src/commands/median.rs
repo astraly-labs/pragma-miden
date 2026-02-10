@@ -3,22 +3,18 @@ use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::ForeignAccount;
 use miden_client::ScriptBuilder;
-use miden_client::{keystore::FilesystemKeyStore, Client, Felt};
+use miden_client::{keystore::FilesystemKeyStore, Client, Felt, Word};
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
-use pm_accounts::utils::word_to_masm;
-use pm_types::Pair;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use rand::prelude::StdRng;
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::str::FromStr;
 
 #[derive(clap::Parser, Debug, Clone)]
-#[clap(about = "Compute the median for a given pair")]
+#[clap(about = "Compute the median for a given faucet_id")]
 pub struct MedianCmd {
-    // Input pair (format example: "BTC/USD")
-    pub pair: String,
+    pub faucet_id: String,
 }
 
 impl MedianCmd {
@@ -62,8 +58,24 @@ impl MedianCmd {
             .get_account(oracle_id)
             .await?
             .expect("Oracle account not found");
-        // We need to fetch all the oracle registered publishers
-        let pair: Pair = Pair::from_str(&self.pair)?;
+        
+        let parts: Vec<&str> = self.faucet_id.split(':').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!("Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"));
+        }
+        
+        let prefix = parts[0].parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix: {}", parts[0]))?;
+        let suffix = parts[1].parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
+        
+        let faucet_id_word: Word = [
+            Felt::new(prefix),
+            Felt::new(suffix),
+            Felt::new(0),
+            Felt::new(0),
+        ].into();
+        
         let storage = oracle.account().storage();
 
         // Get publisher count from storage
@@ -86,7 +98,7 @@ impl MedianCmd {
         for publisher_id in publisher_array {
             let foreign_account = ForeignAccount::public(
                 publisher_id,
-                AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
+                AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(faucet_id_word)])]),
             )?;
             foreign_accounts.push(foreign_account);
         }
@@ -97,12 +109,13 @@ impl MedianCmd {
             use.std::sys
     
             begin
-                push.{pair}
+                push.{prefix}.{suffix}.0.0
                 call.oracle_module::get_median
                 exec.sys::truncate_stack
             end
             ",
-            pair = word_to_masm(pair.to_word()),
+            prefix = prefix,
+            suffix = suffix,
         );
         let median_script = ScriptBuilder::default()
             .with_dynamically_linked_library(&get_oracle_component_library())
@@ -120,13 +133,22 @@ impl MedianCmd {
             )
             .await?;
 
-        // Get the median value from the stack
-        let median = output_stack
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No median value returned"))?;
+        // Get the is_tracked and median values from the stack
+        // Stack output: [is_tracked, median_price]
+        if output_stack.len() < 2 {
+            return Err(anyhow::anyhow!("Invalid output: expected [is_tracked, median_price]"));
+        }
+        
+        let is_tracked = output_stack[0];
+        let median = output_stack[1];
 
         // Print for CLI users
-        println!("Median value: {}", median);
-        Ok(*median)
+        if is_tracked.as_int() == 0 {
+            println!("Asset not tracked (median: 0)");
+        } else {
+            println!("Median value: {}", median);
+        }
+        
+        Ok(median)
     }
 }

@@ -1,18 +1,18 @@
 use chrono::{DateTime, Utc};
 use miden_client::{keystore::FilesystemKeyStore, Client};
-use pm_types::{Entry, Pair};
+use pm_types::Entry;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use prettytable::{Cell, Row, Table};
 use rand::prelude::StdRng;
-use std::{path::Path, str::FromStr};
+use std::path::Path;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(
-    about = "Retrieve an entry for a given pair (published by this publisher). This version read directly within the rust storage of the publisher"
+    about = "Retrieve an entry for a given faucet_id (published by this publisher). This version read directly within the rust storage of the publisher"
 )]
 pub struct EntryCmd {
-    // Input pair (format example: "BTC/USD")
-    pub pair: String,
+    // Input faucet_id (format example: "1:0" for BTC/USD)
+    pub faucet_id: String,
 }
 
 const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 1;
@@ -31,13 +31,35 @@ impl EntryCmd {
             .await
             .unwrap()
             .expect("Publisher account not found");
-        let pair: Pair = Pair::from_str(&self.pair).unwrap();
-        let entry = publisher
+
+        let parts: Vec<&str> = self.faucet_id.split(':').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!(
+                "Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"
+            ));
+        }
+        let prefix = parts[0]
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix"))?;
+        let suffix = parts[1]
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix"))?;
+
+        let faucet_id_word: miden_objects::Word = [
+            miden_client::Felt::new(prefix),
+            miden_client::Felt::new(suffix),
+            miden_client::Felt::new(0),
+            miden_client::Felt::new(0),
+        ]
+        .into();
+
+        let entry_word = publisher
             .account()
             .storage()
-            .get_map_item(PUBLISHERS_ENTRIES_STORAGE_SLOT, pair.to_word())
+            .get_map_item(PUBLISHERS_ENTRIES_STORAGE_SLOT, faucet_id_word)
             .unwrap();
-        let entry = Entry::from(entry);
+        let mut entry = Entry::from(entry_word);
+        entry.faucet_id = self.faucet_id.clone();
 
         // Create the main info table
         let mut table = Table::new();
@@ -49,24 +71,17 @@ impl EntryCmd {
             Cell::new(&format!("{}", publisher_id)).style_spec("Fy"),
         ]));
 
-        // Add pair info
         table.add_row(Row::new(vec![
-            Cell::new("Trading Pair").style_spec("Fc"),
-            Cell::new(&format!("💱 {}", self.pair)).style_spec("Fy"),
+            Cell::new("Faucet ID").style_spec("Fc"),
+            Cell::new(&format!("💱 {}", self.faucet_id)).style_spec("Fy"),
         ]));
 
-        // Format price with proper decimals
         let price_float = entry.price as f64 / 10f64.powi(entry.decimals as i32);
         let price_formatted = format!("{:.width$}", price_float, width = entry.decimals as usize);
 
         table.add_row(Row::new(vec![
             Cell::new("Price").style_spec("Fc"),
-            Cell::new(&format!(
-                "💰 {} {}",
-                price_formatted,
-                pair.to_string().split('/').nth(1).unwrap_or("USD")
-            ))
-            .style_spec("Fy"),
+            Cell::new(&format!("💰 {} USD", price_formatted)).style_spec("Fy"),
         ]));
 
         // Add decimals info

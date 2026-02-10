@@ -59,12 +59,12 @@ def test_publisher():
             # Publish price
             result = pm_publisher.publish(
                 publisher=publisher_id,
-                pair="BTC/USD",
+                faucet_id="1:0",
                 price=price,
                 decimals=8,
                 timestamp=timestamp
             )
-            entry = pm_publisher.entry(publisher_id, "BTC/USD")
+            entry = pm_publisher.entry(publisher_id, "1:0")
             print(f"Entry verification: {entry}")
 
             # Sync state

@@ -2,26 +2,25 @@ use miden_client::{keystore::FilesystemKeyStore, Client, Felt, ScriptBuilder};
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::publisher::get_publisher_component_library;
 use pm_accounts::utils::word_to_masm;
-use pm_types::{Entry, Pair};
+use pm_types::Entry;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use rand::prelude::StdRng;
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::str::FromStr;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(
-    about = "Retrieve an entry for a given pair (published by this publisher). This version executes an onchain program to retrieve the information"
+    about = "Retrieve an entry for a given faucet_id (published by this publisher). This version executes an onchain program to retrieve the information"
 )]
 pub struct GetEntryCmd {
-    // Input pair (format example: "BTC/USD")
-    pub pair: String,
+    // Input faucet_id (format example: "1:0" for BTC/USD)
+    pub faucet_id: String,
 }
 
 // This CLI command is used to call the get_entry getter function from the publisher, and output it in the stack.
 // This is useful for debugging purposes, but it's better to call the entry command to get a more user-friendly output.
 impl GetEntryCmd {
-    /// Retrieves an entry from the publisher account for the specified trading pair
+    /// Retrieves an entry from the publisher account for the specified faucet ID
     ///
     /// This function performs the following operations:
     /// 1. Retrieves the publisher account ID from configuration
@@ -42,7 +41,7 @@ impl GetEntryCmd {
     ///
     /// This function can fail if:
     /// - The publisher ID cannot be retrieved from configuration
-    /// - The pair string cannot be parsed into a valid Pair
+    /// - The faucet_id string cannot be parsed
     /// - The transaction script compilation fails
     /// - The program execution fails
     /// - The returned stack doesn't contain the expected values
@@ -52,20 +51,41 @@ impl GetEntryCmd {
         network: &str,
     ) -> anyhow::Result<Entry> {
         let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
-        let pair: Pair = Pair::from_str(&self.pair).unwrap();
+
+        let parts: Vec<&str> = self.faucet_id.split(':').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!(
+                "Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"
+            ));
+        }
+        let prefix = parts[0]
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix"))?;
+        let suffix = parts[1]
+            .parse::<u64>()
+            .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix"))?;
+
+        let faucet_id_word: miden_objects::Word = [
+            Felt::new(prefix),
+            Felt::new(suffix),
+            Felt::new(0),
+            Felt::new(0),
+        ]
+        .into();
+
         let tx_script_code = format!(
             "
             use.publisher_component::publisher_module
             use.std::sys
     
             begin
-                push.{pair}
+                push.{faucet_id}
 
                 call.publisher_module::get_entry
                 exec.sys::truncate_stack
             end
             ",
-            pair = word_to_masm(pair.to_word()),
+            faucet_id = word_to_masm(faucet_id_word),
         );
 
         let get_entry_script = ScriptBuilder::default()
@@ -85,7 +105,7 @@ impl GetEntryCmd {
             .unwrap();
         println!("Here is the output stack: {:?}", output_stack);
         Ok(Entry {
-            pair: Pair::from_str(&self.pair).unwrap(),
+            faucet_id: self.faucet_id.clone(),
             price: output_stack[2].into(),
             decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
             timestamp: output_stack[0].into(),

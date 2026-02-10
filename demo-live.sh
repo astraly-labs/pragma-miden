@@ -3,45 +3,58 @@
 set -e
 
 NETWORK="${NETWORK:-testnet}"
-PAIRS=("BTC/USD" "ETH/USD" "SOL/USD" "BNB/USD" "XRP/USD" "HYPE/USD" "POL/USD")
+FAUCET_IDS=("1:0" "2:0" "3:0" "4:0" "5:0" "6:0" "7:0")
 DECIMALS=6
 PUBLISH_INTERVAL=5
 
 get_binance_symbol() {
     case "$1" in
-        "BTC/USD") echo "BTCUSDT" ;;
-        "ETH/USD") echo "ETHUSDT" ;;
-        "SOL/USD") echo "SOLUSDT" ;;
-        "BNB/USD") echo "BNBUSDT" ;;
-        "XRP/USD") echo "XRPUSDT" ;;
-        "POL/USD") echo "POLUSDT" ;;
+        "1:0") echo "BTCUSDT" ;;
+        "2:0") echo "ETHUSDT" ;;
+        "3:0") echo "SOLUSDT" ;;
+        "4:0") echo "BNBUSDT" ;;
+        "5:0") echo "XRPUSDT" ;;
+        "7:0") echo "POLUSDT" ;;
         *) echo "" ;;
     esac
 }
 
 get_bybit_symbol() {
     case "$1" in
-        "BTC/USD") echo "BTCUSDT" ;;
-        "ETH/USD") echo "ETHUSDT" ;;
-        "SOL/USD") echo "SOLUSDT" ;;
-        "BNB/USD") echo "BNBUSDT" ;;
-        "XRP/USD") echo "XRPUSDT" ;;
-        "HYPE/USD") echo "HYPEUSDT" ;;
-        "POL/USD") echo "POLUSDT" ;;
+        "1:0") echo "BTCUSDT" ;;
+        "2:0") echo "ETHUSDT" ;;
+        "3:0") echo "SOLUSDT" ;;
+        "4:0") echo "BNBUSDT" ;;
+        "5:0") echo "XRPUSDT" ;;
+        "6:0") echo "HYPEUSDT" ;;
+        "7:0") echo "POLUSDT" ;;
         *) echo "" ;;
     esac
 }
 
 get_coinbase_symbol() {
     case "$1" in
-        "BTC/USD") echo "BTC-USD" ;;
-        "ETH/USD") echo "ETH-USD" ;;
-        "SOL/USD") echo "SOL-USD" ;;
-        "BNB/USD") echo "BNB-USD" ;;
-        "XRP/USD") echo "XRP-USD" ;;
-        "HYPE/USD") echo "HYPE-USD" ;;
-        "POL/USD") echo "POL-USD" ;;
+        "1:0") echo "BTC-USD" ;;
+        "2:0") echo "ETH-USD" ;;
+        "3:0") echo "SOL-USD" ;;
+        "4:0") echo "BNB-USD" ;;
+        "5:0") echo "XRP-USD" ;;
+        "6:0") echo "HYPE-USD" ;;
+        "7:0") echo "POL-USD" ;;
         *) echo "" ;;
+    esac
+}
+
+get_display_name() {
+    case "$1" in
+        "1:0") echo "BTC/USD" ;;
+        "2:0") echo "ETH/USD" ;;
+        "3:0") echo "SOL/USD" ;;
+        "4:0") echo "BNB/USD" ;;
+        "5:0") echo "XRP/USD" ;;
+        "6:0") echo "HYPE/USD" ;;
+        "7:0") echo "POL/USD" ;;
+        *) echo "$1" ;;
     esac
 }
 
@@ -71,25 +84,25 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 fetch_source1_price() {
-    local pair=$1
-    if [[ "$pair" == "HYPE/USD" ]]; then
-        local symbol=$(get_bybit_symbol "$pair")
+    local faucet_id=$1
+    if [[ "$faucet_id" == "6:0" ]]; then
+        local symbol=$(get_bybit_symbol "$faucet_id")
         curl -s "https://api.bybit.com/v5/market/tickers?category=spot&symbol=$symbol" | jq -r '.result.list[0].lastPrice' 2>/dev/null || echo "0"
     else
-        local symbol=$(get_binance_symbol "$pair")
+        local symbol=$(get_binance_symbol "$faucet_id")
         curl -s "https://api.binance.com/api/v3/ticker/price?symbol=$symbol" | jq -r '.price' 2>/dev/null || echo "0"
     fi
 }
 
 fetch_source2_price() {
-    local pair=$1
-    local symbol=$(get_bybit_symbol "$pair")
+    local faucet_id=$1
+    local symbol=$(get_bybit_symbol "$faucet_id")
     curl -s "https://api.bybit.com/v5/market/tickers?category=spot&symbol=$symbol" | jq -r '.result.list[0].lastPrice' 2>/dev/null || echo "0"
 }
 
 fetch_source3_price() {
-    local pair=$1
-    local symbol=$(get_coinbase_symbol "$pair")
+    local faucet_id=$1
+    local symbol=$(get_coinbase_symbol "$faucet_id")
     curl -s "https://api.coinbase.com/v2/prices/${symbol}/spot" | jq -r '.data.amount' 2>/dev/null || echo "0"
 }
 
@@ -220,28 +233,31 @@ publisher1_loop() {
         local temp_dir="/tmp/publisher1_$$"
         mkdir -p "$temp_dir"
         
-        for i in "${!PAIRS[@]}"; do
-            pair="${PAIRS[$i]}"
+        for i in "${!FAUCET_IDS[@]}"; do
+            faucet_id="${FAUCET_IDS[$i]}"
             (
-                price=$(fetch_source1_price "$pair")
-                echo "$pair|$price" > "$temp_dir/$i"
+                price=$(fetch_source1_price "$faucet_id")
+                echo "$faucet_id|$price" > "$temp_dir/$i"
             ) &
         done
         wait
         
-        for i in "${!PAIRS[@]}"; do
+        for i in "${!FAUCET_IDS[@]}"; do
             if [[ -f "$temp_dir/$i" ]]; then
-                IFS='|' read -r pair price < "$temp_dir/$i"
+                IFS='|' read -r faucet_id price < "$temp_dir/$i"
+                display_name=$(get_display_name "$faucet_id")
                 
                 if [[ "$price" != "0" && "$price" != "null" && -n "$price" ]]; then
                     price_int=$(printf '%.0f' $(echo "$price * 1000000" | bc 2>/dev/null))
                     price_display=$(printf "%.2f" "$price")
                     
-                    echo -e "  ${CYAN}$pair${NC} → ${GREEN}\$$price_display${NC}"
+                    echo -e "  ${CYAN}$display_name${NC} → ${GREEN}\$$price_display${NC}"
                     
-                    batch_entries+=("${pair}:${price_int}:${DECIMALS}:${timestamp}")
+                    faucet_prefix=$(echo "$faucet_id" | cut -d':' -f1)
+                    faucet_suffix=$(echo "$faucet_id" | cut -d':' -f2)
+                    batch_entries+=("${faucet_prefix}:${faucet_suffix}:${price_int}:${DECIMALS}:${timestamp}")
                 else
-                    echo -e "  ${CYAN}$pair${NC} → ${RED}Failed to fetch${NC}"
+                    echo -e "  ${CYAN}$display_name${NC} → ${RED}Failed to fetch${NC}"
                 fi
             fi
         done
@@ -282,28 +298,31 @@ publisher2_loop() {
         local temp_dir="/tmp/publisher2_$$"
         mkdir -p "$temp_dir"
         
-        for i in "${!PAIRS[@]}"; do
-            pair="${PAIRS[$i]}"
+        for i in "${!FAUCET_IDS[@]}"; do
+            faucet_id="${FAUCET_IDS[$i]}"
             (
-                price=$(fetch_source2_price "$pair")
-                echo "$pair|$price" > "$temp_dir/$i"
+                price=$(fetch_source2_price "$faucet_id")
+                echo "$faucet_id|$price" > "$temp_dir/$i"
             ) &
         done
         wait
         
-        for i in "${!PAIRS[@]}"; do
+        for i in "${!FAUCET_IDS[@]}"; do
             if [[ -f "$temp_dir/$i" ]]; then
-                IFS='|' read -r pair price < "$temp_dir/$i"
+                IFS='|' read -r faucet_id price < "$temp_dir/$i"
+                display_name=$(get_display_name "$faucet_id")
                 
                 if [[ "$price" != "0" && "$price" != "null" && -n "$price" ]]; then
                     price_int=$(printf '%.0f' $(echo "$price * 1000000" | bc 2>/dev/null))
                     price_display=$(printf "%.2f" "$price")
                     
-                    echo -e "  ${CYAN}$pair${NC} → ${GREEN}\$$price_display${NC}"
+                    echo -e "  ${CYAN}$display_name${NC} → ${GREEN}\$$price_display${NC}"
                     
-                    batch_entries+=("${pair}:${price_int}:${DECIMALS}:${timestamp}")
+                    faucet_prefix=$(echo "$faucet_id" | cut -d':' -f1)
+                    faucet_suffix=$(echo "$faucet_id" | cut -d':' -f2)
+                    batch_entries+=("${faucet_prefix}:${faucet_suffix}:${price_int}:${DECIMALS}:${timestamp}")
                 else
-                    echo -e "  ${CYAN}$pair${NC} → ${RED}Failed to fetch${NC}"
+                    echo -e "  ${CYAN}$display_name${NC} → ${RED}Failed to fetch${NC}"
                 fi
             fi
         done
@@ -344,12 +363,33 @@ publisher3_loop() {
         local temp_dir="/tmp/publisher3_$$"
         mkdir -p "$temp_dir"
         
-        for i in "${!PAIRS[@]}"; do
-            pair="${PAIRS[$i]}"
+        for i in "${!FAUCET_IDS[@]}"; do
+            faucet_id="${FAUCET_IDS[$i]}"
             (
-                price=$(fetch_source3_price "$pair")
-                echo "$pair|$price" > "$temp_dir/$i"
+                price=$(fetch_source3_price "$faucet_id")
+                echo "$faucet_id|$price" > "$temp_dir/$i"
             ) &
+        done
+        wait
+        
+        for i in "${!FAUCET_IDS[@]}"; do
+            if [[ -f "$temp_dir/$i" ]]; then
+                IFS='|' read -r faucet_id price < "$temp_dir/$i"
+                display_name=$(get_display_name "$faucet_id")
+                
+                if [[ "$price" != "0" && "$price" != "null" && -n "$price" ]]; then
+                    price_int=$(printf '%.0f' $(echo "$price * 1000000" | bc 2>/dev/null))
+                    price_display=$(printf "%.2f" "$price")
+                    
+                    echo -e "  ${CYAN}$display_name${NC} → ${GREEN}\$$price_display${NC}"
+                    
+                    faucet_prefix=$(echo "$faucet_id" | cut -d':' -f1)
+                    faucet_suffix=$(echo "$faucet_id" | cut -d':' -f2)
+                    batch_entries+=("${faucet_prefix}:${faucet_suffix}:${price_int}:${DECIMALS}:${timestamp}")
+                else
+                    echo -e "  ${CYAN}$display_name${NC} → ${RED}Failed to fetch${NC}"
+                fi
+            fi
         done
         wait
         
@@ -403,23 +443,24 @@ oracle_loop() {
         echo -e "\n${BOLD}${YELLOW}[ORACLE]${NC} #$iteration - $(date +%H:%M:%S)"
         echo -e "  ${CYAN}→${NC} Calculating median from all publishers...\n"
         
-        for pair in "${PAIRS[@]}"; do
-            median_output=$(timeout 30 "${ROOT_DIR}/target/release/pm-oracle-cli" median "$pair" --network $NETWORK 2>&1)
+        for faucet_id in "${FAUCET_IDS[@]}"; do
+            display_name=$(get_display_name "$faucet_id")
+            median_output=$(timeout 30 "${ROOT_DIR}/target/release/pm-oracle-cli" median "$faucet_id" --network $NETWORK 2>&1)
             median_exit=$?
             median_value=$(echo "$median_output" | grep -oE 'Median value: [0-9]+' | awk '{print $3}' || echo "")
             
             if [[ -n "$median_value" ]]; then
                 median_display=$(echo "scale=2; $median_value / 1000000" | bc)
-                echo -e "  ${CYAN}$pair${NC} → Median: ${BOLD}${GREEN}\$$median_display${NC}"
+                echo -e "  ${CYAN}$display_name${NC} → Median: ${BOLD}${GREEN}\$$median_display${NC}"
             else
                 if [[ $median_exit -eq 124 ]]; then
-                    echo -e "  ${CYAN}$pair${NC} → ${RED}Timeout${NC}"
+                    echo -e "  ${CYAN}$display_name${NC} → ${RED}Timeout${NC}"
                 else
                     error_msg=$(echo "$median_output" | grep -i "error\|panic\|failed\|unable" | head -1 || echo "")
                     if [[ -n "$error_msg" ]]; then
-                        echo -e "  ${CYAN}$pair${NC} → ${RED}Error${NC}"
+                        echo -e "  ${CYAN}$display_name${NC} → ${RED}Error${NC}"
                     else
-                        echo -e "  ${CYAN}$pair${NC} → ${YELLOW}Waiting for data${NC}"
+                        echo -e "  ${CYAN}$display_name${NC} → ${YELLOW}Waiting for data${NC}"
                     fi
                 fi
             fi
