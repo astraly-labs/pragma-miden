@@ -261,9 +261,13 @@ end
 
 #! Gets the median price of a given asset in USD value.
 #!
-#! Inputs:  [faucet_id_prefix, faucet_id_suffix, 0, 0]
+#! Inputs:  [faucet_id_prefix, faucet_id_suffix, amount, 0]
 #! Outputs: [is_tracked, median_price]
 export.get_median
+
+    movup.2 mem_store.10000
+    # -> [faucet_id_prefix, faucet_id_suffix, 0]
+
     # Iterate from 3 to NEXT_PUBLISHER_INDEX_SLOT value.
     push.0.0.NEXT_PUBLISHER_INDEX_SLOT exec.active_account::get_item drop drop drop
     # => [next_publisher_slot, 0, 0, FAUCET_ID]
@@ -312,6 +316,11 @@ export.get_median
     # Compute is_tracked flag: 1 if median != 0, else 0
     dup push.0 neq
     # => [is_tracked, median_price]
+
+    # Load the amount 
+    mem_load.10000 
+    # => [amount, is_tracked, median_price]
+    movdn.2
 
     exec.sys::truncate_stack
 end

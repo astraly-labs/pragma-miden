@@ -19,7 +19,9 @@ const pendingRequests = new Map<string, Promise<Asset[]>>();
 
 interface MedianResult {
   faucet_id: string;
+  is_tracked: boolean;
   median: number;
+  amount: number;
 }
 
 async function fetchAllMediansWithRetry(faucetIds: string[]): Promise<Map<string, number>> {
@@ -37,7 +39,9 @@ async function fetchAllMediansWithRetry(faucetIds: string[]): Promise<Map<string
         const results: MedianResult[] = JSON.parse(jsonLine);
         const priceMap = new Map<string, number>();
         
-        results.forEach(({ faucet_id, median }) => {
+        results.forEach(({ faucet_id, is_tracked, median }) => {
+          if (!is_tracked) return;
+          
           const pair = FAUCET_ID_TO_PAIR.get(faucet_id);
           if (pair) {
             priceMap.set(pair, median / 1_000_000);

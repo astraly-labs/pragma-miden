@@ -15,6 +15,10 @@ use std::path::Path;
 #[clap(about = "Compute the median for a given faucet_id")]
 pub struct MedianCmd {
     pub faucet_id: String,
+    
+    /// Optional amount parameter (defaults to 0)
+    #[clap(short, long, default_value = "0")]
+    pub amount: u64,
 }
 
 impl MedianCmd {
@@ -70,10 +74,10 @@ impl MedianCmd {
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
         
         let faucet_id_word: Word = [
-            Felt::new(prefix),
+            Felt::new(0),
+            Felt::new(0),
             Felt::new(suffix),
-            Felt::new(0),
-            Felt::new(0),
+            Felt::new(prefix),
         ].into();
         
         let storage = oracle.account().storage();
@@ -109,13 +113,15 @@ impl MedianCmd {
             use.std::sys
     
             begin
-                push.{prefix}.{suffix}.0.0
+                push.0.{amount}.{suffix}.{prefix}
+                debug.stack
                 call.oracle_module::get_median
                 exec.sys::truncate_stack
             end
             ",
             prefix = prefix,
             suffix = suffix,
+            amount = self.amount,
         );
         let median_script = ScriptBuilder::default()
             .with_dynamically_linked_library(&get_oracle_component_library())
@@ -132,21 +138,24 @@ impl MedianCmd {
                 foreign_accounts_set,
             )
             .await?;
+        
+        println!("[DEBUG] Program executed. Output stack length: {}", output_stack.len());
+        println!("[DEBUG] Output stack: {:?}", output_stack);
 
-        // Get the is_tracked and median values from the stack
-        // Stack output: [is_tracked, median_price]
-        if output_stack.len() < 2 {
-            return Err(anyhow::anyhow!("Invalid output: expected [is_tracked, median_price]"));
+        // Get the is_tracked, median, and amount values from the stack
+        // Stack output: [is_tracked, median_price, amount]
+        if output_stack.len() < 3 {
+            return Err(anyhow::anyhow!("Invalid output: expected [is_tracked, median_price, amount]"));
         }
         
         let is_tracked = output_stack[0];
         let median = output_stack[1];
+        let returned_amount = output_stack[2];
 
-        // Print for CLI users
         if is_tracked.as_int() == 0 {
-            println!("Asset not tracked (median: 0)");
+            println!("Asset not tracked (median: 0, amount: {})", returned_amount);
         } else {
-            println!("Median value: {}", median);
+            println!("Median value: {} (amount: {})", median, returned_amount);
         }
         
         Ok(median)

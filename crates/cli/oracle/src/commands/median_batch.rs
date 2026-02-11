@@ -28,6 +28,7 @@ pub struct MedianResult {
     pub faucet_id: String,
     pub is_tracked: bool,
     pub median: u64,
+    pub amount: u64,
 }
 
 impl MedianBatchCmd {
@@ -111,10 +112,10 @@ impl MedianBatchCmd {
                 .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
             
             let faucet_id_word: Word = [
-                Felt::new(prefix),
+                Felt::new(0),
+                Felt::new(0),
                 Felt::new(suffix),
-                Felt::new(0),
-                Felt::new(0),
+                Felt::new(prefix),
             ].into();
 
             let mut foreign_accounts: Vec<ForeignAccount> = vec![];
@@ -135,7 +136,7 @@ impl MedianBatchCmd {
                 use.std::sys
         
                 begin
-                    push.{prefix}.{suffix}.0.0
+                    push.0.0.{suffix}.{prefix}
                     call.oracle_module::get_median
                     exec.sys::truncate_stack
                 end
@@ -165,17 +166,19 @@ impl MedianBatchCmd {
                 .await
                 .with_context(|| format!("Failed to execute median for faucet_id: {}", faucet_id_str))?;
 
-            if output_stack.len() < 2 {
-                return Err(anyhow::anyhow!("Invalid output for {}: expected [is_tracked, median_price]", faucet_id_str));
+            if output_stack.len() < 3 {
+                return Err(anyhow::anyhow!("Invalid output for {}: expected [is_tracked, median_price, amount]", faucet_id_str));
             }
             
             let is_tracked = output_stack[0].as_int();
             let median = output_stack[1].as_int();
+            let amount = output_stack[2].as_int();
 
             results.push(MedianResult {
                 faucet_id: faucet_id_str.clone(),
                 is_tracked: is_tracked != 0,
                 median,
+                amount,
             });
         }
 
@@ -187,9 +190,9 @@ impl MedianBatchCmd {
         } else {
             for result in &results {
                 if result.is_tracked {
-                    println!("{}: {}", result.faucet_id, result.median);
+                    println!("{}: {} (amount: {})", result.faucet_id, result.median, result.amount);
                 } else {
-                    println!("{}: not tracked", result.faucet_id);
+                    println!("{}: Not tracked (amount: {})", result.faucet_id, result.amount);
                 }
             }
         }
