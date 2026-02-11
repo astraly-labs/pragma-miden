@@ -85,7 +85,7 @@ impl PublishCmd {
         
                 begin
                     push.{entry}
-                    push.{prefix}.{suffix}.0.0
+                    push.0.0.{suffix}.{prefix}
 
                     call.publisher_module::publish_entry
         

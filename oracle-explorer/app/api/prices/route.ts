@@ -11,12 +11,17 @@ const execAsync = promisify(exec);
 const NETWORK = process.env.NETWORK || 'testnet';
 const ORACLE_WORKSPACE = process.env.ORACLE_WORKSPACE_PATH || '';
 const CLI_PATH = process.env.CLI_PATH || '';
-const CACHE_TTL = 4000;
+const CACHE_TTL = 10000; // Increased from 4s to 10s to reduce spawn frequency
 const MAX_RETRIES = 3;
+
+// Lock to prevent multiple concurrent CLI spawns (cache stampede prevention)
+const pendingRequests = new Map<string, Promise<Asset[]>>();
 
 interface MedianResult {
   faucet_id: string;
+  is_tracked: boolean;
   median: number;
+  amount: number;
 }
 
 async function fetchAllMediansWithRetry(faucetIds: string[]): Promise<Map<string, number>> {
@@ -34,7 +39,9 @@ async function fetchAllMediansWithRetry(faucetIds: string[]): Promise<Map<string
         const results: MedianResult[] = JSON.parse(jsonLine);
         const priceMap = new Map<string, number>();
         
-        results.forEach(({ faucet_id, median }) => {
+        results.forEach(({ faucet_id, is_tracked, median }) => {
+          if (!is_tracked) return;
+          
           const pair = FAUCET_ID_TO_PAIR.get(faucet_id);
           if (pair) {
             priceMap.set(pair, median / 1_000_000);
@@ -71,6 +78,38 @@ function storeLivePrices(priceMap: Map<string, number>): void {
   }
 }
 
+async function fetchPricesInternal(): Promise<Asset[]> {
+  const faucetIds = FAUCET_CONFIGS.map(config => config.faucetId);
+  const pairs = FAUCET_CONFIGS.map(config => config.pair);
+  
+  const [midenPrices, binanceStats] = await Promise.all([
+    fetchAllMediansWithRetry(faucetIds),
+    fetchMultiple24hStats(pairs),
+  ]);
+
+  const assets: Asset[] = FAUCET_CONFIGS.map(({ pair, name, marketCap }) => {
+    const price = midenPrices.get(pair) || 0;
+    const symbol = pair;
+    
+    const binanceData = binanceStats.get(pair);
+    const stats24h = binanceData || { change24h: 0, high24h: price, low24h: price };
+    
+    return {
+      symbol,
+      name,
+      price,
+      change24h: stats24h.change24h,
+      high24h: stats24h.high24h,
+      low24h: stats24h.low24h,
+      marketCap,
+    };
+  });
+  
+  storeLivePrices(midenPrices);
+  
+  return assets;
+}
+
 export async function GET() {
   try {
     const cacheKey = 'prices:all';
@@ -80,36 +119,24 @@ export async function GET() {
       return Response.json(cached);
     }
     
-    const faucetIds = FAUCET_CONFIGS.map(config => config.faucetId);
-    const pairs = FAUCET_CONFIGS.map(config => config.pair);
+    let pendingPromise = pendingRequests.get(cacheKey);
     
-    const [midenPrices, binanceStats] = await Promise.all([
-      fetchAllMediansWithRetry(faucetIds),
-      fetchMultiple24hStats(pairs),
-    ]);
-
-    const assets: Asset[] = FAUCET_CONFIGS.map(({ pair, name, marketCap }) => {
-      const price = midenPrices.get(pair) || 0;
-      const symbol = pair;
+    if (!pendingPromise) {
+      pendingPromise = fetchPricesInternal()
+        .then(assets => {
+          setCache(cacheKey, assets, CACHE_TTL);
+          pendingRequests.delete(cacheKey);
+          return assets;
+        })
+        .catch(error => {
+          pendingRequests.delete(cacheKey);
+          throw error;
+        });
       
-      const binanceData = binanceStats.get(pair);
-      const stats24h = binanceData || { change24h: 0, high24h: price, low24h: price };
-      
-      return {
-        symbol,
-        name,
-        price,
-        change24h: stats24h.change24h,
-        high24h: stats24h.high24h,
-        low24h: stats24h.low24h,
-        marketCap,
-      };
-    });
+      pendingRequests.set(cacheKey, pendingPromise);
+    }
     
-    storeLivePrices(midenPrices);
-    
-    setCache(cacheKey, assets, CACHE_TTL);
-    
+    const assets = await pendingPromise;
     return Response.json(assets);
   } catch (error) {
     console.error('Prices API error:', error);

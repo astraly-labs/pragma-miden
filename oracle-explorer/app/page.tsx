@@ -8,7 +8,7 @@ import { Footer } from "@/components/Footer";
 import type { Asset } from "@/types/asset";
 import { fetchPrices } from "@/lib/api";
 
-const REFRESH_INTERVAL = 5000;
+const REFRESH_INTERVAL = 10000;
 
 export default function Home() {
   const [assets, setAssets] = useState<Asset[]>([]);

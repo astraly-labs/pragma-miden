@@ -86,10 +86,10 @@ impl PublishBatchCmd {
                 .map_err(|e| anyhow::anyhow!("Invalid timestamp '{}': {}", parts[4], e))?;
 
             let faucet_id_word: Word = [
-                Felt::new(prefix),
+                Felt::new(0),
+                Felt::new(0),
                 Felt::new(suffix),
-                Felt::new(0),
-                Felt::new(0),
+                Felt::new(prefix),
             ].into();
 
             let entry_word: Word = [

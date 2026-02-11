@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { insertPriceHistory, type PriceHistoryRow } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 const PRAGMA_API_BASE = process.env.PRAGMA_API_BASE_URL || 'https://api.production.pragma.build/node/v1/onchain/history';
 const PRAGMA_API_KEY = process.env.PRAGMA_API_KEY;
 const NETWORK = 'starknet-mainnet';

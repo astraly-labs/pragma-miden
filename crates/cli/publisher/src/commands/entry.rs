@@ -46,10 +46,10 @@ impl EntryCmd {
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix"))?;
 
         let faucet_id_word: miden_objects::Word = [
-            miden_client::Felt::new(prefix),
+            miden_client::Felt::new(0),
+            miden_client::Felt::new(0),
             miden_client::Felt::new(suffix),
-            miden_client::Felt::new(0),
-            miden_client::Felt::new(0),
+            miden_client::Felt::new(prefix),
         ]
         .into();
 
