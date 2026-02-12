@@ -1,7 +1,7 @@
 use crate::STORE_FILENAME;
 use miden_client::{
     account::{
-        component::{AuthRpoFalcon512, BasicWallet},
+        component::{AuthFalcon512Rpo, BasicWallet},
         Account, AccountBuilder, AccountStorageMode, AccountType,
     },
     builder::ClientBuilder,
@@ -21,7 +21,7 @@ use std::{path::PathBuf, sync::Arc};
 pub async fn setup_local_client(
     path: Option<PathBuf>,
     keystore_path: Option<String>,
-) -> Result<Client<FilesystemKeyStore<StdRng>>, ClientError> {
+) -> Result<Client<FilesystemKeyStore>, ClientError> {
     let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57291));
     let timeout_ms = 10_000;
 
@@ -77,7 +77,7 @@ pub async fn setup_local_client(
 pub async fn setup_devnet_client(
     path: Option<PathBuf>,
     keystore_path: Option<String>,
-) -> Result<Client<FilesystemKeyStore<StdRng>>, ClientError> {
+) -> Result<Client<FilesystemKeyStore>, ClientError> {
     // let exec_dir = PathBuf::new();
     // let store_config = exec_dir.join(path);
     // RPC endpoint and timeout
@@ -138,7 +138,7 @@ pub async fn setup_devnet_client(
 pub async fn setup_testnet_client(
     storage_path: Option<PathBuf>,
     keystore_path: Option<String>,
-) -> Result<Client<FilesystemKeyStore<StdRng>>, ClientError> {
+) -> Result<Client<FilesystemKeyStore>, ClientError> {
     // RPC endpoint and timeout
     let endpoint = Endpoint::testnet();
     let timeout_ms = 10_000;
@@ -211,7 +211,7 @@ where
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(storage_mode)
-        .with_component(AuthRpoFalcon512::new(key_pair.public_key().into()))
+        .with_component(AuthFalcon512Rpo::new(key_pair.public_key().into()))
         .with_component(BasicWallet)
         .build()
         .unwrap();

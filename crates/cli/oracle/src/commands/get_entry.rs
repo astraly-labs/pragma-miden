@@ -4,9 +4,9 @@ use std::path::Path;
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::ForeignAccount;
-use miden_client::ScriptBuilder;
+use miden_objects::account::StorageSlotName;
+use miden_lib::code_builder::CodeBuilder;
 use miden_client::{keystore::FilesystemKeyStore, Client, Felt};
-use rand::prelude::StdRng;
 
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
@@ -38,7 +38,7 @@ impl GetEntryCmd {
     /// * `Result<Entry>` - The retrieved entry or an error with context
     pub async fn call(
         &self,
-        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<Entry> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
@@ -73,9 +73,11 @@ impl GetEntryCmd {
         ]
         .into();
 
+        let publisher_entries_slot = StorageSlotName::new("pragma::publisher::entries")
+            .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let foreign_account = ForeignAccount::public(
-            publisher.account().id(),
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(faucet_id_word)])]),
+            publisher.id(),
+            AccountStorageRequirements::new([(publisher_entries_slot, &[StorageMapKey::from(faucet_id_word)])]),
         )?;
         let tx_script_code = format!(
             "
@@ -95,7 +97,7 @@ impl GetEntryCmd {
             account_id_suffix = publisher_id.suffix(),
         );
 
-        let get_entry_script = ScriptBuilder::default()
+        let get_entry_script = CodeBuilder::default()
             .with_dynamically_linked_library(&get_oracle_component_library())
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code)

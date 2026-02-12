@@ -1,7 +1,6 @@
 use miden_client::{account::AccountId, keystore::FilesystemKeyStore, Client};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use rand::prelude::StdRng;
 use std::path::PathBuf;
 mod commands;
 use crate::commands::{
@@ -179,7 +178,7 @@ async fn setup_client(
     network: &str,
     store_config: PathBuf,
     keystore_path: Option<String>,
-) -> PyResult<Client<FilesystemKeyStore<StdRng>>> {
+) -> PyResult<Client<FilesystemKeyStore>> {
     match network {
         "devnet" => {
             println!("Initializing devnet client");

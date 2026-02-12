@@ -1,30 +1,27 @@
 use std::{
-    collections::BTreeSet,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use anyhow::Context;
-use miden_client::assembly::{Library, LibraryPath, Module, ModuleKind};
+use miden_objects::{
+    account::{AccountBuilder, AccountComponent, AccountType, StorageSlot, StorageSlotName},
+    assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
+    transaction::TransactionKernel,
+};
 use miden_client::{
     account::{Account, AccountId, AccountStorageMode, AccountType as ClientAccountType},
     rpc::domain::account::{AccountStorageRequirements, StorageMapKey},
     transaction::{ForeignAccount, TransactionRequestBuilder},
-    Client, Felt, Word,
+    Client, Word,
 };
-use miden_objects::{
-    account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
-    assembly::DefaultSourceManager,
-    vm::AdviceInputs,
-};
+use miden_lib::code_builder::CodeBuilder;
 use pm_types::Pair;
 use pm_utils_cli::{
     get_oracle_id, setup_devnet_client, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
 };
 use rand::Rng;
 use std::str::FromStr;
-
-use miden_lib::{transaction::TransactionKernel, utils::ScriptBuilder};
 use miden_tx::auth::TransactionAuthenticator;
 
 pub const EXAMPLE_ACCOUNT_MASM: &str = include_str!("example.masm");
@@ -34,14 +31,13 @@ pub fn get_example_component_library() -> Library {
     let source_manager = Arc::new(DefaultSourceManager::default());
     let example_component_module: Box<Module> = Module::parser(ModuleKind::Library)
         .parse_str(
-            LibraryPath::new("example_component::example_module").unwrap(),
+            LibraryPath::new("example_component::example_module"),
             EXAMPLE_ACCOUNT_MASM,
-            &source_manager,
+            source_manager.clone(),
         )
         .unwrap();
 
     TransactionKernel::assembler()
-        .with_debug_mode(true)
         .assemble_library([example_component_module])
         .expect("assembly should succeed")
 }
@@ -58,7 +54,11 @@ where
     AUTH: TransactionAuthenticator + Sync + 'static,
 {
     pub fn new() -> Self {
-        let default_storage_slots = vec![StorageSlot::empty_map()];
+        let default_storage_slots = vec![
+            StorageSlot::with_empty_map(
+                StorageSlotName::new("example::storage").unwrap()
+            )
+        ];
         Self {
             client: None,
             account_type: AccountType::RegularAccountImmutableCode,
@@ -153,17 +153,24 @@ async fn example_test() -> anyhow::Result<()> {
     let price_to_compare: u64 = 50000; // Example price to compare (multiplied by the number of decimals)
 
     // Get publisher count from storage
-    let storage = oracle.account().storage();
+    let account = match oracle.account_data() {
+        miden_client::store::AccountRecordData::Full(acc) => acc,
+        _ => panic!("Expected full account"),
+    };
+    let storage = account.storage();
+    let next_publisher_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap();
     let publisher_count = storage
-        .get_item(1)
+        .get_item(&next_publisher_index_slot)
         .context("Unable to retrieve publisher count")?[0]
         .as_int();
 
     // Collect publishers into array
-    let publisher_array: Vec<AccountId> = (1..publisher_count - 1)
+    let publisher_array: Vec<AccountId> = (2..publisher_count)
         .map(|i| {
+            let slot_name = format!("pragma::oracle::publisher{}", i);
+            let slot = StorageSlotName::new(slot_name.as_str()).unwrap();
             storage
-                .get_item(2 + i as u8)
+                .get_item(&slot)
                 .context("Failed to retrieve publisher details")
                 .map(|words| AccountId::new_unchecked([words[3], words[2]]))
         })
@@ -172,16 +179,16 @@ async fn example_test() -> anyhow::Result<()> {
     let mut foreign_accounts: Vec<ForeignAccount> = vec![];
     for publisher_id in publisher_array {
         client.import_account_by_id(publisher_id).await.unwrap();
+        let publisher_entries_slot = StorageSlotName::new("pragma::publisher::entries").unwrap();
         let foreign_account = ForeignAccount::public(
             publisher_id,
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair.to_word())])]),
-        )
-        .unwrap();
+            AccountStorageRequirements::new([(publisher_entries_slot, &[StorageMapKey::from(pair.to_word())])]),
+        )?;
         foreign_accounts.push(foreign_account);
     }
 
     let oracle_foreign_account =
-        ForeignAccount::public(oracle_id, AccountStorageRequirements::default()).unwrap();
+        ForeignAccount::public(oracle_id, AccountStorageRequirements::default())?;
     foreign_accounts.push(oracle_foreign_account);
 
     // First case: view call
@@ -205,26 +212,26 @@ async fn example_test() -> anyhow::Result<()> {
         oracle_id_suffix = oracle_id.suffix(),
     );
 
-    let example_script = ScriptBuilder::default()
+    let example_script = CodeBuilder::default()
         .with_statically_linked_library(&get_example_component_library())
         .map_err(|e| anyhow::anyhow!("Error setting up library: {e:?}"))?
         .compile_tx_script(&tx_script_code)
         .map_err(|e| anyhow::anyhow!("Error compiling script: {e:?}"))?;
 
     // Execute program
-    let foreign_accounts_set: BTreeSet<ForeignAccount> =
+    let foreign_accounts_set: std::collections::BTreeSet<ForeignAccount> =
         foreign_accounts.clone().into_iter().collect();
 
     let output_stack = client
         .execute_program(
             example_account.id(),
             example_script,
-            AdviceInputs::default(),
+            miden_objects::vm::AdviceInputs::default(),
             foreign_accounts_set,
         )
         .await?;
     // Result is a boolean (0 for false, 1 for true)
-    let result = output_stack[0] == Felt::new(1);
+    let result = output_stack[0] == miden_client::Felt::new(1);
     if result {
         println!("The price is greater than the stored value.");
     } else {
@@ -253,7 +260,7 @@ async fn example_test() -> anyhow::Result<()> {
         oracle_id_prefix = oracle_id.prefix().as_u64(),
         oracle_id_suffix = oracle_id.suffix(),
     );
-    let example_script = ScriptBuilder::default()
+    let example_script = CodeBuilder::default()
         .with_statically_linked_library(&get_example_component_library())
         .map_err(|e| anyhow::anyhow!("Error setting up library: {e:?}"))?
         .compile_tx_script(&tx_script_code)

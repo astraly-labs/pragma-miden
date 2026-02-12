@@ -3,7 +3,6 @@ use miden_client::{keystore::FilesystemKeyStore, Client};
 use pm_types::Entry;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use prettytable::{Cell, Row, Table};
-use rand::prelude::StdRng;
 use std::path::Path;
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -15,12 +14,12 @@ pub struct EntryCmd {
     pub faucet_id: String,
 }
 
-const PUBLISHERS_ENTRIES_STORAGE_SLOT: u8 = 1;
+
 
 impl EntryCmd {
     pub async fn call(
         &self,
-        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<()> {
         client.sync_state().await.unwrap();
@@ -53,10 +52,15 @@ impl EntryCmd {
         ]
         .into();
 
-        let entry_word = publisher
-            .account()
+        let account = match publisher.account_data() {
+            miden_client::store::AccountRecordData::Full(acc) => acc,
+            _ => return Err(anyhow::anyhow!("Expected full account data for publisher")),
+        };
+        let publisher_entries_slot = miden_objects::account::StorageSlotName::new("pragma::publisher::entries")
+            .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
+        let entry_word = account
             .storage()
-            .get_map_item(PUBLISHERS_ENTRIES_STORAGE_SLOT, faucet_id_word)
+            .get_map_item(&publisher_entries_slot, faucet_id_word)
             .unwrap();
         let mut entry = Entry::from(entry_word);
         entry.faucet_id = self.faucet_id.clone();

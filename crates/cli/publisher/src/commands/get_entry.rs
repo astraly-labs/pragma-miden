@@ -1,10 +1,10 @@
-use miden_client::{keystore::FilesystemKeyStore, Client, Felt, ScriptBuilder};
+use miden_client::{keystore::FilesystemKeyStore, Client, Felt};
+use miden_lib::code_builder::CodeBuilder;
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::publisher::get_publisher_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Entry;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
-use rand::prelude::StdRng;
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -47,7 +47,7 @@ impl GetEntryCmd {
     /// - The returned stack doesn't contain the expected values
     pub async fn call(
         &self,
-        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<Entry> {
         let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
@@ -88,7 +88,7 @@ impl GetEntryCmd {
             faucet_id = word_to_masm(faucet_id_word),
         );
 
-        let get_entry_script = ScriptBuilder::default()
+        let get_entry_script = CodeBuilder::default()
             .with_statically_linked_library(&get_publisher_component_library())
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code)

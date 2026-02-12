@@ -4,7 +4,6 @@ use colored::*;
 use miden_client::{keystore::FilesystemKeyStore, Client};
 use pm_accounts::publisher::PublisherAccountBuilder;
 use pm_utils_cli::{add_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
-use rand::prelude::StdRng;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Publisher Account")]
@@ -40,7 +39,7 @@ impl InitCmd {
     /// - The configuration file cannot be updated
     pub async fn call(
         &self,
-        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<()> {
         // TODO: Refine this condition & logic

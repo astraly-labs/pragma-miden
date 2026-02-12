@@ -2,11 +2,10 @@ use std::path::Path;
 
 use miden_client::account::AccountId;
 use miden_client::transaction::TransactionRequestBuilder;
-use miden_client::ScriptBuilder;
+use miden_lib::code_builder::CodeBuilder;
 use miden_client::{keystore::FilesystemKeyStore, Client};
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
-use rand::prelude::StdRng;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Registers a publisher id into the Oracle")]
@@ -44,7 +43,7 @@ impl RegisterPublisherCmd {
     /// - The transaction submission fails
     pub async fn call(
         &self,
-        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<()> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
@@ -71,7 +70,7 @@ impl RegisterPublisherCmd {
             account_id_prefix = publisher_id.prefix().as_u64(),
             account_id_suffix = publisher_id.suffix(),
         );
-        let register_script = ScriptBuilder::default()
+        let register_script = CodeBuilder::default()
             .with_dynamically_linked_library(&get_oracle_component_library())
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code)

@@ -2,13 +2,13 @@ use anyhow::Context;
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::ForeignAccount;
-use miden_client::ScriptBuilder;
+use miden_objects::account::StorageSlotName;
+use miden_lib::code_builder::CodeBuilder;
 use miden_client::{keystore::FilesystemKeyStore, Client, Felt, Word};
 use miden_objects::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
 
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
-use rand::prelude::StdRng;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -58,7 +58,7 @@ impl MedianBatchCmd {
     /// - Network/client issues occur during setup
     pub async fn call(
         &self,
-        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<Vec<MedianResult>> {
         if self.faucet_ids.is_empty() {
@@ -78,19 +78,28 @@ impl MedianBatchCmd {
                 )
             })?;
 
-        let storage = oracle.account().storage();
+        let account = match oracle.account_data() {
+            miden_client::store::AccountRecordData::Full(acc) => acc,
+            _ => return Err(anyhow::anyhow!("Expected full account data for oracle")),
+        };
+        let storage = account.storage();
 
         // Get publisher count from storage
+        let next_publisher_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index")
+            .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let publisher_count = storage
-            .get_item(1)
+            .get_item(&next_publisher_index_slot)
             .context("Unable to retrieve publisher count")?[0]
             .as_int();
 
         // Collect publishers into array
-        let publisher_array: Vec<AccountId> = (1..publisher_count - 1)
+        let publisher_array: Vec<AccountId> = (2..publisher_count)
             .map(|i| {
+                let slot_name = format!("pragma::oracle::publisher{}", i);
+                let slot = StorageSlotName::new(slot_name.as_str())
+                    .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
                 storage
-                    .get_item(2 + i as u8)
+                    .get_item(&slot)
                     .context("Failed to retrieve publisher details")
                     .map(|words| AccountId::new_unchecked([words[3], words[2]]))
             })
@@ -119,11 +128,13 @@ impl MedianBatchCmd {
             ].into();
 
             let mut foreign_accounts: Vec<ForeignAccount> = vec![];
+            let publisher_entries_slot = StorageSlotName::new("pragma::publisher::entries")
+                .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
             for publisher_id in &publisher_array {
                 let foreign_account = ForeignAccount::public(
                     *publisher_id,
                     AccountStorageRequirements::new([(
-                        1u8,
+                        publisher_entries_slot.clone(),
                         &[StorageMapKey::from(faucet_id_word)],
                     )]),
                 )?;
@@ -145,7 +156,7 @@ impl MedianBatchCmd {
                 suffix = suffix,
             );
 
-            let median_script = ScriptBuilder::default()
+            let median_script = CodeBuilder::default()
                 .with_dynamically_linked_library(&get_oracle_component_library())
                 .map_err(|e| {
                     anyhow::anyhow!("Error while setting up the component library: {e:?}")
