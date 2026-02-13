@@ -26,7 +26,7 @@ You can learn more about Miden [here](https://docs.polygon.technology/miden/).
 
 The Oracle acts as a central registry and aggregator with these key functions:
 * Maintains a registry of trusted publisher ids (Supports up to 253 publishers),
-* Retrieves the price of a publisher for a given pair,
+* Retrieves the price of a publisher for a given faucet_id (asset identifier),
 * Aggregates all the available prices into a median.
 
 Storage Structure:
@@ -36,23 +36,18 @@ Storage Structure:
 
 Procedures:
 * `register_publisher`: Add new trusted price sources (admin only),
-* `get_entry`: Fetch a specific publisher's price for a trading pair,
-* `get_median`: Calculate median price across all publishers for a pair.
+* `get_entry`: Fetch a specific publisher's price for a given faucet_id,
+* `get_median` (Digest: `0xc6bd0b17ca2ed631c62c82abe48524f420ad8ba9fd04ebaf9cf724c56382528e`): Calculate median price across all publishers for a faucet_id.
 
 ### Publisher
 
-Since a publisher cannot directly ask the Oracle to update its a storage with a provided value, the publisher will be responsible of its own storage and publish prices to itself.
+Since a publisher cannot directly ask the Oracle to update its storage with a provided value, the publisher will be responsible of its own storage and publish prices to itself.
 
-Its storage will only be a single map. The key is a word containing the pair, example:
+Its storage is a single map. The key is a word containing the faucet_id in the format `[0, 0, faucet_id_suffix, faucet_id_prefix]`:
 ```
-[pair, ZERO, ZERO, ZERO]
+[0, 0, suffix, prefix]
 ```
-For now, it only contains the pair but we can imagine that it will hold more information later, for example the source, the type of the asset etc...:
-```
-[SPOT, BINANCE, pair_name, ZERO]
-or
-[FUTURE, BYBIT, pair_name, ZERO]
-```
+For example, faucet_id `1:0` (BTC/USD) would be stored as `[0, 0, 0, 1]`.
 
 The value is an Entry type:
 ```rust
@@ -134,15 +129,22 @@ The Oracle will now include your price data when calculating median values for t
 # Output: Median value: 76436215000
 ```
 
-The oracle returns two values:
+You can also specify an optional amount parameter that will be returned unchanged:
+```bash
+./target/release/pm-oracle-cli median 1:0 --amount 1000 --network testnet
+# Output: Median value: 76436215000 (amount: 1000)
+```
+
+The oracle returns three values:
 - `is_tracked`: Flag indicating if the asset is supported (1) or not (0)
 - `median_price`: The computed median price in USD
+- `amount`: Optional amount parameter that remains unchanged (default: 0)
 
 ### Query Multiple Assets (Batch - 47% Faster)
 
 ```bash
 ./target/release/pm-oracle-cli median-batch 1:0 2:0 3:0 --network testnet --json
-# Output: [{"faucet_id":"1:0","is_tracked":true,"median":76436215000},{"faucet_id":"2:0","is_tracked":true,"median":2294430000},{"faucet_id":"3:0","is_tracked":true,"median":100730000}]
+# Output: [{"faucet_id":"1:0","is_tracked":true,"median":76436215000,"amount":0},{"faucet_id":"2:0","is_tracked":true,"median":2294430000,"amount":0},{"faucet_id":"3:0","is_tracked":true,"median":100730000,"amount":0}]
 ```
 
 The batch command optimizes performance by syncing state once instead of per-asset, reducing query time from ~4.7s to ~2.5s for 3 assets.
@@ -151,7 +153,6 @@ The batch command optimizes performance by syncing state once instead of per-ass
 
 For developers who want to consume oracle data in their applications:
 - **CLI Integration**: See [OPTIMIZATION.md](./OPTIMIZATION.md) for batch query performance details
-- **Demo Examples**: Refer to the [demo folder](./crates/demo/README.md) for integration examples
 - **Frontend Integration**: Check [oracle-explorer/ARCHITECTURE.md](./oracle-explorer/ARCHITECTURE.md) for Next.js integration
 
 ## License
@@ -164,8 +165,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 These contracts were deployed for testing purpose only. They might change in the future.
 
-Oracle - [mtst1ar2frsv7kjz2gqzt2mt74d0xlyen8re3](https://testnet.midenscan.com/account/mtst1ar2frsv7kjz2gqzt2mt74d0xlyen8re3)
+Oracle - [mtst1ar2frsv7kjz2gqzt2mt74d0xlyen8re3](https://testnet.midenscan.com/account/mtst1arfh7akzc9m0wqz8m9a8xyup85g6ls32)
 
-Publisher1 - [mtst1aqwdujtul020gqz8dlc6v00lgunczddf](https://testnet.midenscan.com/account/mtst1aqwdujtul020gqz8dlc6v00lgunczddf)
+Publisher1 - [mtst1aqwdujtul020gqz8dlc6v00lgunczddf](https://testnet.midenscan.com/account/mtst1arm5hzrpf5sg2qpry2a9r4w6f50rgfj4)
 
-Publisher2 -  [mtst1apkfkmest8g2sqq6qct5jt6s9s7834t6](https://testnet.midenscan.com/account/mtst1apkfkmest8g2sqq6qct5jt6s9s7834t6)
+Publisher2 -  [mtst1apkfkmest8g2sqq6qct5jt6s9s7834t6](https://testnet.midenscan.com/account/mtst1ar4ucrw059sdvqzfekvvvt03dgs229pc)

@@ -2409,25 +2409,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pm-demo"
-version = "0.1.0-alpha.1"
-dependencies = [
- "anyhow",
- "miden-client",
- "miden-lib",
- "miden-objects",
- "miden-tx",
- "once_cell",
- "pm-types",
- "pm-utils-cli",
- "rand",
- "rand_chacha 0.3.1",
- "tempfile",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "pm-oracle-cli"
 version = "0.1.0-alpha.1"
 dependencies = [

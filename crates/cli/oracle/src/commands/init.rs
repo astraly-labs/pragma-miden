@@ -110,7 +110,7 @@ impl InitCmd {
             r#"
         - View Publisher Entries
         ╭────────────────────────────────────────────────────────────╮
-        │ pm-oracle-cli entry [PUBLISHER_ID] [PAIR]                  │
+        │ pm-oracle-cli get-entry [PUBLISHER_ID] [FAUCET_ID]        │
         ╰────────────────────────────────────────────────────────────╯
         "#
             .bright_blue()
