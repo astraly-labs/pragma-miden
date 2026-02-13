@@ -2,14 +2,14 @@ mod common;
 use anyhow::{Context, Result};
 use miden_client::{transaction::TransactionRequestBuilder, Felt, ScriptBuilder};
 use miden_objects::vm::AdviceInputs;
-use pm_types::{Currency, Entry, Pair};
+use pm_types::Entry;
 use std::collections::BTreeSet;
 
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 
 use common::{
-    create_and_deploy_publisher_account, execute_tx_and_sync, mock_entry, setup_test_environment,
-    Word,
+    create_and_deploy_publisher_account, entry_to_value_word, execute_tx_and_sync,
+    faucet_id_to_key_word, mock_entry, setup_test_environment, Word,
 };
 use pm_utils_cli::STORE_TEST_FILENAME;
 use uuid::Uuid;
@@ -24,28 +24,23 @@ async fn test_publisher_publish_entry() -> Result<()> {
 
     // Create a new entry to publish
     let entry = Entry {
-        pair: Pair::new(
-            Currency::new("BTC").context("Invalid currency")?,
-            Currency::new("USD").context("Invalid currency")?,
-        ),
+        faucet_id: "1:0".to_string(),
         price: 51000000000, // $51,000
         decimals: 8,
         timestamp: 1739722449,
     };
-    // Create pair word from entry
-    let pair_word = entry.pair.to_word();
+    // Create faucet_id key word and entry value word
+    let faucet_id_key_word = faucet_id_to_key_word(&entry.faucet_id);
     let entry = Entry {
-        // Create an empty entry with the same pair
-        pair: entry.pair.clone(),
+        faucet_id: "1:0".to_string(),
         price: 0,
         decimals: 0,
         timestamp: 0,
     };
-    let entry_as_word: Word = entry.try_into().unwrap();
+    let entry_as_word: Word = entry_to_value_word(&entry);
     // Create and deploy publisher account (initially without the entry)
-    // We'll use an empty storage slot for the entries map
     let publisher_account =
-        create_and_deploy_publisher_account(&mut client, pair_word, entry_as_word).await?;
+        create_and_deploy_publisher_account(&mut client, faucet_id_key_word, entry_as_word).await?;
 
     // Create transaction script for publishing the entry
     let tx_script_code = format!(
@@ -57,7 +52,7 @@ async fn test_publisher_publish_entry() -> Result<()> {
 
         begin
             push.{entry}
-            push.{pair}
+            push.{faucet_id_key}
 
             call.publisher_module::publish_entry
 
@@ -67,7 +62,7 @@ async fn test_publisher_publish_entry() -> Result<()> {
             exec.sys::truncate_stack
         end
         ",
-        pair = word_to_masm(pair_word),
+        faucet_id_key = word_to_masm(faucet_id_key_word),
         entry = word_to_masm(entry_as_word)
     );
 
@@ -95,14 +90,13 @@ async fn test_publisher_publish_entry() -> Result<()> {
     let publisher_account = publisher_account.account();
 
     // Check that the entry was published by retrieving it from storage
-    // The entry should be in the map at slot 1 with the pair_word as key
     let storage = publisher_account.storage();
     let stored_entry = storage
-        .get_map_item(1, pair_word)
+        .get_map_item(1, faucet_id_key_word)
         .context("Failed to get entry map")?;
 
     // Verify the stored entry matches what we published
-    assert_eq!(stored_entry[0], entry_as_word[0], "Pair mismatch");
+    assert_eq!(stored_entry[0], entry_as_word[0], "Faucet ID prefix mismatch");
     assert_eq!(stored_entry[1], entry_as_word[1], "Price mismatch");
     assert_eq!(stored_entry[2], entry_as_word[2], "Decimals mismatch");
     assert_eq!(stored_entry[3], entry_as_word[3], "Timestamp mismatch");
@@ -122,12 +116,12 @@ async fn test_publisher_get_entry() -> Result<()> {
     // Create an entry to store in the publisher account
     let entry = mock_entry();
 
-    // Create pair word from entry
-    let pair_word = entry.pair.to_word();
-    let entry_as_word: Word = entry.clone().try_into().unwrap();
+    // Create faucet_id key word and entry value word
+    let faucet_id_key_word = faucet_id_to_key_word(&entry.faucet_id);
+    let entry_as_word: Word = entry_to_value_word(&entry);
     // Create and deploy publisher account with the entry
     let publisher_account =
-        create_and_deploy_publisher_account(&mut client, pair_word, entry_as_word).await?;
+        create_and_deploy_publisher_account(&mut client, faucet_id_key_word, entry_as_word).await?;
 
     // Create transaction script for getting the entry
     let tx_script_code = format!(
@@ -136,13 +130,13 @@ async fn test_publisher_get_entry() -> Result<()> {
         use.std::sys
 
         begin
-            push.{pair}
+            push.{faucet_id_key}
 
             call.publisher_module::get_entry
             exec.sys::truncate_stack
         end
         ",
-        pair = word_to_masm(pair_word),
+        faucet_id_key = word_to_masm(faucet_id_key_word),
     );
 
     let get_entry_script = ScriptBuilder::default()
@@ -162,7 +156,7 @@ async fn test_publisher_get_entry() -> Result<()> {
         .unwrap();
     println!("Here is the output stack: {:?}", output_stack);
     let expected_entry = Entry {
-        pair: entry.pair.clone(), // Normal, should be removed
+        faucet_id: entry.faucet_id.clone(),
         price: output_stack[2].into(),
         decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
         timestamp: output_stack[0].into(),

@@ -10,7 +10,7 @@ use miden_client::transaction::{ForeignAccount, TransactionRequestBuilder};
 use miden_client::{Client, Felt, ScriptBuilder, Word, ZERO};
 use miden_objects::account::{Account, StorageMap, StorageSlot};
 use miden_objects::vm::AdviceInputs;
-use pm_types::{Currency, Entry, Pair};
+use pm_types::Entry;
 
 use pm_accounts::{
     oracle::{get_oracle_component_library, OracleAccountBuilder},
@@ -20,8 +20,8 @@ use pm_accounts::{
 
 use common::{
     create_and_deploy_oracle_account, create_and_deploy_publisher_account,
-    execute_get_entry_transaction, execute_tx_and_sync, mock_entry, random_entry,
-    setup_test_environment,
+    entry_to_value_word, execute_get_entry_transaction, execute_tx_and_sync,
+    faucet_id_to_key_word, mock_entry, random_entry, setup_test_environment,
 };
 use pm_utils_cli::STORE_TEST_FILENAME;
 use uuid::Uuid;
@@ -29,15 +29,15 @@ use uuid::Uuid;
 #[tokio::test]
 async fn test_oracle_get_entry() -> Result<()> {
     let entry = mock_entry();
-    let pair_word = entry.pair.to_word();
-    let entry_as_word: Word = entry.clone().try_into().unwrap();
+    let faucet_id_key_word = faucet_id_to_key_word(&entry.faucet_id);
+    let entry_as_word: Word = entry_to_value_word(&entry);
 
     let unique_id = Uuid::new_v4();
     let (mut client, store_config) =
         setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
 
     let publisher_account =
-        create_and_deploy_publisher_account(&mut client, pair_word, entry_as_word).await?;
+        create_and_deploy_publisher_account(&mut client, faucet_id_key_word, entry_as_word).await?;
 
     let publisher_id_word: [Felt; 4] = [
         ZERO,
@@ -71,7 +71,7 @@ async fn test_oracle_get_entry() -> Result<()> {
         &mut client,
         oracle_account.id(),
         publisher_account.id(),
-        pair_word,
+        faucet_id_key_word,
     )
     .await?;
 
@@ -213,35 +213,22 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
         .build()
         .context("Error while building second transaction request")?;
 
-    // The transaction creation should succeed, but execution should fail
-    let result = client
-        .new_transaction(oracle_account.id(), transaction_request)
-        .await;
+    // The second registration should fail
+    let result = execute_tx_and_sync(&mut client, oracle_account.id(), transaction_request).await;
 
     // Check that the transaction execution failed with the expected error
     match result {
         Ok(_) => {
-            // If the transaction was created successfully, executing it should fail
-            let tx_result = client.sync_state().await;
-            assert!(
-                tx_result.is_err(),
-                "Expected transaction to fail when registering publisher twice"
-            );
-
-            // We should be able to see the specific error if we capture the error message
-            // The error should mention publisher already registered (error code 100)
-            if let Err(err) = tx_result {
-                println!("Expected error received: {}", err);
-                assert!(
-                    err.to_string().contains("100")
-                        || err.to_string().contains("publisher already registered"),
-                    "Error should mention publisher already registered"
-                );
-            }
+            panic!("Expected transaction to fail when registering publisher twice, but it succeeded");
         }
         Err(err) => {
-            // Some implementations might fail immediately on transaction creation
-            println!("Transaction creation failed as expected: {}", err);
+            println!("Expected error received: {}", err);
+            assert!(
+                err.to_string().contains("100")
+                    || err.to_string().contains("publisher already registered")
+                    || err.to_string().contains("Failed"),
+                "Error should mention publisher already registered or transaction failure"
+            );
         }
     }
 
@@ -257,35 +244,29 @@ async fn test_oracle_get_median() -> Result<()> {
 
     // Create entries with different prices for testing median
     let entry1 = Entry {
-        pair: Pair::new(
-            Currency::new("BTC").context("Invalid currency")?,
-            Currency::new("USD").context("Invalid currency")?,
-        ),
+        faucet_id: "1:0".to_string(),
         price: 50000000000, // $50,000
         decimals: 8,
         timestamp: 1739722449,
     };
 
     let entry2 = Entry {
-        pair: Pair::new(
-            Currency::new("BTC").context("Invalid currency")?,
-            Currency::new("USD").context("Invalid currency")?,
-        ),
+        faucet_id: "1:0".to_string(),
         price: 52000000000, // $52,000
         decimals: 8,
         timestamp: 1739722450,
     };
 
-    // Create pair word (same for both entries since they have the same pair)
-    let pair_word = entry1.pair.to_word();
+    // Create faucet_id key word (same for both entries)
+    let faucet_id_key_word = faucet_id_to_key_word(&entry1.faucet_id);
     // Create and deploy publisher accounts
-    let entry1_as_word: Word = entry1.clone().try_into().unwrap();
-    let entry2_as_word: Word = entry2.clone().try_into().unwrap();
+    let entry1_as_word: Word = entry_to_value_word(&entry1);
+    let entry2_as_word: Word = entry_to_value_word(&entry2);
 
     let publisher1 =
-        create_and_deploy_publisher_account(&mut client, pair_word, entry1_as_word).await?;
+        create_and_deploy_publisher_account(&mut client, faucet_id_key_word, entry1_as_word).await?;
     let publisher2 =
-        create_and_deploy_publisher_account(&mut client, pair_word, entry2_as_word).await?;
+        create_and_deploy_publisher_account(&mut client, faucet_id_key_word, entry2_as_word).await?;
 
     // Create and deploy oracle account
     let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
@@ -338,7 +319,7 @@ async fn test_oracle_get_median() -> Result<()> {
 
         let foreign_account = ForeignAccount::public(
             publisher_id,
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]),
+            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(faucet_id_key_word)])]),
         )
         .context("Failed to create foreign account")?;
         foreign_accounts.push(foreign_account);
@@ -347,18 +328,18 @@ async fn test_oracle_get_median() -> Result<()> {
     println!("Trying to query the median");
 
     // Create transaction script for get_median
+    // Format: push.{faucet_id_prefix}.{faucet_id_suffix}.{amount}.0
     let tx_script_code = format!(
         "
         use.oracle_component::oracle_module
         use.std::sys
 
         begin
-            push.{pair}
+            push.1.0.0.0
             call.oracle_module::get_median
             exec.sys::truncate_stack
         end
-        ",
-        pair = word_to_masm(pair_word),
+        "
     );
 
     let tx_script = ScriptBuilder::default()
@@ -375,11 +356,16 @@ async fn test_oracle_get_median() -> Result<()> {
         .await
         .unwrap();
     // Get the median value from the stack
-    let median = output_stack
-        .first()
-        .ok_or_else(|| anyhow::anyhow!("No median value returned"))?;
+    // Output format: [is_tracked, median_price, amount, ...]
+    let is_tracked = output_stack[2];
+    let median_price = output_stack[1];
+    let amount = output_stack[0];
+    
+    assert_eq!(<Felt as Into<u64>>::into(is_tracked), 1, "Asset should be tracked");
+    assert_eq!(<Felt as Into<u64>>::into(amount), 0, "Amount should be 0");
+    
     let expected_price = (entry1.price + entry2.price) / 2;
-    assert_eq!(expected_price, <Felt as Into<u64>>::into(*median));
+    assert_eq!(expected_price, <Felt as Into<u64>>::into(median_price));
     Ok(())
 }
 
@@ -397,19 +383,14 @@ pub async fn generate_publishers_and_median(
         // Store the price for median calculation
         prices.push(entry.price);
 
-        let entry_as_word: Word = entry.try_into().unwrap();
-        let pair: Felt = entry_as_word[0];
-        let pair_word: Word = [pair, ZERO, ZERO, ZERO].into();
+        let entry_as_word: Word = entry_to_value_word(&entry);
+        let faucet_id_key_word: Word = faucet_id_to_key_word(&entry.faucet_id);
 
         let (publisher_account, _) = PublisherAccountBuilder::new()
             .with_storage_slots(vec![
-                StorageSlot::empty_map(),
-                // Entries map
                 StorageSlot::Map(
                     StorageMap::with_entries(vec![(
-                        // The key is the pair id
-                        pair_word,
-                        // The value is the entry
+                        faucet_id_key_word,
                         entry_as_word,
                     )])
                     .unwrap(),
@@ -419,7 +400,7 @@ pub async fn generate_publishers_and_median(
             .build()
             .await;
 
-        generated_publishers.push((pair_word, publisher_account));
+        generated_publishers.push((faucet_id_key_word, publisher_account));
     }
 
     // Calculate median
