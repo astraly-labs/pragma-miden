@@ -46,13 +46,13 @@ end
 
 #! Calls the PUBLISHER_ID get_entry procedure of the provided account.
 #!
-#! Inputs: [PUBLISHER_ID, PAIR]
+#! Inputs: [PUBLISHER_ID, faucet_id_word]
 #! Output: [ENTRY]
 proc.call_publisher_get_entry
     push.{GET_ENTRY_HASH}
-    # => [GET_ENTRY_HASH, PUBLISHER_ID, PAIR]
+    # => [GET_ENTRY_HASH, PUBLISHER_ID, faucet_id_word]
     swapw swap.2 drop swap.2 drop
-    # => [publisher_id,publisher_id,  GET_ENTRY_HASH, PAIR]
+    # => [publisher_id,publisher_id,  GET_ENTRY_HASH, faucet_id_word]
 
     exec.tx::execute_foreign_procedure
     # => [ENTRY]
@@ -245,12 +245,12 @@ end
 
 #! Gets entry from the oracle's data slots.
 #!
-#! Inputs:  [PUBLISHER_ID, PAIR]
+#! Inputs:  [PUBLISHER_ID, faucet_id_word]
 #! Outputs: [ENTRY]
 export.get_entry
     # Verifies if the publisher is registered, panics if not
     # dupw push.PUBLISHER_REGISTRY_MAP_SLOT exec.active_account::get_map_item dropw
-    # => [PUBLISHER_ID, PAIR]
+    # => [PUBLISHER_ID, faucet_id_word]
 
     # Push the get_entry hash function for the publisher account
     exec.call_publisher_get_entry

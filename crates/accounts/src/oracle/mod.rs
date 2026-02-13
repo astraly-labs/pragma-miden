@@ -76,6 +76,28 @@ pub fn get_oracle_component_library() -> Library {
         .expect("assembly should succeed")
 }
 
+pub fn get_median_procedure_hash() -> String {
+    let lib = get_oracle_component_library();
+    let export = lib
+        .exports()
+        .find(|e| e.name.name.as_str() == "get_median")
+        .expect("get_median procedure not found in oracle library");
+
+    let node_id = lib.get_export_node_id(&export.name);
+    let digest = lib
+        .mast_forest()
+        .get_node_by_id(node_id)
+        .expect("node not found")
+        .digest();
+
+    digest
+        .as_elements()
+        .iter()
+        .map(|f| f.as_int().to_string())
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
 pub fn get_oracle_component() -> AccountComponent {
     let library = get_oracle_component_library();
     let code = AccountComponentCode::from(library);

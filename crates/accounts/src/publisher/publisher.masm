@@ -12,7 +12,7 @@ const.ENTRIES_MAP_SLOT=0
 #! The price will be stored in the publisher map for the given asset, overriding the
 #! last value.
 #!
-#! Inputs:  [PAIR, ENTRY]
+#! Inputs:  [faucet_id_word, ENTRY]
 #! Outputs: []
 #!
 export.publish_entry
@@ -21,15 +21,15 @@ export.publish_entry
     exec.sys::truncate_stack
 end
 
-#! Get the published entry for a pair.
+#! Get the published entry for a faucet_id.
 #!
-#! Inputs:  [PAIR]
-#! Outputs: [ENTRY] ; Word being [pair, price, decimals, timestamp]
+#! Inputs:  [faucet_id_word]
+#! Outputs: [ENTRY] ; Word being [faucet_id_prefix, price, decimals, timestamp]
 #!
 export.get_entry
     push.ENTRIES_MAP_SLOT
 
-    # => [entries_map_slot, PAIR]
+    # => [entries_map_slot, faucet_id_word]
     exec.active_account::get_map_item
 
     # => [ENTRY]

@@ -5,7 +5,6 @@ members = [
   "crates/cli/oracle",
   "crates/cli/publisher",
   "crates/cli/utils",
-  "crates/demo",
 ]
 resolver = "1"
 default-members = [
@@ -14,7 +13,6 @@ default-members = [
   "crates/cli/oracle",
   "crates/cli/publisher",
   "crates/cli/utils",
-  "crates/demo"
 ]
 
 [workspace.lints.rust]
@@ -34,7 +32,6 @@ pm-accounts = { path = "crates/accounts", default-features = false }
 pm-oracle-cli = { path = "crates/cli/oracle", default-features = false }
 pm-publisher-cli = { path = "crates/cli/publisher", default-features = false }
 pm-utils-cli = { path = "crates/cli/utils", default-features = false }
-pm-demo = { path = "crates/demo", default-features = false }
 
 anyhow = "1.0.93"
 async-trait = "0.1.83"
