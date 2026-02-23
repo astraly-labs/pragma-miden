@@ -12,7 +12,7 @@ use miden_client::{
 };
 use miden_client_sqlite_store::SqliteStore;
 use miden_tx::auth::TransactionAuthenticator;
-use rand::{rngs::StdRng, Rng, RngCore};
+use rand::{Rng, RngCore};
 use std::{path::PathBuf, sync::Arc};
 
 // Client Setup
@@ -22,7 +22,7 @@ pub async fn setup_local_client(
     path: Option<PathBuf>,
     keystore_path: Option<String>,
 ) -> Result<Client<FilesystemKeyStore>, ClientError> {
-    let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57291));
+    let endpoint = Endpoint::localhost();
     let timeout_ms = 10_000;
 
     let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
@@ -78,10 +78,8 @@ pub async fn setup_devnet_client(
     path: Option<PathBuf>,
     keystore_path: Option<String>,
 ) -> Result<Client<FilesystemKeyStore>, ClientError> {
-    // let exec_dir = PathBuf::new();
-    // let store_config = exec_dir.join(path);
     // RPC endpoint and timeout
-    let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57123));
+    let endpoint = Endpoint::devnet();
     let timeout_ms = 10_000;
 
     let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));

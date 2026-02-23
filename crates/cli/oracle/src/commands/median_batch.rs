@@ -2,10 +2,10 @@ use anyhow::Context;
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::ForeignAccount;
-use miden_objects::account::StorageSlotName;
-use miden_lib::code_builder::CodeBuilder;
+use miden_protocol::account::StorageSlotName;
+use miden_standards::code_builder::CodeBuilder;
 use miden_client::{keystore::FilesystemKeyStore, Client, Felt, Word};
-use miden_objects::vm::AdviceInputs;
+use miden_protocol::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
 
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
@@ -144,7 +144,7 @@ impl MedianBatchCmd {
             let tx_script_code = format!(
                 "
                 use.oracle_component::oracle_module
-                use.std::sys
+                use miden::core::sys
         
                 begin
                     push.0.0.{suffix}.{prefix}

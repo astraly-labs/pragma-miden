@@ -2,7 +2,7 @@ use std::path::Path;
 
 use miden_client::account::AccountId;
 use miden_client::transaction::TransactionRequestBuilder;
-use miden_lib::code_builder::CodeBuilder;
+use miden_standards::code_builder::CodeBuilder;
 use miden_client::{keystore::FilesystemKeyStore, Client};
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
@@ -59,7 +59,7 @@ impl RegisterPublisherCmd {
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module
-            use.std::sys
+            use miden::core::sys
             begin
                 push.0.0
                 push.{account_id_suffix} push.{account_id_prefix}

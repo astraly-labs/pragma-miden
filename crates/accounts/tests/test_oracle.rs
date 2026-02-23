@@ -8,8 +8,8 @@ use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
 use miden_client::transaction::{ForeignAccount, TransactionRequestBuilder};
 use miden_client::{Client, Felt, ScriptBuilder, Word, ZERO};
-use miden_objects::account::{Account, StorageMap, StorageSlot};
-use miden_objects::vm::AdviceInputs;
+use miden_protocol::account::{Account, StorageMap, StorageSlot};
+use miden_protocol::vm::AdviceInputs;
 use pm_types::{Currency, Entry, Pair};
 
 use pm_accounts::{
@@ -104,7 +104,7 @@ async fn test_oracle_register_publisher() -> Result<()> {
     let tx_script_code = format!(
         "
         use.oracle_component::oracle_module
-        use.std::sys
+        use miden::core::sys
 
         begin
             push.0.0
@@ -175,7 +175,7 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
     let tx_script_code = format!(
         "
         use.oracle_component::oracle_module
-        use.std::sys
+        use miden::core::sys
 
         begin
             push.0.0
@@ -295,7 +295,7 @@ async fn test_oracle_get_median() -> Result<()> {
         let tx_script_code = format!(
             "
             use.oracle_component::oracle_module
-            use.std::sys
+            use miden::core::sys
     
             begin
                 push.0.0
@@ -350,7 +350,7 @@ async fn test_oracle_get_median() -> Result<()> {
     let tx_script_code = format!(
         "
         use.oracle_component::oracle_module
-        use.std::sys
+        use miden::core::sys
 
         begin
             push.{pair}

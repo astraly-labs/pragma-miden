@@ -1,6 +1,6 @@
 use miden_client::{keystore::FilesystemKeyStore, Client, Felt};
-use miden_lib::code_builder::CodeBuilder;
-use miden_objects::vm::AdviceInputs;
+use miden_standards::code_builder::CodeBuilder;
+use miden_protocol::vm::AdviceInputs;
 use pm_accounts::publisher::get_publisher_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Entry;
@@ -65,7 +65,7 @@ impl GetEntryCmd {
             .parse::<u64>()
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix"))?;
 
-        let faucet_id_word: miden_objects::Word = [
+        let faucet_id_word: miden_client::Word = [
             Felt::new(0),
             Felt::new(0),
             Felt::new(suffix),
@@ -76,7 +76,7 @@ impl GetEntryCmd {
         let tx_script_code = format!(
             "
             use.publisher_component::publisher_module
-            use.std::sys
+            use miden::core::sys
     
             begin
                 push.{faucet_id}

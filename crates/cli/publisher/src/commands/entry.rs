@@ -44,7 +44,7 @@ impl EntryCmd {
             .parse::<u64>()
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix"))?;
 
-        let faucet_id_word: miden_objects::Word = [
+        let faucet_id_word: miden_client::Word = [
             miden_client::Felt::new(0),
             miden_client::Felt::new(0),
             miden_client::Felt::new(suffix),
@@ -56,7 +56,7 @@ impl EntryCmd {
             miden_client::store::AccountRecordData::Full(acc) => acc,
             _ => return Err(anyhow::anyhow!("Expected full account data for publisher")),
         };
-        let publisher_entries_slot = miden_objects::account::StorageSlotName::new("pragma::publisher::entries")
+        let publisher_entries_slot = miden_protocol::account::StorageSlotName::new("pragma::publisher::entries")
             .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let entry_word = account
             .storage()

@@ -20,7 +20,7 @@ use miden_client::{
     },
     Client, ClientError, Felt, ScriptBuilder,
 };
-use miden_objects::{
+use miden_protocol::{
     account::{Account, StorageMap, StorageSlot},
     vm::AdviceInputs,
 };
@@ -33,7 +33,7 @@ use pm_types::{Currency, Entry, Pair};
 use pm_utils_cli::setup_devnet_client;
 use rand::{prelude::StdRng, Rng};
 
-pub type TestClient = Client<FilesystemKeyStore<StdRng>>;
+pub type TestClient = Client<FilesystemKeyStore>;
 
 pub type Word = miden_client::Word;
 
@@ -307,7 +307,7 @@ pub async fn execute_get_entry_transaction(
     let tx_script_code = format!(
         "
         use.oracle_component::oracle_module
-        use.std::sys
+        use miden::core::sys
 
         begin
             push.{pair}

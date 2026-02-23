@@ -4,7 +4,7 @@ use anyhow::Context;
 use colored::*;
 use miden_client::account::AccountId;
 use miden_client::{keystore::FilesystemKeyStore, Client, ZERO};
-use miden_objects::account::StorageSlotName;
+use miden_protocol::account::StorageSlotName;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use prettytable::{Cell, Row, Table};
 

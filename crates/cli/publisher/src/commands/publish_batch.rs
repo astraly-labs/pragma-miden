@@ -3,7 +3,7 @@ use std::path::Path;
 use miden_client::{
     keystore::FilesystemKeyStore, transaction::TransactionRequestBuilder, Client, Word,
 };
-use miden_lib::code_builder::CodeBuilder;
+use miden_standards::code_builder::CodeBuilder;
 
 use miden_client::account::AccountId;
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
@@ -119,7 +119,7 @@ impl PublishBatchCmd {
         let tx_script_code = format!(
             "
                 use.publisher_component::publisher_module
-                use.std::sys
+                use miden::core::sys
         
                 begin
                     {publish_calls}

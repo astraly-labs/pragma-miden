@@ -11,11 +11,13 @@ use miden_client::{
     keystore::FilesystemKeyStore,
     Client, Felt, Word, ZERO,
 };
-use miden_objects::{
+use miden_protocol::{
     account::{AccountBuilder, AccountComponent, AccountComponentCode, StorageSlot, StorageSlotName},
     assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
     transaction::TransactionKernel,
 };
+
+use miden_protocol::assembly::mast::MastNodeExt;
 
 use crate::publisher::get_entry_procedure_hash;
 
@@ -80,10 +82,14 @@ pub fn get_median_procedure_hash() -> String {
     let lib = get_oracle_component_library();
     let export = lib
         .exports()
-        .find(|e| e.name.name.as_str() == "get_median")
+        .find(|e| {
+            let path = e.path();
+            let path_str = path.as_ref().as_str();
+            path_str.ends_with("::get_median") || path_str == "get_median"
+        })
         .expect("get_median procedure not found in oracle library");
 
-    let node_id = lib.get_export_node_id(&export.name);
+    let node_id = lib.get_export_node_id(&export.path());
     let digest = lib
         .mast_forest()
         .get_node_by_id(node_id)

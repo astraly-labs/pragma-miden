@@ -12,13 +12,13 @@ use miden_client::{
     Client, Word,
 };
 
-use miden_objects::{
+use miden_protocol::{
     account::{AccountBuilder, AccountComponent, AccountComponentCode, AccountType, StorageSlot, StorageSlotName},
     assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
     transaction::TransactionKernel,
 };
 
-use miden_objects::assembly::mast::MastNodeExt;
+use miden_protocol::assembly::mast::MastNodeExt;
 
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 

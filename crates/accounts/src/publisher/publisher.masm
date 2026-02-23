@@ -1,11 +1,11 @@
-use.std::sys
-use.miden::active_account
-use.miden::native_account
+use miden::core::sys
+use miden::protocol::native_account
+use miden::core::word
 # CONSTANTS
 # =================================================================================================
 
 #! Mapping containing the prices published for the fetcher.
-const.ENTRIES_MAP_SLOT=0
+const ENTRIES_MAP_SLOT=word("pragma::publisher::entries")
 
 #! Writes a new entry.
 #! Must be called by the publisher.
@@ -15,8 +15,8 @@ const.ENTRIES_MAP_SLOT=0
 #! Inputs:  [faucet_id_word, ENTRY]
 #! Outputs: []
 #!
-export.publish_entry
-    push.ENTRIES_MAP_SLOT exec.native_account::set_map_item
+pub proc publish_entry
+    push.ENTRIES_MAP_SLOT[0..2] exec.native_account::set_map_item
     # Truncate just in case
     exec.sys::truncate_stack
 end
@@ -26,8 +26,8 @@ end
 #! Inputs:  [faucet_id_word]
 #! Outputs: [ENTRY] ; Word being [faucet_id_prefix, price, decimals, timestamp]
 #!
-export.get_entry
-    push.ENTRIES_MAP_SLOT
+pub proc get_entry
+    push.ENTRIES_MAP_SLOT[0..2]
 
     # => [entries_map_slot, faucet_id_word]
     exec.active_account::get_map_item

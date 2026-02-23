@@ -1,7 +1,7 @@
 mod common;
 use anyhow::{Context, Result};
 use miden_client::{transaction::TransactionRequestBuilder, Felt, ScriptBuilder};
-use miden_objects::vm::AdviceInputs;
+use miden_protocol::vm::AdviceInputs;
 use pm_types::{Currency, Entry, Pair};
 use std::collections::BTreeSet;
 
@@ -53,7 +53,7 @@ async fn test_publisher_publish_entry() -> Result<()> {
 
         use.publisher_component::publisher_module
         use.use.miden::auth::rpo_falcon512-> auth__tx
-        use.std::sys
+        use miden::core::sys
 
         begin
             push.{entry}
@@ -133,7 +133,7 @@ async fn test_publisher_get_entry() -> Result<()> {
     let tx_script_code = format!(
         "
         use.publisher_component::publisher_module
-        use.std::sys
+        use miden::core::sys
 
         begin
             push.{pair}

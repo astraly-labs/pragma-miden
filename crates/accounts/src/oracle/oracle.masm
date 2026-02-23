@@ -1,29 +1,28 @@
-use.std::sys
-use.std::math::u64
-use.miden::active_account
-use.miden::native_account
-use.miden::tx
+use miden::core::sys
+use miden::core::std::math::u64
+use miden::protocol::native_account
+use miden::protocol::tx
 # CONSTANTS
 # =================================================================================================
 
-const.MAX_U32=0x0000000100000000
+const MAX_U32=0x0000000100000000
 
 # ERRORS
 # =================================================================================================
 
 # Error if the publisher is already registered in the registry
-# const.ERR_PUBLISHER_ALREADY_REGISTERED = 100
+# const ERR_PUBLISHER_ALREADY_REGISTERED = 100
 
-# Holds the next storage slot index available. Will be used when we register a publisher,
+# Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
-const.NEXT_PUBLISHER_INDEX_SLOT=0
+const NEXT_PUBLISHER_INDEX_SLOT=word("pragma::oracle::next_publisher_index")
 
-# Holds the next storage slot index available. Will be used when we register a publisher,
-# so we can assign it a slot.
-const.PUBLISHER_REGISTRY_MAP_SLOT=1
+# Mapping of publisher_id -> assigned_slot for quick lookups.
+const PUBLISHER_REGISTRY_MAP_SLOT=word("pragma::oracle::publisher_registry")
 
-# The beginning of the storage slots for the publishers.
-const.PUBLISHERS_STORAGE_SLOT=2
+# The beginning of the storage slots for the publishers (numeric index, not a slot name).
+# This is used in arithmetic operations to calculate publisher slot positions.
+const PUBLISHERS_STORAGE_SLOT=2
 
 # INTERNAL PROCEDURES (utilities)
 # =================================================================================================
@@ -247,9 +246,9 @@ end
 #!
 #! Inputs:  [PUBLISHER_ID, faucet_id_word]
 #! Outputs: [ENTRY]
-export.get_entry
+pub proc get_entry
     # Verifies if the publisher is registered, panics if not
-    # dupw push.PUBLISHER_REGISTRY_MAP_SLOT exec.active_account::get_map_item dropw
+    # dupw push.PUBLISHER_REGISTRY_MAP_SLOT[0..2] exec.active_account::get_map_item dropw
     # => [PUBLISHER_ID, faucet_id_word]
 
     # Push the get_entry hash function for the publisher account
@@ -263,13 +262,13 @@ end
 #!
 #! Inputs:  [faucet_id_prefix, faucet_id_suffix, amount, 0]
 #! Outputs: [is_tracked, median_price]
-export.get_median
+pub proc get_median
 
     movup.2 mem_store.10000
     # -> [faucet_id_prefix, faucet_id_suffix, 0]
 
     # Iterate from 3 to NEXT_PUBLISHER_INDEX_SLOT value.
-    push.0.0.NEXT_PUBLISHER_INDEX_SLOT exec.active_account::get_item drop drop drop
+    push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item drop drop
     # => [next_publisher_slot, 0, 0, FAUCET_ID]
 
     push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
@@ -277,7 +276,7 @@ export.get_median
 
     while.true
         # Get the publisher id at slot [top of the stack]
-        dup exec.active_account::get_item
+        dup.4 exec.active_account::get_item
         # => [PUBLISHER_ID, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, FAUCET_ID]
 
         dupw.2 swapw.1
@@ -332,13 +331,13 @@ end
 #!
 #! Inputs:  [PUBLISHER_ID]
 #! Outputs: []
-export.register_publisher
+pub proc register_publisher
 
     #TODO: Implement already registered error properly
     #dupw
     # => [PUBLISHER_ID, PUBLISHER_ID]
     # The goal here is to retrieve the index associated to the publisher id in the registry. If the index is 0, it is not registered
-    #push.PUBLISHER_REGISTRY_MAP_SLOT exec.active_account::get_map_item
+    #push.PUBLISHER_REGISTRY_MAP_SLOT[0..2] exec.active_account::get_map_item
     # => [REGISTERED_INDEX, PUBLISHER_ID]
     # push.0.0.0.0
     # => [ZERO,REGISTERED_INDEX, PUBLISHER_ID]
@@ -351,7 +350,7 @@ export.register_publisher
     # => [PUBLISHER_ID, PUBLISHER_ID]
 
     # Retrieve the next_publisher_slot available from the slot
-    push.NEXT_PUBLISHER_INDEX_SLOT exec.active_account::get_item
+    push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
 
     # => [NEXT_PUBLISHER_SLOT, PUBLISHER_ID, PUBLISHER_ID]
 
@@ -360,22 +359,22 @@ export.register_publisher
     # => [next_publisher_slot, PUBLISHER_ID, NEXT_PUBLISHER_SLOT, PUBLISHER_ID]
 
     # Store the publisher into its assigned slot
-    exec.native_account::set_item dropw dropw swapw
+    swap.4 exec.native_account::set_item dropw swapw
     # => [PUBLISHER_ID, NEXT_PUBLISHER_SLOT]
 
     # Register the publisher into its mapping
-    push.PUBLISHER_REGISTRY_MAP_SLOT exec.native_account::set_map_item
+    push.PUBLISHER_REGISTRY_MAP_SLOT[0..2] exec.native_account::set_map_item
     # => []
 
     # Increment NEXT_PUBLISHER_INDEX_SLOT
-    push.NEXT_PUBLISHER_INDEX_SLOT exec.active_account::get_item
+    push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
     # => [PUBLISHER_INDEX_SLOT]
 
     # Update the storage value
     swap.3 add.1 swap.3
     # => [PUBLISHER_INDEX_SLOT+1]
 
-    push.NEXT_PUBLISHER_INDEX_SLOT exec.native_account::set_item
+    push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.native_account::set_item
     # => []
 
     drop
