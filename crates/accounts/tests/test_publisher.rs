@@ -51,7 +51,7 @@ async fn test_publisher_publish_entry() -> Result<()> {
     let tx_script_code = format!(
         "
 
-        use.publisher_component::publisher_module
+        use publisher_component::publisher_module
         use.use.miden::auth::rpo_falcon512-> auth__tx
         use miden::core::sys
 
@@ -132,7 +132,7 @@ async fn test_publisher_get_entry() -> Result<()> {
     // Create transaction script for getting the entry
     let tx_script_code = format!(
         "
-        use.publisher_component::publisher_module
+        use publisher_component::publisher_module
         use miden::core::sys
 
         begin

@@ -143,7 +143,7 @@ impl MedianBatchCmd {
 
             let tx_script_code = format!(
                 "
-                use.oracle_component::oracle_module
+                use oracle_component::oracle_module
                 use miden::core::sys
         
                 begin

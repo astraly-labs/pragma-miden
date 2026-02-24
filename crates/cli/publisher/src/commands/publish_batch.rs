@@ -118,7 +118,7 @@ impl PublishBatchCmd {
 
         let tx_script_code = format!(
             "
-                use.publisher_component::publisher_module
+                use publisher_component::publisher_module
                 use miden::core::sys
         
                 begin

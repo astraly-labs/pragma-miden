@@ -306,7 +306,7 @@ pub async fn execute_get_entry_transaction(
     // Create transaction script
     let tx_script_code = format!(
         "
-        use.oracle_component::oracle_module
+        use oracle_component::oracle_module
         use miden::core::sys
 
         begin

@@ -103,7 +103,7 @@ async fn test_oracle_register_publisher() -> Result<()> {
     // Create transaction script for registering publisher
     let tx_script_code = format!(
         "
-        use.oracle_component::oracle_module
+        use oracle_component::oracle_module
         use miden::core::sys
 
         begin
@@ -174,7 +174,7 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
     // Create transaction script for registering publisher
     let tx_script_code = format!(
         "
-        use.oracle_component::oracle_module
+        use oracle_component::oracle_module
         use miden::core::sys
 
         begin
@@ -294,7 +294,7 @@ async fn test_oracle_get_median() -> Result<()> {
     for publisher_id in [publisher1.id(), publisher2.id()] {
         let tx_script_code = format!(
             "
-            use.oracle_component::oracle_module
+            use oracle_component::oracle_module
             use miden::core::sys
     
             begin
@@ -349,7 +349,7 @@ async fn test_oracle_get_median() -> Result<()> {
     // Create transaction script for get_median
     let tx_script_code = format!(
         "
-        use.oracle_component::oracle_module
+        use oracle_component::oracle_module
         use miden::core::sys
 
         begin

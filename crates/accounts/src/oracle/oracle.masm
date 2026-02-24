@@ -1,6 +1,7 @@
 use miden::core::sys
-use miden::core::std::math::u64
+use miden::core::math::u64
 use miden::protocol::native_account
+use miden::protocol::active_account
 use miden::protocol::tx
 # CONSTANTS
 # =================================================================================================
@@ -32,7 +33,7 @@ const PUBLISHERS_STORAGE_SLOT=2
 #!
 #! Inputs: [A, B]
 #! Output: [BOOL] 1 if A < B, else 0
-proc.felt_is_lower
+proc felt_is_lower
     dup
     # => [1, 1, 2]
     movup.2 dup
@@ -47,7 +48,7 @@ end
 #!
 #! Inputs: [PUBLISHER_ID, faucet_id_word]
 #! Output: [ENTRY]
-proc.call_publisher_get_entry
+proc call_publisher_get_entry
     push.{GET_ENTRY_HASH}
     # => [GET_ENTRY_HASH, PUBLISHER_ID, faucet_id_word]
     swapw swap.2 drop swap.2 drop
@@ -62,7 +63,7 @@ end
 #!
 #! Inputs: [i, j]
 #! Output: []
-proc.ram_swap
+proc ram_swap
     dup
     # => [i, i, j]
     push.0.0.0.0 movup.4 mul.4 mem_loadw_be
@@ -80,7 +81,7 @@ end
 #! => [A, 42, B, C]
 #! returns:
 #! => [42]
-proc.entry_to_price
+proc entry_to_price
     drop drop swap drop
 end
 
@@ -89,7 +90,7 @@ end
 #! => [i, j] for RAM[i] = 42, RAM[i] = 69
 #! returns
 #! => [0, i, j]
-proc.ram_is_lower
+proc ram_is_lower
     dup push.0.0.0.0 movup.5 mul.4 mem_loadw_be exec.entry_to_price
     # => [mem_i, i, j]
     movup.2 dup push.0.0.0.0 movup.4 mul.4 mem_loadw_be exec.entry_to_price
@@ -103,7 +104,7 @@ end
 #! Computes the avarage of two elements
 #! Inputs:  [a, b]
 #! Output : [avg]
-proc.compute_average
+proc compute_average
     u32split
     # => [a_high, a_low, b]
     movup.2
@@ -127,7 +128,7 @@ end
 #!
 #! Inputs:  [nb_of_entries]
 #! Output:  []
-proc.ram_bubble_sort
+proc ram_bubble_sort
     # This is the outer counter
     dup
 
@@ -202,7 +203,7 @@ end
 #!
 #! Inputs:  [nb_of_entries]
 #! Output:  [median_price]
-proc.ram_get_median
+proc ram_get_median
     dup is_odd
     # => [nb_of_entries]
     if.true

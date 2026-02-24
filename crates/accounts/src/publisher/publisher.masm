@@ -1,5 +1,6 @@
 use miden::core::sys
 use miden::protocol::native_account
+use miden::protocol::active_account
 use miden::core::word
 # CONSTANTS
 # =================================================================================================
