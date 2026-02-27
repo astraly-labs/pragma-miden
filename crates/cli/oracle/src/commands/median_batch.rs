@@ -121,10 +121,10 @@ impl MedianBatchCmd {
                 .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
             
             let faucet_id_word: Word = [
-                Felt::new(0),
-                Felt::new(0),
-                Felt::new(suffix),
                 Felt::new(prefix),
+                Felt::new(suffix),
+                Felt::new(0),
+                Felt::new(0),
             ].into();
 
             let mut foreign_accounts: Vec<ForeignAccount> = vec![];

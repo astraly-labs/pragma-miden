@@ -265,31 +265,34 @@ end
 #! Outputs: [is_tracked, median_price]
 pub proc get_median
 
+    # => [faucet_id_prefix, faucet_id_suffix, amount, 0]
     movup.2 mem_store.10000
     # -> [faucet_id_prefix, faucet_id_suffix, 0]
+    push.0 movdn.3
+    # -> [faucet_id_prefix, faucet_id_suffix, 0, 0]
 
     # Iterate from 3 to NEXT_PUBLISHER_INDEX_SLOT value.
-    push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item drop drop
-    # => [next_publisher_slot, 0, 0, FAUCET_ID]
+    push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item drop drop drop
+    # => [next_publisher_slot, faucet_id_prefix, faucet_id_suffix, 0]
 
     push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
     # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, FAUCET_ID]
 
     while.true
         # Get the publisher id at slot [top of the stack]
-        dup.4 push.0.0.0
+        dup push.0.0.0
         push.PUBLISHERS_MAP_SLOT[0..2] exec.active_account::get_map_item
         # => [PUBLISHER_ID, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, FAUCET_ID]
 
-        dupw.2 swapw.1
-        # => [PUBLISHER_ID, FAUCET_ID, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, FAUCET_ID]
+        push.0.0 dup.9 dup.9 swapw
+        # => [PUBLISHER_ID, faucet_id_word, slot, next_slot, faucet_id_prefix, faucet_id_suffix, 0, 0]
 
         # Call get_entry
         exec.call_publisher_get_entry
         # => [ENTRY, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, FAUCET_ID]
 
         # Store the entry in the RAM from index 0 to index N
-        dup.4 push.PUBLISHERS_STORAGE_SLOT sub mul.4  # we multiplied the result by 4 because se can store with % 4!=0 addresses
+        dup.4 push.PUBLISHERS_STORAGE_SLOT sub mul.4
         mem_storew_be dropw
         # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, FAUCET_ID]
         # Increment the next index and check if there's still publishers to process

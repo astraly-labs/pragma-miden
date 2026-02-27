@@ -22,34 +22,6 @@ pub struct MedianCmd {
 }
 
 impl MedianCmd {
-    /// Computes the median price for the specified trading pair
-    ///
-    /// This function performs the following operations:
-    /// 1. Retrieves the Oracle account ID from configuration
-    /// 2. Fetches the Oracle account data from the network
-    /// 3. Extracts all registered publisher account IDs from the Oracle storage
-    /// 4. Sets up foreign account access to all publishers
-    /// 5. Executes an on-chain program that computes the median price
-    /// 6. Returns the computed median value
-    ///
-    /// # Arguments
-    ///
-    /// * `client` - A mutable reference to the Miden client, must be initialized first
-    /// * `network` - The network identifier (e.g., "devnet", "testnet")
-    ///
-    /// # Returns
-    ///
-    /// * `Felt` - The median price as a Felt value or an error
-    ///
-    /// # Errors
-    ///
-    /// This function can fail if:
-    /// - The Oracle ID cannot be retrieved from configuration
-    /// - The client fails to sync state with the network
-    /// - The Oracle account cannot be found
-    /// - Publisher information cannot be retrieved from storage
-    /// - The transaction script compilation fails
-    /// - The on-chain program execution fails
     pub async fn call(
         &self,
         client: &mut Client<FilesystemKeyStore>,
@@ -57,11 +29,14 @@ impl MedianCmd {
     ) -> anyhow::Result<Felt> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
+        client.import_account_by_id(oracle_id).await?;
         client.sync_state().await?;
+        eprintln!("[DBG] sync1 done");
         let oracle = client
             .get_account(oracle_id)
             .await?
             .expect("Oracle account not found");
+        eprintln!("[DBG] oracle fetched from store");
         
         let parts: Vec<&str> = self.faucet_id.split(':').collect();
         if parts.len() != 2 {
@@ -74,10 +49,10 @@ impl MedianCmd {
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
         
         let faucet_id_word: Word = [
-            Felt::new(0),
-            Felt::new(0),
-            Felt::new(suffix),
             Felt::new(prefix),
+            Felt::new(suffix),
+            Felt::new(0),
+            Felt::new(0),
         ].into();
         
         let account = match oracle.account_data() {
@@ -93,28 +68,32 @@ impl MedianCmd {
             .context("Unable to retrieve publisher count")?[0]
             .as_int();
 
-        // Collect publishers from the map slot (same endianness as publishers.rs)
         let publishers_slot = StorageSlotName::new("pragma::oracle::publishers")
             .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let publisher_array: Vec<AccountId> = (2..publisher_count)
-            .map(|i| {
+            .map(|i: u64| -> anyhow::Result<AccountId> {
                 let key: [Felt; 4] = [Felt::new(i), ZERO, ZERO, ZERO];
-                storage
+                let w = storage
                     .get_map_item(&publishers_slot, key.into())
-                    .with_context(|| format!("Failed to retrieve publisher at index {i}"))
-                    .map(|w| AccountId::new_unchecked([w[3], w[2]]))
+                    .with_context(|| format!("Failed to retrieve publisher at index {i}"))?;
+                Ok(AccountId::new_unchecked([w[3], w[2]]))
             })
             .collect::<Result<_, _>>()?;
+
         let mut foreign_accounts: Vec<ForeignAccount> = vec![];
         let publisher_entries_slot = StorageSlotName::new("pragma::publisher::entries")
             .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         for publisher_id in publisher_array {
+            client.import_account_by_id(publisher_id).await?;
+            eprintln!("[DBG] publisher {publisher_id} imported");
             let foreign_account = ForeignAccount::public(
                 publisher_id,
                 AccountStorageRequirements::new([(publisher_entries_slot.clone(), &[StorageMapKey::from(faucet_id_word)])]),
             )?;
             foreign_accounts.push(foreign_account);
         }
+        client.sync_state().await?;
+        eprintln!("[DBG] sync2 done after publisher imports");
 
         let tx_script_code = format!(
             "
@@ -123,7 +102,6 @@ impl MedianCmd {
     
             begin
                 push.0.{amount}.{suffix}.{prefix}
-                debug.stack
                 call.oracle_module::get_median
                 exec.sys::truncate_stack
             end
@@ -137,24 +115,21 @@ impl MedianCmd {
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code.clone())
             .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
+
         let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
-        // We use the execute program, because median is a "view" function that does not modify the account hash
-        let output_stack = client
-            .execute_program(
+        let output_stack = client.execute_program(
                 oracle_id,
                 median_script,
                 AdviceInputs::default(),
                 foreign_accounts_set,
             )
-            .await?;
-        
-        println!("[DEBUG] Program executed. Output stack length: {}", output_stack.len());
-        println!("[DEBUG] Output stack: {:?}", output_stack);
+            .await
+            .map_err(|e| anyhow::anyhow!("execute_program error: {e:?}"))?;
 
-        // Get the is_tracked, median, and amount values from the stack
-        // Stack output: [is_tracked, median_price, amount]
+
+        // Stack output: [amount, is_tracked, median_price]
         if output_stack.len() < 3 {
-            return Err(anyhow::anyhow!("Invalid output: expected [is_tracked, median_price, amount]"));
+            return Err(anyhow::anyhow!("Invalid output: expected [amount, is_tracked, median_price]"));
         }
         
         let is_tracked = output_stack[0];
@@ -166,7 +141,7 @@ impl MedianCmd {
         } else {
             println!("Median value: {} (amount: {})", median, returned_amount);
         }
-        
+
         Ok(median)
     }
 }
