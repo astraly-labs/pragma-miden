@@ -86,6 +86,9 @@ impl RegisterPublisherCmd {
             .await
             .map_err(|e| anyhow::anyhow!("Error while submitting transaction: {e:?}"))?;
 
+        client.sync_state().await
+            .map_err(|e| anyhow::anyhow!("Error while syncing state after register: {e:?}"))?;
+
         println!("✅ Register successful!");
 
         Ok(())

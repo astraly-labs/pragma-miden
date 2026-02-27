@@ -45,22 +45,15 @@ fn get_oracle_masm() -> String {
 // }
 
 pub fn oracle_storage_slots() -> Vec<StorageSlot> {
-    let mut slots = vec![
+    vec![
         StorageSlot::with_value(
             StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap(),
-            [Felt::new(2), ZERO, ZERO, ZERO].into()
+            [Felt::new(2), ZERO, ZERO, ZERO].into(),
         ),
         StorageSlot::with_empty_map(
-            StorageSlotName::new("pragma::oracle::publisher_registry").unwrap()
+            StorageSlotName::new("pragma::oracle::publishers").unwrap(),
         ),
-    ];
-    for i in 2..254 {
-        let slot_name = format!("pragma::oracle::publisher{}", i);
-        slots.push(StorageSlot::with_empty_value(
-            StorageSlotName::new(slot_name.as_str()).unwrap()
-        ));
-    }
-    slots
+    ]
 }
 
 pub fn get_oracle_component_library() -> Library {

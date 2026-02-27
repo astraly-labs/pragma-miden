@@ -4,7 +4,7 @@ use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapK
 use miden_client::transaction::ForeignAccount;
 use miden_protocol::account::StorageSlotName;
 use miden_standards::code_builder::CodeBuilder;
-use miden_client::{keystore::FilesystemKeyStore, Client, Felt, Word};
+use miden_client::{keystore::FilesystemKeyStore, Client, Felt, Word, ZERO};
 use miden_protocol::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
 
@@ -92,16 +92,16 @@ impl MedianBatchCmd {
             .context("Unable to retrieve publisher count")?[0]
             .as_int();
 
-        // Collect publishers into array
+        // Collect publishers from the map slot
+        let publishers_slot = StorageSlotName::new("pragma::oracle::publishers")
+            .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let publisher_array: Vec<AccountId> = (2..publisher_count)
             .map(|i| {
-                let slot_name = format!("pragma::oracle::publisher{}", i);
-                let slot = StorageSlotName::new(slot_name.as_str())
-                    .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
+                let key: [Felt; 4] = [Felt::new(i), ZERO, ZERO, ZERO];
                 storage
-                    .get_item(&slot)
-                    .context("Failed to retrieve publisher details")
-                    .map(|words| AccountId::new_unchecked([words[3], words[2]]))
+                    .get_map_item(&publishers_slot, key.into())
+                    .with_context(|| format!("Failed to retrieve publisher at index {i}"))
+                    .map(|w| AccountId::new_unchecked([w[3], w[2]]))
             })
             .collect::<Result<_, _>>()
             .context("Failed to collect publisher array")?;
