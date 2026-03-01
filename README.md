@@ -30,24 +30,23 @@ The Oracle acts as a central registry and aggregator with these key functions:
 * Aggregates all the available prices into a median.
 
 Storage Structure:
-* `next_publisher_slot`: Value, tracks the next available slot for publisher registration,
-* `publisher_registry`: Map of publisher_id -> assigned_slot for quick lookups (no need to iterate on the slots value everytime to know if a publisher is registered, for `get_entry` & `register_publisher`),
-* publisher IDs in sequential slots Values for easy iteration when we make an aggregation.
+* `pragma::oracle::next_publisher_index`: Value slot, tracks the next available index for publisher registration,
+* `pragma::oracle::publishers`: StorageMap, maps `[index, 0, 0, 0]` → `publisher_id` — enables O(1) lookups during registration and ordered iteration during aggregation.
 
 Procedures:
 * `register_publisher`: Add new trusted price sources (admin only),
 * `get_entry`: Fetch a specific publisher's price for a given faucet_id,
-* `get_median` (Digest: `0xc6bd0b17ca2ed631c62c82abe48524f420ad8ba9fd04ebaf9cf724c56382528e`): Calculate median price across all publishers for a faucet_id.
+* `get_median`: Calculate median price across all publishers for a faucet_id.
 
 ### Publisher
 
-Since a publisher cannot directly ask the Oracle to update its storage with a provided value, the publisher will be responsible of its own storage and publish prices to itself.
+Since a publisher cannot directly ask the Oracle to update its storage with a provided value, the publisher is responsible for its own storage and publishes prices to itself.
 
-Its storage is a single map. The key is a word containing the faucet_id in the format `[0, 0, faucet_id_suffix, faucet_id_prefix]`:
+Its storage is a single map (`pragma::publisher::entries`). The key is a `faucet_id` word in the format `[prefix, suffix, 0, 0]` (TOS = prefix):
 ```
-[0, 0, suffix, prefix]
+[prefix, suffix, 0, 0]
 ```
-For example, faucet_id `1:0` (BTC/USD) would be stored as `[0, 0, 0, 1]`.
+For example, faucet_id `1:0` (BTC/USD) is stored with key `[1, 0, 0, 0]`.
 
 The value is an Entry type:
 ```rust
@@ -60,7 +59,6 @@ pub struct Entry {
 ```
 
 Converted to a Word.
-
 
 ## Integrate as publisher
 
