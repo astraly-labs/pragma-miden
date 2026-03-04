@@ -4,7 +4,7 @@ use rand::Rng;
 
 use miden_client::{
     account::{
-        component::AuthRpoFalcon512, Account, AccountStorageMode, AccountType as ClientAccountType,
+        component::AuthFalcon512Rpo, Account, AccountStorageMode, AccountType as ClientAccountType,
     },
     auth::AuthSecretKey,
     crypto::rpo_falcon512::SecretKey,
@@ -12,13 +12,13 @@ use miden_client::{
     Client, Word,
 };
 
-use miden_lib::transaction::TransactionKernel;
-use miden_objects::{
-    account::{AccountBuilder, AccountComponent, AccountType, StorageSlot},
-    assembly::{DefaultSourceManager, Library, LibraryPath, Module, ModuleKind},
+use miden_protocol::{
+    account::{AccountBuilder, AccountComponent, AccountComponentCode, AccountType, StorageSlot, StorageSlotName},
+    assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
+    transaction::TransactionKernel,
 };
 
-use miden_objects::assembly::mast::MastNodeExt;
+use miden_protocol::assembly::mast::MastNodeExt;
 
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 
@@ -28,10 +28,14 @@ pub fn get_entry_procedure_hash() -> String {
     let lib = get_publisher_component_library();
     let export = lib
         .exports()
-        .find(|e| e.name.name.as_str() == "get_entry")
+        .find(|e| {
+            let path = e.path();
+            let path_str = path.as_ref().as_str();
+            path_str.ends_with("::get_entry") || path_str == "get_entry"
+        })
         .expect("get_entry procedure not found in publisher library");
 
-    let node_id = lib.get_export_node_id(&export.name);
+    let node_id = lib.get_export_node_id(&export.path());
     let digest = lib
         .mast_forest()
         .get_node_by_id(node_id)
@@ -50,31 +54,30 @@ pub fn get_publisher_component_library() -> Library {
     let source_manager = Arc::new(DefaultSourceManager::default());
     let publisher_component_module = Module::parser(ModuleKind::Library)
         .parse_str(
-            LibraryPath::new("publisher_component::publisher_module").unwrap(),
+            LibraryPath::new("publisher_component::publisher_module"),
             PUBLISHER_ACCOUNT_MASM,
-            &source_manager,
+            source_manager.clone(),
         )
         .unwrap();
 
     TransactionKernel::assembler()
-        .with_debug_mode(true)
         .assemble_library([publisher_component_module])
         .expect("assembly should succeed")
 }
 
 pub fn get_publisher_component() -> AccountComponent {
-    let assembler = TransactionKernel::assembler().with_debug_mode(true);
-    AccountComponent::compile(
-        PUBLISHER_ACCOUNT_MASM.to_string(),
-        assembler,
-        vec![StorageSlot::empty_map()],
-    )
-    .expect("assembly should succeed")
-    .with_supports_all_types()
+    let library = get_publisher_component_library();
+    let code = AccountComponentCode::from(library);
+    let storage_slot = StorageSlot::with_empty_map(
+        StorageSlotName::new("pragma::publisher::entries").unwrap()
+    );
+    AccountComponent::new(code, vec![storage_slot])
+        .expect("assembly should succeed")
+        .with_supports_all_types()
 }
 
 pub struct PublisherAccountBuilder<'a> {
-    client: Option<&'a mut Client<FilesystemKeyStore<rand::prelude::StdRng>>>,
+    client: Option<&'a mut Client<FilesystemKeyStore>>,
     account_type: AccountType,
     storage_slots: Vec<StorageSlot>,
     keystore_path: String,
@@ -82,7 +85,11 @@ pub struct PublisherAccountBuilder<'a> {
 
 impl<'a> PublisherAccountBuilder<'a> {
     pub fn new() -> Self {
-        let default_storage_slots = vec![StorageSlot::empty_map()];
+        let default_storage_slots = vec![
+            StorageSlot::with_empty_map(
+                StorageSlotName::new("pragma::publisher::entries").unwrap()
+            )
+        ];
         Self {
             client: None,
             account_type: AccountType::RegularAccountImmutableCode,
@@ -103,7 +110,7 @@ impl<'a> PublisherAccountBuilder<'a> {
 
     pub fn with_client(
         mut self,
-        client: &'a mut Client<FilesystemKeyStore<rand::prelude::StdRng>>,
+        client: &'a mut Client<FilesystemKeyStore>,
     ) -> Self {
         self.client = Some(client);
         self
@@ -120,7 +127,7 @@ impl<'a> PublisherAccountBuilder<'a> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component = AuthRpoFalcon512::new(public_key.into());
+        let auth_component = AuthFalcon512Rpo::new(public_key.into());
 
         let publisher_component: AccountComponent = get_publisher_component();
         let from_seed = client_rng.random();
@@ -136,10 +143,9 @@ impl<'a> PublisherAccountBuilder<'a> {
         let account_seed = account.seed().expect("New account should have seed");
 
         client.add_account(&account, true).await.unwrap();
-        let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
-            FilesystemKeyStore::new(self.keystore_path.into()).unwrap();
+        let keystore = FilesystemKeyStore::new(self.keystore_path.into()).unwrap();
         keystore
-            .add_key(&AuthSecretKey::RpoFalcon512(private_key))
+            .add_key(&AuthSecretKey::Falcon512Rpo(private_key))
             .unwrap();
 
         (account, account_seed)

@@ -4,19 +4,20 @@ use rand::Rng;
 
 use miden_client::{
     account::{
-        component::AuthRpoFalcon512, Account, AccountStorageMode, AccountType as ClientAccountType,
+        component::AuthFalcon512Rpo, Account, AccountStorageMode, AccountType as ClientAccountType,
     },
     auth::AuthSecretKey,
     crypto::rpo_falcon512::SecretKey,
     keystore::FilesystemKeyStore,
     Client, Felt, Word, ZERO,
 };
-use miden_objects::assembly::mast::MastNodeExt;
-use miden_lib::transaction::TransactionKernel;
-use miden_objects::{
-    account::{AccountBuilder, AccountComponent, StorageSlot},
-    assembly::{DefaultSourceManager, Library, LibraryPath, Module, ModuleKind},
+use miden_protocol::{
+    account::{AccountBuilder, AccountComponent, AccountComponentCode, StorageSlot, StorageSlotName},
+    assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
+    transaction::TransactionKernel,
 };
+
+use miden_protocol::assembly::mast::MastNodeExt;
 
 use crate::publisher::get_entry_procedure_hash;
 
@@ -44,12 +45,15 @@ fn get_oracle_masm() -> String {
 // }
 
 pub fn oracle_storage_slots() -> Vec<StorageSlot> {
-    let mut slots = vec![
-        StorageSlot::Value([Felt::new(2), ZERO, ZERO, ZERO].into()),
-        StorageSlot::empty_map(),
-    ];
-    slots.extend((0..252).map(|_| StorageSlot::empty_value()));
-    slots
+    vec![
+        StorageSlot::with_value(
+            StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap(),
+            [Felt::new(2), ZERO, ZERO, ZERO].into(),
+        ),
+        StorageSlot::with_empty_map(
+            StorageSlotName::new("pragma::oracle::publishers").unwrap(),
+        ),
+    ]
 }
 
 pub fn get_oracle_component_library() -> Library {
@@ -57,13 +61,12 @@ pub fn get_oracle_component_library() -> Library {
     let oracle_masm = get_oracle_masm();
     let oracle_component_module = Module::parser(ModuleKind::Library)
         .parse_str(
-            LibraryPath::new("oracle_component::oracle_module").unwrap(),
+            LibraryPath::new("oracle_component::oracle_module"),
             &oracle_masm,
-            &source_manager,
+            source_manager.clone(),
         )
         .unwrap();
     TransactionKernel::assembler()
-        .with_debug_mode(true)
         .assemble_library([oracle_component_module])
         .expect("assembly should succeed")
 }
@@ -72,10 +75,14 @@ pub fn get_median_procedure_hash() -> String {
     let lib = get_oracle_component_library();
     let export = lib
         .exports()
-        .find(|e| e.name.name.as_str() == "get_median")
+        .find(|e| {
+            let path = e.path();
+            let path_str = path.as_ref().as_str();
+            path_str.ends_with("::get_median") || path_str == "get_median"
+        })
         .expect("get_median procedure not found in oracle library");
 
-    let node_id = lib.get_export_node_id(&export.name);
+    let node_id = lib.get_export_node_id(&export.path());
     let digest = lib
         .mast_forest()
         .get_node_by_id(node_id)
@@ -91,16 +98,16 @@ pub fn get_median_procedure_hash() -> String {
 }
 
 pub fn get_oracle_component() -> AccountComponent {
-    let assembler = TransactionKernel::assembler().with_debug_mode(true);
-    let oracle_masm = get_oracle_masm();
-    AccountComponent::compile(oracle_masm, assembler, oracle_storage_slots())
+    let library = get_oracle_component_library();
+    let code = AccountComponentCode::from(library);
+    AccountComponent::new(code, oracle_storage_slots())
         .expect("assembly should succeed")
         .with_supports_all_types()
 }
 
 pub struct OracleAccountBuilder<'a> {
-    client: Option<&'a mut Client<FilesystemKeyStore<rand::prelude::StdRng>>>,
-    account_type: String, // Temporary fix, because AccountType is not consistent between the Client and the Object
+    client: Option<&'a mut Client<FilesystemKeyStore>>,
+    account_type: String,
     storage_slots: Vec<StorageSlot>,
     keystore_path: String,
 }
@@ -129,7 +136,7 @@ impl<'a> OracleAccountBuilder<'a> {
 
     pub fn with_client(
         mut self,
-        client: &'a mut Client<FilesystemKeyStore<rand::prelude::StdRng>>,
+        client: &'a mut Client<FilesystemKeyStore>,
     ) -> Self {
         self.client = Some(client);
         self
@@ -148,7 +155,7 @@ impl<'a> OracleAccountBuilder<'a> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component = AuthRpoFalcon512::new(public_key.into());
+        let auth_component = AuthFalcon512Rpo::new(public_key.into());
         let from_seed = client_rng.random();
 
         
@@ -162,10 +169,9 @@ impl<'a> OracleAccountBuilder<'a> {
         let account_seed = account.seed().expect("New account should have seed");
         client.add_account(&account, true).await.unwrap();
 
-        let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
-            FilesystemKeyStore::new(self.keystore_path.into()).unwrap();
+        let keystore = FilesystemKeyStore::new(self.keystore_path.into()).unwrap();
         keystore
-            .add_key(&AuthSecretKey::RpoFalcon512(private_key))
+            .add_key(&AuthSecretKey::Falcon512Rpo(private_key))
             .unwrap();
 
         (account, account_seed)

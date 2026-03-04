@@ -4,169 +4,58 @@
 
 <h1 align="center">Pragma Miden</h1>
 
-This repository contains an implementation of the Pragma protocol for the Polygon Miden blockchain. Pragma Miden aims to provide a decentralized oracle solution specifically designed for the Miden network.
-
-[You can find a demo here.](./.github/pragma-miden-demo.mp4)
-
-## About Pragma Miden
-
-Pragma Miden is a Rust-based implementation inspired by [Miden-Client](https://github.com/0xPolygonMiden/miden-client) that leverages the Miden VM to create and manage oracle accounts on the Polygon Miden rollup.
-
-The project utilizes MASM instructions to implement oracle functionality securely and efficiently.
-
-You can learn more about Miden [here](https://docs.polygon.technology/miden/).
-
-## Design
-
 <p align="center">
-  <img src=".github/design.png">
+  A decentralized oracle for <a href="https://docs.miden.xyz/builder/">Miden</a> — prices published directly on-chain, aggregated via Foreign Procedure Invocation.
 </p>
 
-### Oracle Account
+<p align="center">
+  <a href="https://docs.pragma.build/pragma/miden/introduction">Documentation</a> ·
+  <a href="https://docs.pragma.build/pragma/miden/publisher">Publish Prices</a> ·
+  <a href="https://docs.pragma.build/pragma/miden/consumer">Consume Data</a>
+</p>
 
-The Oracle acts as a central registry and aggregator with these key functions:
-* Maintains a registry of trusted publisher ids (Supports up to 253 publishers),
-* Retrieves the price of a publisher for a given faucet_id (asset identifier),
-* Aggregates all the available prices into a median.
-
-Storage Structure:
-* `next_publisher_slot`: Value, tracks the next available slot for publisher registration,
-* `publisher_registry`: Map of publisher_id -> assigned_slot for quick lookups (no need to iterate on the slots value everytime to know if a publisher is registered, for `get_entry` & `register_publisher`),
-* publisher IDs in sequential slots Values for easy iteration when we make an aggregation.
-
-Procedures:
-* `register_publisher`: Add new trusted price sources (admin only),
-* `get_entry`: Fetch a specific publisher's price for a given faucet_id,
-* `get_median` (Digest: `0xc6bd0b17ca2ed631c62c82abe48524f420ad8ba9fd04ebaf9cf724c56382528e`): Calculate median price across all publishers for a faucet_id.
-
-### Publisher
-
-Since a publisher cannot directly ask the Oracle to update its storage with a provided value, the publisher will be responsible of its own storage and publish prices to itself.
-
-Its storage is a single map. The key is a word containing the faucet_id in the format `[0, 0, faucet_id_suffix, faucet_id_prefix]`:
-```
-[0, 0, suffix, prefix]
-```
-For example, faucet_id `1:0` (BTC/USD) would be stored as `[0, 0, 0, 1]`.
-
-The value is an Entry type:
-```rust
-pub struct Entry {
-    pub pair: Pair,
-    pub price: u64,
-    pub decimals: u32,
-    pub timestamp: u64,
-}
-```
-
-Converted to a Word.
-
-
-## Integrate as publisher
-
-If you want to become a testnet publisher, follow these steps:
-
-### Step 1: Build the CLI tools
-First, build the Pragma tools with the release profile:
-```bash
-cargo build --release
-```
-This will create the executable binaries in the `target/release` directory.
-
-### Step 2: Initialize your publisher account
-Initialize a new publisher account:
-```bash
-./target/release/pm-publisher-cli init
-```
-This will:
-- Create a new publisher account on the network
-- Store your publisher ID and keys locally
-- Display your publisher ID which you'll need for the next step
-
-### Step 3: Request registration with the Oracle
-Once you have your publisher ID, you need to be registered by the Oracle owner.
-
-Send your publisher ID to the Oracle administrator and request registration. The Oracle owner will run:
-```bash
-./target/release/pm-oracle-cli register-publisher YOUR_PUBLISHER_ID
-```
-
-### Step 4: Start publishing price feeds
-After your publisher has been registered, you can start pushing price data using faucet IDs:
-```bash
-./target/release/pm-publisher-cli publish FAUCET_ID PRICE DECIMALS TIMESTAMP
-```
-
-For example:
-```bash
-./target/release/pm-publisher-cli publish 1:0 98179840000 6 1738593825
-```
-
-In this example:
-- `1:0` is the faucet ID (represents BTC/USD)
-- `98179840000` is the price (98,179.84 with 6 decimal places)
-- `6` is the number of decimal places 
-- `1738593825` is the Unix timestamp when the price was observed
-
-#### Faucet ID Mapping
-The oracle uses numeric faucet IDs to identify assets:
-- `1:0` = BTC/USD
-- `2:0` = ETH/USD
-- `3:0` = SOL/USD
-- `4:0` = BNB/USD
-- `5:0` = XRP/USD
-- `6:0` = HYPE/USD
-- `7:0` = POL/USD
-
-The Oracle will now include your price data when calculating median values for the specified assets.
-
-## Integrate as consumer
-
-### Query Single Asset
-
-```bash
-./target/release/pm-oracle-cli median 1:0 --network testnet
-# Output: Median value: 76436215000
-```
-
-You can also specify an optional amount parameter that will be returned unchanged:
-```bash
-./target/release/pm-oracle-cli median 1:0 --amount 1000 --network testnet
-# Output: Median value: 76436215000 (amount: 1000)
-```
-
-The oracle returns three values:
-- `is_tracked`: Flag indicating if the asset is supported (1) or not (0)
-- `median_price`: The computed median price in USD
-- `amount`: Optional amount parameter that remains unchanged (default: 0)
-
-### Query Multiple Assets (Batch - 47% Faster)
-
-```bash
-./target/release/pm-oracle-cli median-batch 1:0 2:0 3:0 --network testnet --json
-# Output: [{"faucet_id":"1:0","is_tracked":true,"median":76436215000,"amount":0},{"faucet_id":"2:0","is_tracked":true,"median":2294430000,"amount":0},{"faucet_id":"3:0","is_tracked":true,"median":100730000,"amount":0}]
-```
-
-The batch command optimizes performance by syncing state once instead of per-asset, reducing query time from ~4.7s to ~2.5s for 3 assets.
-
-### Integration Guides
-
-For developers who want to consume oracle data in their applications:
-- **CLI Integration**: See [OPTIMIZATION.md](./OPTIMIZATION.md) for batch query performance details
-- **Frontend Integration**: Check [oracle-explorer/ARCHITECTURE.md](./oracle-explorer/ARCHITECTURE.md) for Next.js integration
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+---
 
 ## Deployments
 
 ### Testnet
 
-These contracts were deployed for testing purpose only. They might change in the future.
+| Role       | Account ID                           | Explorer |
+|------------|--------------------------------------|----------|
+| Oracle     | `0xafebd403be621e005bf03b9fec7fe8`  | [view](https://testnet.midenscan.com/account/0xafebd403be621e005bf03b9fec7fe8) |
+| Publisher1 | `0x474d7a81bb950b001661523cdd7c0b`  | [view](https://testnet.midenscan.com/account/0x474d7a81bb950b001661523cdd7c0b) |
+| Publisher2 | `0x1ab593a30c20ce0001e98f60172dd9`  | [view](https://testnet.midenscan.com/account/0x1ab593a30c20ce0001e98f60172dd9) |
 
-Oracle - [mtst1ar2frsv7kjz2gqzt2mt74d0xlyen8re3](https://testnet.midenscan.com/account/mtst1arfh7akzc9m0wqz8m9a8xyup85g6ls32)
+> Addresses change between testnet iterations. This table is the source of truth.
 
-Publisher1 - [mtst1aqwdujtul020gqz8dlc6v00lgunczddf](https://testnet.midenscan.com/account/mtst1arm5hzrpf5sg2qpry2a9r4w6f50rgfj4)
+---
 
-Publisher2 -  [mtst1apkfkmest8g2sqq6qct5jt6s9s7834t6](https://testnet.midenscan.com/account/mtst1ar4ucrw059sdvqzfekvvvt03dgs229pc)
+## Quick start
+
+**Consume prices (Rust):**
+
+```bash
+git clone https://github.com/astraly-labs/pragma-miden
+cd pragma-miden
+cargo run --release -p consume-price
+# BTC/USD: $68199.00
+```
+
+**Publish prices (Python SDK):**
+
+```python
+from pragma_sdk.miden.client import PragmaMidenClient, MidenEntry
+
+client = PragmaMidenClient(network="testnet")
+await client.publish_entries([
+    MidenEntry(pair="1:0", price=68199_000000, decimals=6),
+])
+```
+
+→ Full integration guides at [docs.pragma.build/pragma/miden](https://docs.pragma.build/pragma/miden/introduction).
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).

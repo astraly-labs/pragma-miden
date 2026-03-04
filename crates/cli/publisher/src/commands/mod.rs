@@ -44,11 +44,7 @@ pub enum SubCommand {
 impl SubCommand {
     pub async fn call(&self, network: &str) -> anyhow::Result<CommandOutput> {
         let crate_path = PathBuf::new();
-        let store_config = if network == "local" {
-            crate_path.join("store.sqlite3")
-        } else {
-            crate_path.join(STORE_FILENAME)
-        };
+        let store_config = crate_path.join(STORE_FILENAME);
         let mut client = match network {
             "testnet" => {
                 println!("Using testnet client");

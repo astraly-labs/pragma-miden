@@ -1,7 +1,7 @@
 use crate::STORE_FILENAME;
 use miden_client::{
     account::{
-        component::{AuthRpoFalcon512, BasicWallet},
+        component::{AuthFalcon512Rpo, BasicWallet},
         Account, AccountBuilder, AccountStorageMode, AccountType,
     },
     builder::ClientBuilder,
@@ -12,8 +12,8 @@ use miden_client::{
 };
 use miden_client_sqlite_store::SqliteStore;
 use miden_tx::auth::TransactionAuthenticator;
-use rand::{rngs::StdRng, Rng, RngCore};
-use std::{path::PathBuf, sync::Arc};
+use rand::{Rng, RngCore};
+use std::{fs, path::PathBuf, sync::Arc};
 
 // Client Setup
 // ================================================================================================
@@ -21,8 +21,8 @@ use std::{path::PathBuf, sync::Arc};
 pub async fn setup_local_client(
     path: Option<PathBuf>,
     keystore_path: Option<String>,
-) -> Result<Client<FilesystemKeyStore<StdRng>>, ClientError> {
-    let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57291));
+) -> Result<Client<FilesystemKeyStore>, ClientError> {
+    let endpoint = Endpoint::localhost();
     let timeout_ms = 10_000;
 
     let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
@@ -57,6 +57,9 @@ pub async fn setup_local_client(
         .unwrap()
         .into();
 
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
     let store = SqliteStore::new(path.try_into().expect("Path should be valid"))
         .await
         .map_err(ClientError::StoreError)?;
@@ -77,11 +80,9 @@ pub async fn setup_local_client(
 pub async fn setup_devnet_client(
     path: Option<PathBuf>,
     keystore_path: Option<String>,
-) -> Result<Client<FilesystemKeyStore<StdRng>>, ClientError> {
-    // let exec_dir = PathBuf::new();
-    // let store_config = exec_dir.join(path);
+) -> Result<Client<FilesystemKeyStore>, ClientError> {
     // RPC endpoint and timeout
-    let endpoint = Endpoint::new("http".to_string(), "localhost".to_string(), Some(57123));
+    let endpoint = Endpoint::devnet();
     let timeout_ms = 10_000;
 
     let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
@@ -118,6 +119,9 @@ pub async fn setup_devnet_client(
         .unwrap()
         .into();
 
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
     let store = SqliteStore::new(path.try_into().expect("Path should be valid"))
         .await
         .map_err(ClientError::StoreError)?;
@@ -138,7 +142,7 @@ pub async fn setup_devnet_client(
 pub async fn setup_testnet_client(
     storage_path: Option<PathBuf>,
     keystore_path: Option<String>,
-) -> Result<Client<FilesystemKeyStore<StdRng>>, ClientError> {
+) -> Result<Client<FilesystemKeyStore>, ClientError> {
     // RPC endpoint and timeout
     let endpoint = Endpoint::testnet();
     let timeout_ms = 10_000;
@@ -181,6 +185,9 @@ pub async fn setup_testnet_client(
         .unwrap()
         .into();
 
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
     let store = SqliteStore::new(path.try_into().expect("Path must be valid"))
         .await
         .map_err(ClientError::StoreError)?;
@@ -211,7 +218,7 @@ where
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(storage_mode)
-        .with_component(AuthRpoFalcon512::new(key_pair.public_key().into()))
+        .with_component(AuthFalcon512Rpo::new(key_pair.public_key().into()))
         .with_component(BasicWallet)
         .build()
         .unwrap();

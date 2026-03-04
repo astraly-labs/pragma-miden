@@ -5,6 +5,7 @@ members = [
   "crates/cli/oracle",
   "crates/cli/publisher",
   "crates/cli/utils",
+  "examples/consume-price",
 ]
 resolver = "1"
 default-members = [
@@ -41,17 +42,23 @@ lazy_static = "1.5.0"
 clap = { version = "4.5.22", features = ["derive"] }
 colored = "2.1.0"
 thiserror = "1.0.61"
-rusqlite = { version = "0.36" }
+rusqlite = { version = "0.37" }
 serde_json = "1.0.133"
 serde = "1.0.215"
 tokio = { version = "1.40.0", features = ["rt-multi-thread", "net", "macros"] }
 chrono = "0.4"
 prettytable-rs = "0.10"
 futures = "0.3.31"
-miden-lib = { version = "0.12.4", default-features = false }
-miden-objects = { version = "0.12.4", default-features = false }
-miden-tx = { version = "0.12.4", features = ["concurrent"] }
-miden-client = { version = "0.12.6", features = ["tonic", "testing"] }
-miden-client-sqlite-store = "0.12.6"
+# Miden 0.13 dependencies (
+miden-protocol = { version = "0.13" }
+miden-standards = { version = "0.13" }
+miden-assembly = "0.21.0"
+miden-core = "0.21.0"
+miden-core-lib = "0.21.0"
+miden-crypto = "0.22.2"
+miden-tx = { version = "0.13", features = ["concurrent"] }
+miden-client = { version = "0.13.2", features = ["tonic", "testing"] }
+miden-client-sqlite-store = "0.13.2"
+
 pyo3 = { version = "0.20.0", features = ["extension-module",  "abi3-py37"] }
 uuid = { version = "1.10", features = ["serde", "v4"] }

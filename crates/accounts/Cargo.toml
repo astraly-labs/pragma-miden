@@ -13,8 +13,8 @@ workspace = true
 
 [dependencies]
 miden-client.workspace = true
-miden-lib.workspace = true
-miden-objects.workspace = true
+miden-standards.workspace = true
+miden-protocol.workspace = true
 miden-tx.workspace = true
 pm-types.workspace = true
 tokio.workspace = true

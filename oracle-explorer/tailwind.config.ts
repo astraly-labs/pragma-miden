@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 const config: Config = {
   content: [
@@ -9,45 +10,73 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0a0a0a",
-        surface: "#141414",
-        "surface-elevated": "#1a1a1a",
-        border: "#2a2a2a",
-        "border-hover": "#3a3a3a",
-        primary: "#00ff88",
-        "primary-hover": "#00cc6a",
-        secondary: "#3b82f6",
-        accent: "#8b5cf6",
-        danger: "#ef4444",
+        background: "#080808",
+        surface: "#111111",
+        "surface-elevated": "#161616",
+        border: "rgba(255,255,255,0.08)",
+        "border-hover": "rgba(255,255,255,0.16)",
         "text-primary": "#ffffff",
-        "text-secondary": "#a0a0a0",
-        "text-muted": "#6b6b6b",
+        "text-secondary": "#888888",
+        "text-muted": "#444444",
+        accent: "#15FF81",
+        danger: "#ef4444",
+        "code-color": "#a8b3cf",
+        // Keep these for ChartModal compatibility
+        primary: "#15FF81",
+        "primary-hover": "#10cc66",
+        darkGreen: "#080808",
+        lightGreen: "#ffffff",
+        mint: "#15FF81",
+        lightBlur: "rgba(255,255,255,0.08)",
+        redDown: "#ef4444",
+      },
+      fontFamily: {
+        sans: ["IBM Plex Sans", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["IBM Plex Mono", "ui-monospace", "SFMono-Regular", "monospace"],
       },
       animation: {
-        "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "fade-in": "fadeIn 0.3s ease-in-out",
-        "shimmer": "shimmer 2s linear infinite",
-        "glow": "glow 2s ease-in-out infinite alternate",
+        "fade-in": "fadeIn 0.4s ease-out forwards",
+        "bounce-subtle": "bounceSubtle 0.6s ease-in-out",
       },
       keyframes: {
         fadeIn: {
-          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "0%": { opacity: "0", transform: "translateY(8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
-        shimmer: {
-          "0%": { backgroundPosition: "-200% 0" },
-          "100%": { backgroundPosition: "200% 0" },
+        bounceSubtle: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-4px)" },
         },
-        glow: {
-          "0%": { boxShadow: "0 0 5px rgba(0, 255, 136, 0.2)" },
-          "100%": { boxShadow: "0 0 20px rgba(0, 255, 136, 0.4)" },
-        },
-      },
-      backgroundImage: {
-        "shimmer-gradient": "linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.03), transparent)",
       },
     },
   },
-  plugins: [],
+  plugins: [
+    plugin(function ({ addComponents }) {
+      addComponents({
+        ".h1": {
+          fontSize: "36px",
+          fontWeight: "300",
+          lineHeight: "44px",
+          letterSpacing: "-0.72px",
+          "@media (min-width: 768px)": {
+            fontSize: "60px",
+            lineHeight: "70px",
+            letterSpacing: "-1.2px",
+          },
+        },
+        ".h2": {
+          fontSize: "28px",
+          fontWeight: "300",
+          lineHeight: "36px",
+          letterSpacing: "-0.56px",
+          "@media (min-width: 768px)": {
+            fontSize: "42px",
+            lineHeight: "52px",
+            letterSpacing: "-0.84px",
+          },
+        },
+      });
+    }),
+  ],
 };
 export default config;

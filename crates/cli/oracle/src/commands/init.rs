@@ -4,7 +4,6 @@ use colored::*;
 use miden_client::{keystore::FilesystemKeyStore, Client};
 use pm_accounts::oracle::OracleAccountBuilder;
 use pm_utils_cli::{set_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
-use rand::prelude::StdRng;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Oracle Account")]
@@ -31,7 +30,7 @@ impl InitCmd {
     /// - The configuration file cannot be updated
     pub async fn call(
         &self,
-        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<()> {
         println!("⏳ Initiating the Oracle...\n");

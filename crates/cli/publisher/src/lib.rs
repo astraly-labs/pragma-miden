@@ -1,15 +1,13 @@
-use miden_client::{account::AccountId, keystore::FilesystemKeyStore, Client};
+use miden_client::{keystore::FilesystemKeyStore, Client};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use rand::prelude::StdRng;
 use std::path::PathBuf;
 mod commands;
 use crate::commands::{
     entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, publish::PublishCmd, sync::SyncCmd,
 };
-use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client};
+use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client, STORE_FILENAME};
 
-pub const STORE_SIMPLE_FILENAME: &str = "miden_storage/store.sqlite3";
 
 /// Initialize publisher and return a client handle
 #[pyfunction]
@@ -20,7 +18,8 @@ fn py_init(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<()> {
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
 
     rt.block_on(async {
         // Convert storage_path to PathBuf, default to current dir if None
@@ -30,8 +29,6 @@ fn py_init(
         let network_str = network.as_deref().unwrap_or("testnet");
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
 
-        let oracle = AccountId::from_hex(&oracle_id).unwrap();
-        client.import_account_by_id(oracle).await.unwrap();
         let cmd = InitCmd {
             oracle_id: Some(oracle_id),
         };
@@ -56,7 +53,8 @@ fn py_publish(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<()> {
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
     rt.block_on(async {
         // Create client inside the function like the other functions
         let store_config = get_store_config(storage_path);
@@ -90,7 +88,8 @@ fn py_get_entry(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
 
     rt.block_on(async {
         let store_config = get_store_config(storage_path);
@@ -117,7 +116,8 @@ fn py_entry(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
 
     rt.block_on(async {
         let store_config = get_store_config(storage_path);
@@ -143,7 +143,8 @@ fn py_sync(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
 
     rt.block_on(async {
         let store_config = get_store_config(storage_path);
@@ -179,7 +180,7 @@ async fn setup_client(
     network: &str,
     store_config: PathBuf,
     keystore_path: Option<String>,
-) -> PyResult<Client<FilesystemKeyStore<StdRng>>> {
+) -> PyResult<Client<FilesystemKeyStore>> {
     match network {
         "devnet" => {
             println!("Initializing devnet client");
@@ -218,5 +219,5 @@ fn get_store_config(storage_path: Option<String>) -> PathBuf {
         Some(path) => PathBuf::from(path),
         None => PathBuf::new(),
     };
-    exec_dir.join(STORE_SIMPLE_FILENAME)
+    exec_dir.join(STORE_FILENAME)
 }

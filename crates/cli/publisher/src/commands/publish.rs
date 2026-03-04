@@ -1,10 +1,9 @@
 use std::path::Path;
 
 use miden_client::{
-    keystore::FilesystemKeyStore, transaction::TransactionRequestBuilder, Client, ScriptBuilder,
-    Word,
+    keystore::FilesystemKeyStore, transaction::TransactionRequestBuilder, Client, Word,
 };
-use rand::prelude::StdRng;
+use miden_standards::code_builder::CodeBuilder;
 
 use miden_client::account::AccountId;
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
@@ -52,7 +51,7 @@ impl PublishCmd {
     /// - The transaction creation or submission fails
     pub async fn call(
         &self,
-        client: &mut Client<FilesystemKeyStore<StdRng>>,
+        client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<()> {
         let publisher_id = if let Some(id) = &self.publisher_id {
@@ -80,8 +79,8 @@ impl PublishCmd {
         
         let tx_script_code = format!(
             "
-                use.publisher_component::publisher_module
-                use.std::sys
+                use publisher_component::publisher_module
+                use miden::core::sys
         
                 begin
                     push.{entry}
@@ -97,7 +96,7 @@ impl PublishCmd {
             suffix = suffix,
             entry = word_to_masm(entry_as_word)
         );
-        let publish_script = ScriptBuilder::default()
+        let publish_script = CodeBuilder::default()
             .with_statically_linked_library(&get_publisher_component_library())
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code)

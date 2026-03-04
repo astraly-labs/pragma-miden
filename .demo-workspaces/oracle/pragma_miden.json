@@ -1,18 +1,17 @@
 {
   "networks": {
     "local": {
-      "oracle_account_id": "0x714103dc2ee560002b2180056092c3",
+      "oracle_account_id": "0x790b7f075f05ed00693cf2c3e3f323",
       "publisher_account_ids": [
-        "0x75fc065edb025a00285c49c5534720",
-        "0xc4e855af19266e00684b3347604d35",
-        "0x341abc52a132db001af40762694910"
+        "0x891d6198265097004b60b20872ad44",
+        "0xe90a894bd98e97001ae62b8e028d12"
       ]
     },
     "testnet": {
-      "oracle_account_id": "0xd37f76c2c176f70047d97a7313813d",
+      "oracle_account_id": "0xafebd403be621e005bf03b9fec7fe8",
       "publisher_account_ids": [
-        "0xf74b88614d2085002322ba51d5da4d",
-        "0xebcc0dcfa160d60049cd98c62df16a"
+        "0x474d7a81bb950b001661523cdd7c0b",
+        "0x1ab593a30c20ce0001e98f60172dd9"
       ]
     }
   }

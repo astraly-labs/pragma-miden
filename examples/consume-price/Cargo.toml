@@ -1,0 +1,15 @@
+[package]
+name = "consume-price"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pm-accounts  = { path = "../../crates/accounts" }
+pm-utils-cli = { path = "../../crates/cli/utils" }
+
+anyhow       = { workspace = true }
+tokio        = { workspace = true }
+miden-client = { workspace = true }
+miden-client-sqlite-store = { workspace = true }
+miden-protocol = { workspace = true }
+miden-standards = { workspace = true }
