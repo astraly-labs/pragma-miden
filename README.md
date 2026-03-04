@@ -59,3 +59,15 @@ await client.publish_entries([
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+
+
+## TODO (For miden.pragma.build deployment)
+- New project → "Deploy from GitHub repo" → astraly-labs/pragma-miden
+- Root directory : / (racine, pas oracle-explorer/)
+- Dockerfile path : oracle-explorer/Dockerfile
+- Env var to add :
+    NETWORK=testnet
+  ORACLE_WORKSPACE_PATH=/data/oracle-workspace
+  CLI_PATH=/usr/local/bin
+  PRAGMA_API_KEY=<key>

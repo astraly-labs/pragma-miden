@@ -17,7 +17,7 @@ export function Header({ lastUpdate }: HeaderProps) {
     <header className="border-b border-[rgba(255,255,255,0.06)] bg-[#080808]/95 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-          <a href={process.env.NEXT_PUBLIC_PRAGMA_URL ?? "https://pragma.build"} className="flex items-center gap-2">
+          <a href="https://pragma.build" className="flex items-center gap-2">
             <span className="text-white font-medium text-sm tracking-tight">Pragma</span>
             <span className="text-[rgba(255,255,255,0.3)] text-sm">/</span>
             <span className="text-[rgba(255,255,255,0.5)] text-sm font-normal">Miden</span>
