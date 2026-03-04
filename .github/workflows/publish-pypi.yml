@@ -1,0 +1,74 @@
+name: Publish pm-publisher to PyPI
+
+on:
+  push:
+    tags:
+      - "py-v*"  # trigger on tags like py-v0.1.0
+
+jobs:
+  build:
+    name: Build wheel (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            manylinux: auto
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            manylinux: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2025-03-11
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Build wheel (Linux)
+        if: matrix.runner == 'ubuntu-latest'
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: crates/cli/publisher
+          command: build
+          args: --release --target ${{ matrix.target }} --out dist
+          manylinux: ${{ matrix.manylinux }}
+
+      - name: Build wheel (macOS)
+        if: matrix.runner == 'macos-latest'
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: crates/cli/publisher
+          command: build
+          args: --release --target ${{ matrix.target }} --out dist
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.target }}
+          path: crates/cli/publisher/dist/*.whl
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        with:
+          command: upload
+          args: --skip-existing dist/*.whl

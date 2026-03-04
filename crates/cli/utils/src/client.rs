@@ -13,7 +13,7 @@ use miden_client::{
 use miden_client_sqlite_store::SqliteStore;
 use miden_tx::auth::TransactionAuthenticator;
 use rand::{Rng, RngCore};
-use std::{path::PathBuf, sync::Arc};
+use std::{fs, path::PathBuf, sync::Arc};
 
 // Client Setup
 // ================================================================================================
@@ -57,6 +57,9 @@ pub async fn setup_local_client(
         .unwrap()
         .into();
 
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
     let store = SqliteStore::new(path.try_into().expect("Path should be valid"))
         .await
         .map_err(ClientError::StoreError)?;
@@ -116,6 +119,9 @@ pub async fn setup_devnet_client(
         .unwrap()
         .into();
 
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
     let store = SqliteStore::new(path.try_into().expect("Path should be valid"))
         .await
         .map_err(ClientError::StoreError)?;
@@ -179,6 +185,9 @@ pub async fn setup_testnet_client(
         .unwrap()
         .into();
 
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
     let store = SqliteStore::new(path.try_into().expect("Path must be valid"))
         .await
         .map_err(ClientError::StoreError)?;
