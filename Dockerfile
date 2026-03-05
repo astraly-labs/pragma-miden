@@ -1,5 +1,5 @@
 # ── Stage 1: Build Rust binaries ─────────────────────────────────────────────
-FROM --platform=linux/amd64 rust:1.82-slim AS rust-builder
+FROM rust:1.82-slim AS rust-builder
 
 RUN apt-get update && apt-get install -y \
   pkg-config libssl-dev libsqlite3-dev clang \
@@ -14,7 +14,7 @@ COPY examples/ ./examples/
 RUN cargo build --release -p pm-oracle-cli
 
 # ── Stage 2: Build Next.js app ────────────────────────────────────────────────
-FROM --platform=linux/amd64 node:20-slim AS next-builder
+FROM node:20-slim AS next-builder
 
 RUN npm install -g pnpm
 
@@ -29,7 +29,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
-FROM --platform=linux/amd64 node:20-slim AS runner
+FROM node:20-slim AS runner
 
 RUN apt-get update && apt-get install -y libsqlite3-dev && rm -rf /var/lib/apt/lists/*
 

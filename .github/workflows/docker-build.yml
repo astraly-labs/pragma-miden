@@ -1,0 +1,66 @@
+name: Build & Push Docker Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'oracle-explorer/**'
+      - 'crates/**'
+      - 'Dockerfile'
+      - 'entrypoint-init.sh'
+      - 'pragma_miden.json'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (e.g. v0.1.2)'
+        required: true
+        default: 'latest'
+
+env:
+  REGISTRY: europe-west1-docker.pkg.dev
+  IMAGE: europe-west1-docker.pkg.dev/prod-pragma/production-docker-repo/miden-oracle
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for GCP Artifact Registry
+        run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
