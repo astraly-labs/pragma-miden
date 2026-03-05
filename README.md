@@ -28,6 +28,11 @@
 
 > Addresses change between testnet iterations. This table is the source of truth.
 
+This address is likely going to be the one with live data
+| Role       | Account ID                           | Explorer |
+|------------|--------------------------------------|----------|
+| Oracle     | `0x1afd74d988a4c3006b2f6b6665086d` | [view](https://testnet.midenscan.com/account/0x1afd74d988a4c3006b2f6b6665086d) |
+
 ---
 
 ## Quick start

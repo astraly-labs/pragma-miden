@@ -1,0 +1,5 @@
+apiVersion: v2
+name: oracle-explorer
+description: Helm chart for the Pragma Miden Oracle Explorer
+version: 0.1.0
+appVersion: "1.0.0"

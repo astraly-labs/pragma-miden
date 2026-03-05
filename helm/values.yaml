@@ -1,0 +1,84 @@
+replicaCount: 1
+
+image:
+  repository: europe-west1-docker.pkg.dev/prod-pragma/production-docker-repo/oracle-explorer
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: false
+  automount: true
+  annotations: {}
+  name: ""
+
+deploymentStrategy: RollingUpdate
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: false
+
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: false
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+service:
+  enabled: true
+  type: ClusterIP
+  annotations: {}
+  labels: {}
+  ports:
+    - port: 3000
+      containerPort: 3000
+      protocol: TCP
+      portName: http
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+ingress: {}
+
+gcpSecrets:
+  enabled: false
+  projectId: prod-pragma
+  secretStore:
+    name: "oracle-explorer-secrets-store"
+  externalSecret:
+    name: "oracle-explorer-secrets"
+    secretPath: "oracle-explorer-secrets"
+    refreshInterval: "1h"
+
+envFromSecret: {}
+
+env: []
+
+terminationGracePeriodSeconds: 60
+
+# Keystore files injected as volumes from GCP Secret Manager
+keystoreSecrets: []
+# - secretName: oracle-explorer-keystore-1
+#   fileName: "15282931211434606573"
+# - secretName: oracle-explorer-keystore-2
+#   fileName: "3853692464955671872"

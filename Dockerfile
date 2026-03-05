@@ -7,8 +7,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy Rust workspace
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ ./crates/
 
 RUN cargo build --release -p pm-oracle-cli
@@ -32,20 +31,23 @@ RUN pnpm build
 FROM node:20-slim AS runner
 
 RUN apt-get update && apt-get install -y libsqlite3-dev && rm -rf /var/lib/apt/lists/*
-RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy Next.js build
+# Next.js standalone build
 COPY --from=next-builder /app/oracle-explorer/.next/standalone ./
 COPY --from=next-builder /app/oracle-explorer/.next/static ./.next/static
-COPY --from=next-builder /app/oracle-explorer/public ./public
+COPY --from=next-builder /app/oracle-explorer/public ./public 2>/dev/null || true
 
-# Copy Rust binary
+# Rust binary
 COPY --from=rust-builder /app/target/release/pm-oracle-cli /usr/local/bin/pm-oracle-cli
 
-# Oracle workspace (empty dir — will be initialized at runtime via env)
-RUN mkdir -p /data/oracle-workspace
+# Workspace config (non-secret)
+COPY pragma_miden.json ./pragma_miden.json
+
+# Init script
+COPY entrypoint-init.sh ./entrypoint-init.sh
+RUN chmod +x ./entrypoint-init.sh
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
