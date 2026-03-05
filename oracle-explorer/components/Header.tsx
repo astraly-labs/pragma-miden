@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { PragmaTransitionLink } from "@/components/TransitionOverlay";
 
 interface HeaderProps {
   lastUpdate: Date | null;

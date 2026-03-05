@@ -9,6 +9,7 @@ WORKDIR /app
 
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ ./crates/
+COPY examples/ ./examples/
 
 RUN cargo build --release -p pm-oracle-cli
 
@@ -37,7 +38,6 @@ WORKDIR /app
 # Next.js standalone build
 COPY --from=next-builder /app/oracle-explorer/.next/standalone ./
 COPY --from=next-builder /app/oracle-explorer/.next/static ./.next/static
-COPY --from=next-builder /app/oracle-explorer/public ./public 2>/dev/null || true
 
 # Rust binary
 COPY --from=rust-builder /app/target/release/pm-oracle-cli /usr/local/bin/pm-oracle-cli
