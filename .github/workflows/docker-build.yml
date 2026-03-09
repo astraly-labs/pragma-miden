@@ -64,3 +64,37 @@ jobs:
             ${{ env.IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  update-devops:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout devops repo
+        uses: actions/checkout@v4
+        with:
+          repository: astraly-labs/devops
+          ref: prod
+          token: ${{ secrets.DEVOPS_GITHUB_TOKEN }}
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update image tag in values-mainnet.yaml
+        run: |
+          sed -i 's|tag: .*|tag: "${{ steps.tag.outputs.tag }}"|' mainnet/miden-oracle-service/resources/values-mainnet.yaml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add mainnet/miden-oracle-service/resources/values-mainnet.yaml
+          git commit -m "chore: bump miden-oracle to ${{ steps.tag.outputs.tag }}"
+          git push origin prod
