@@ -13,15 +13,25 @@ impl From<Word> for Entry {
         let elements: [Felt; 4] = word.into();
         let [_zero, price_felt, decimals_felt, timestamp_felt] = elements;
 
-        let price = price_felt.as_int();
-        let decimals = decimals_felt.as_int() as u32;
-        let timestamp = timestamp_felt.as_int();
-
         Entry {
             faucet_id: String::new(),
-            price,
-            decimals,
-            timestamp,
+            price: price_felt.as_canonical_u64(),
+            decimals: decimals_felt.as_canonical_u64() as u32,
+            timestamp: timestamp_felt.as_canonical_u64(),
         }
+    }
+}
+
+impl TryFrom<Entry> for Word {
+    type Error = anyhow::Error;
+
+    fn try_from(entry: Entry) -> Result<Self, Self::Error> {
+        Ok([
+            Felt::new(0),
+            Felt::new(entry.price),
+            Felt::new(entry.decimals as u64),
+            Felt::new(entry.timestamp),
+        ]
+        .into())
     }
 }

@@ -1,17 +1,16 @@
 use crate::STORE_FILENAME;
 use miden_client::{
     account::{
-        component::{AuthFalcon512Rpo, BasicWallet},
+        component::{AuthScheme, AuthSingleSig, BasicWallet},
         Account, AccountBuilder, AccountStorageMode, AccountType,
     },
     builder::ClientBuilder,
-    crypto::{rpo_falcon512::SecretKey, RpoRandomCoin},
-    keystore::FilesystemKeyStore,
+    crypto::{rpo_falcon512::SecretKey, RandomCoin},
+    keystore::{FilesystemKeyStore, Keystore},
     rpc::{Endpoint, GrpcClient},
     Client, ClientError, Felt, Word,
 };
 use miden_client_sqlite_store::SqliteStore;
-use miden_tx::auth::TransactionAuthenticator;
 use rand::{Rng, RngCore};
 use std::{fs, path::PathBuf, sync::Arc};
 
@@ -29,7 +28,7 @@ pub async fn setup_local_client(
 
     let coin_seed: [u64; 4] = rand::random();
 
-    let rng = Box::new(RpoRandomCoin::new(coin_seed.map(Felt::new).into()));
+    let rng = Box::new(RandomCoin::new(coin_seed.map(Felt::new).into()));
 
     let path = match path {
         Some(p) => p,
@@ -89,7 +88,7 @@ pub async fn setup_devnet_client(
 
     let coin_seed: [u64; 4] = rand::random();
 
-    let rng = Box::new(RpoRandomCoin::new(coin_seed.map(Felt::new).into()));
+    let rng = Box::new(RandomCoin::new(coin_seed.map(Felt::new).into()));
 
     let path = match path {
         Some(p) => p,
@@ -155,7 +154,7 @@ pub async fn setup_testnet_client(
     let coin_seed: [u64; 4] = seed_rng.random();
 
     // Create random coin instance
-    let rng = Box::new(RpoRandomCoin::new(coin_seed.map(Felt::new).into()));
+    let rng = Box::new(RandomCoin::new(coin_seed.map(Felt::new).into()));
 
     let path = match storage_path {
         Some(p) => p,
@@ -205,12 +204,12 @@ pub async fn setup_testnet_client(
     Ok(client)
 }
 
-pub async fn create_wallet<AUTH>(
-    client: &mut Client<AUTH>,
+pub async fn create_wallet<K>(
+    client: &mut Client<K>,
     storage_mode: AccountStorageMode,
 ) -> Result<(Account, Word), ClientError>
 where
-    AUTH: TransactionAuthenticator + Sync,
+    K: Keystore + Sync,
 {
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
@@ -218,7 +217,7 @@ where
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(storage_mode)
-        .with_component(AuthFalcon512Rpo::new(key_pair.public_key().into()))
+        .with_component(AuthSingleSig::new(key_pair.public_key().to_commitment().into(), AuthScheme::Falcon512Poseidon2))
         .with_component(BasicWallet)
         .build()
         .unwrap();

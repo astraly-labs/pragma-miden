@@ -87,7 +87,7 @@ impl Pair {
                 break;
             }
 
-            let value = felt.as_int();
+            let value = felt.as_canonical_u64();
 
             // Unpack up to 8 characters from each Felt
             for shift in 0..8 {
@@ -118,7 +118,7 @@ impl Pair {
                     break;
                 }
 
-                let value = felt.as_int();
+                let value = felt.as_canonical_u64();
 
                 // Unpack up to 8 characters from each Felt
                 for shift in 0..8 {
@@ -205,7 +205,7 @@ impl FromStr for Pair {
 impl From<Felt> for Pair {
     fn from(felt: Felt) -> Self {
         // Convert Felt to u32
-        let value = felt.as_int() as u32;
+        let value = felt.as_canonical_u64() as u32;
 
         // Extract base and quote portions
         let base_encoded = value & 0x7FFF; // Lower 15 bits
@@ -477,12 +477,12 @@ mod tests {
         let felts = original_pair.to_decimal_felts();
 
         // Create a Word array from the Felts (with padding if needed)
-        let mut words = Vec::new();
+        let mut words: Vec<Word> = Vec::new();
         let mut current_word = [ZERO; 4];
         for (i, felt) in felts.iter().enumerate() {
             current_word[i % 4] = *felt;
             if i % 4 == 3 || i == felts.len() - 1 {
-                words.push(current_word);
+                words.push(current_word.into());
                 current_word = [ZERO; 4];
             }
         }
@@ -527,7 +527,7 @@ mod tests {
         assert_eq!(felts[0], Felt::new(expected));
 
         // Test round trip conversion
-        let round_trip = Pair::from_felts([felts[0], ZERO, ZERO, ZERO]).unwrap();
+        let round_trip = Pair::from_felts([felts[0], ZERO, ZERO, ZERO].into()).unwrap();
         assert_eq!(round_trip.to_string(), "BTC/USD");
     }
 
@@ -561,13 +561,13 @@ mod tests {
         let felts = original_pair.to_decimal_felts();
 
         // Create a Word array
-        let mut words = Vec::new();
+        let mut words: Vec<Word> = Vec::new();
         for chunk in felts.chunks(4) {
             let mut word = [ZERO; 4];
             for (i, &felt) in chunk.iter().enumerate() {
                 word[i] = felt;
             }
-            words.push(word);
+            words.push(word.into());
         }
 
         // Convert back to Pair

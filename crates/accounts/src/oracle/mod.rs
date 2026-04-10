@@ -4,15 +4,16 @@ use rand::Rng;
 
 use miden_client::{
     account::{
-        component::AuthFalcon512Rpo, Account, AccountStorageMode, AccountType as ClientAccountType,
+        component::{AuthScheme, AuthSingleSig},
+        Account, AccountStorageMode, AccountType as ClientAccountType,
     },
     auth::AuthSecretKey,
     crypto::rpo_falcon512::SecretKey,
-    keystore::FilesystemKeyStore,
+    keystore::{FilesystemKeyStore, Keystore},
     Client, Felt, Word, ZERO,
 };
 use miden_protocol::{
-    account::{AccountBuilder, AccountComponent, AccountComponentCode, StorageSlot, StorageSlotName},
+    account::{AccountBuilder, AccountComponent, AccountComponentMetadata, AccountType, StorageSlot, StorageSlotName},
     assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
     transaction::TransactionKernel,
 };
@@ -29,21 +30,6 @@ fn get_oracle_masm() -> String {
     ORACLE_ACCOUNT_MASM_TEMPLATE.replace("{GET_ENTRY_HASH}", &get_entry_hash)
 }
 
-// pub fn get_oracle_component_library() -> Library {
-//     let source_manager = Arc::new(DefaultSourceManager::default());
-//     let oracle_component_module = Module::parser(ModuleKind::Library)
-//         .parse_str(
-//             LibraryPath::new("oracle_component::oracle_module").unwrap(),
-//             ORACLE_ACCOUNT_MASM,
-//             &source_manager,
-//         )
-//         .unwrap();
-//     TransactionKernel::assembler()
-//         .with_debug_mode(true)
-//         .assemble_library([oracle_component_module])
-//         .expect("assembly should succeed")
-// }
-
 pub fn oracle_storage_slots() -> Vec<StorageSlot> {
     vec![
         StorageSlot::with_value(
@@ -56,7 +42,7 @@ pub fn oracle_storage_slots() -> Vec<StorageSlot> {
     ]
 }
 
-pub fn get_oracle_component_library() -> Library {
+pub fn get_oracle_component_library() -> Arc<Library> {
     let source_manager = Arc::new(DefaultSourceManager::default());
     let oracle_masm = get_oracle_masm();
     let oracle_component_module = Module::parser(ModuleKind::Library)
@@ -92,17 +78,17 @@ pub fn get_median_procedure_hash() -> String {
     digest
         .as_elements()
         .iter()
-        .map(|f| f.as_int().to_string())
+        .map(|f| f.as_canonical_u64().to_string())
         .collect::<Vec<_>>()
         .join(".")
 }
 
 pub fn get_oracle_component() -> AccountComponent {
     let library = get_oracle_component_library();
-    let code = AccountComponentCode::from(library);
-    AccountComponent::new(code, oracle_storage_slots())
+    let library = Arc::try_unwrap(library).unwrap_or_else(|arc| (*arc).clone());
+    let metadata = AccountComponentMetadata::new("pragma::oracle", AccountType::all());
+    AccountComponent::new(library, oracle_storage_slots(), metadata)
         .expect("assembly should succeed")
-        .with_supports_all_types()
 }
 
 pub struct OracleAccountBuilder<'a> {
@@ -155,10 +141,9 @@ impl<'a> OracleAccountBuilder<'a> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component = AuthFalcon512Rpo::new(public_key.into());
+        let auth_component = AuthSingleSig::new(public_key.to_commitment().into(), AuthScheme::Falcon512Poseidon2);
         let from_seed = client_rng.random();
 
-        
         let account = AccountBuilder::new(from_seed)
             .account_type(client_account_type)
             .storage_mode(AccountStorageMode::Public)
@@ -171,7 +156,8 @@ impl<'a> OracleAccountBuilder<'a> {
 
         let keystore = FilesystemKeyStore::new(self.keystore_path.into()).unwrap();
         keystore
-            .add_key(&AuthSecretKey::Falcon512Rpo(private_key))
+            .add_key(&AuthSecretKey::Falcon512Poseidon2(private_key), account.id())
+            .await
             .unwrap();
 
         (account, account_seed)

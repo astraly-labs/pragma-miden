@@ -21,16 +21,12 @@ impl PublishersCmd {
         client.sync_state().await.unwrap();
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
-        let oracle = client
+        let account = client
             .get_account(oracle_id)
             .await
             .unwrap()
             .expect("Oracle account not found");
 
-        let account = match oracle.account_data() {
-            miden_client::store::AccountRecordData::Full(acc) => acc,
-            _ => return Err(anyhow::anyhow!("Expected full account data for oracle")),
-        };
         let storage = account.storage();
 
         let next_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index")
@@ -38,7 +34,7 @@ impl PublishersCmd {
         let next_index = storage
             .get_item(&next_index_slot)
             .context("Unable to retrieve publisher count")?[0]
-            .as_int();
+            .as_canonical_u64();
 
         let publisher_count = next_index.saturating_sub(2);
 

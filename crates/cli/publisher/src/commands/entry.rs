@@ -52,13 +52,9 @@ impl EntryCmd {
         ]
         .into();
 
-        let account = match publisher.account_data() {
-            miden_client::store::AccountRecordData::Full(acc) => acc,
-            _ => return Err(anyhow::anyhow!("Expected full account data for publisher")),
-        };
         let publisher_entries_slot = miden_protocol::account::StorageSlotName::new("pragma::publisher::entries")
             .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
-        let entry_word = account
+        let entry_word = publisher
             .storage()
             .get_map_item(&publisher_entries_slot, faucet_id_word)
             .unwrap();

@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::BTreeMap,
     path::PathBuf,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -9,21 +9,21 @@ use miden_client::{
     account::AccountId,
     keystore::FilesystemKeyStore,
     rpc::{
-        domain::account::{AccountStorageRequirements, StorageMapKey},
+        domain::account::AccountStorageRequirements,
         RpcError,
     },
     store::TransactionFilter,
     sync::SyncSummary,
     transaction::{
         ForeignAccount, TransactionId, TransactionRequest, TransactionRequestBuilder,
-        TransactionResult,
     },
-    Client, ClientError, Felt, ScriptBuilder,
+    Client, ClientError, Felt,
 };
 use miden_protocol::{
-    account::{Account, StorageMap, StorageSlot},
+    account::{Account, StorageMap, StorageMapKey, StorageSlot},
     vm::AdviceInputs,
 };
+use miden_standards::code_builder::CodeBuilder;
 use pm_accounts::{
     oracle::{get_oracle_component_library, OracleAccountBuilder},
     publisher::PublisherAccountBuilder,
@@ -37,21 +37,28 @@ pub type TestClient = Client<FilesystemKeyStore>;
 
 pub type Word = miden_client::Word;
 
+/// Default pair used in tests.
+pub fn mock_pair() -> Pair {
+    Pair::new(Currency::new("BTC").unwrap(), Currency::new("USD").unwrap())
+}
+
 /// Mocks [Entry] representing price feeds for use in tests.
-pub fn mock_entry() -> Entry {
-    Entry {
-        pair: Pair::new(Currency::new("BTC").unwrap(), Currency::new("USD").unwrap()),
+pub fn mock_entry() -> (Pair, Entry) {
+    let pair = mock_pair();
+    let entry = Entry {
+        faucet_id: "1:0".to_string(),
         price: 97086310000,
         decimals: 8,
         timestamp: 1739722449,
-    }
+    };
+    (pair, entry)
 }
 
 /// Mocks a random [Entry] representing price feeds for use in tests.
-pub fn random_entry() -> Entry {
+pub fn random_entry() -> (Pair, Entry) {
     let mut rng = rand::rng();
+    let pair = mock_pair();
 
-    // Get current timestamp and add/subtract up to 1 hour (3600 seconds)
     let current_time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -59,17 +66,17 @@ pub fn random_entry() -> Entry {
     let random_offset = rng.random_range(-3600..3600);
     let timestamp = current_time + random_offset;
 
-    // Generate random price around 101709 with ±5% variation
     let base_price = 101709.0;
-    let variation = base_price * 0.05; // 5% variation
+    let variation = base_price * 0.05;
     let random_price = rng.random_range((base_price - variation)..(base_price + variation));
 
-    Entry {
-        pair: Pair::new(Currency::new("BTC").unwrap(), Currency::new("USD").unwrap()),
+    let entry = Entry {
+        faucet_id: "1:0".to_string(),
         price: (random_price * 1_000_000.0) as u64,
         decimals: 6,
         timestamp: timestamp as u64,
-    }
+    };
+    (pair, entry)
 }
 
 pub async fn wait_for_node(client: &mut TestClient) {
@@ -98,17 +105,9 @@ pub async fn execute_tx(
     account_id: AccountId,
     tx_request: TransactionRequest,
 ) -> Result<TransactionId> {
-    println!("Executing transaction...");
-    let transaction_execution_result = client
-        .new_transaction(account_id, tx_request)
-        .await
-        .context("Failed to create new transaction")?;
-
-    let transaction_id = transaction_execution_result.executed_transaction().id();
-
-    println!("Sending transaction to node");
-    client
-        .submit_transaction(transaction_execution_result)
+    println!("Executing and submitting transaction...");
+    let transaction_id = client
+        .submit_new_transaction(account_id, tx_request)
         .await
         .context("Failed to submit transaction")?;
 
@@ -206,26 +205,18 @@ pub async fn create_and_deploy_publisher_account(
     pair_word: Word,
     entry_as_word: Word,
 ) -> Result<Account> {
-    // Create publisher account
-    let (publisher_account, publisher_seed) = PublisherAccountBuilder::new()
-        .with_storage_slots(vec![StorageSlot::Map(
-            StorageMap::with_entries(vec![(pair_word, entry_as_word)]).unwrap(),
+    let (publisher_account, _publisher_seed) = PublisherAccountBuilder::new()
+        .with_storage_slots(vec![StorageSlot::with_map(
+            miden_protocol::account::StorageSlotName::new("pragma::publisher::entries").unwrap(),
+            StorageMap::with_entries(vec![(StorageMapKey::new(pair_word), entry_as_word)]).unwrap(),
         )])
         .with_client(client)
         .build()
         .await;
 
-    // Deploy publisher account
-    let deployment_tx = create_deployment_transaction(client, publisher_account.id()).await?;
-    let tx_id = deployment_tx.executed_transaction().id();
-    client
-        .submit_transaction(deployment_tx)
-        .await
-        .context("Failed to submit deployment transaction for publisher account")?;
+    let tx_id = deploy_account(client, publisher_account.id()).await?;
     let _ = wait_for_tx(client, tx_id).await;
-    let _ = client
-        .add_account(&publisher_account, Some(publisher_seed), true)
-        .await;
+    let _ = client.add_account(&publisher_account, true).await;
     Ok(publisher_account)
 }
 
@@ -245,16 +236,9 @@ pub async fn create_and_deploy_oracle_account(
     // Build the account
     let (oracle_account, _) = builder.build().await;
 
-    // Deploy oracle account
-    let deployment_tx = create_deployment_transaction(client, oracle_account.id())
+    let tx_id = deploy_account(client, oracle_account.id())
         .await
-        .context("Failed to create deployment transaction for oracle account")?;
-
-    let tx_id = deployment_tx.executed_transaction().id();
-    client
-        .submit_transaction(deployment_tx)
-        .await
-        .context("Failed to submit deployment transaction for oracle account")?;
+        .context("Failed to deploy oracle account")?;
 
     wait_for_tx(client, tx_id)
         .await
@@ -263,27 +247,29 @@ pub async fn create_and_deploy_oracle_account(
     Ok(oracle_account)
 }
 
-/// Creates a deployment transaction for the given account
-async fn create_deployment_transaction(
+/// Deploys the given account by submitting a deployment transaction
+async fn deploy_account(
     client: &mut TestClient,
     account_id: AccountId,
-) -> Result<TransactionResult> {
-    let deployment_tx_script = ScriptBuilder::default().compile_tx_script(
-        "begin miden::auth::rpo_falcon512
-            call.::miden::auth::rpo_falcon512::authenticate_transaction
+) -> Result<TransactionId> {
+    let deployment_tx_script = CodeBuilder::default().compile_tx_script(
+        "use miden::auth::single_sig
+        begin
+            call.::miden::auth::single_sig::authenticate_transaction
         end",
     )?;
 
-    client
-        .new_transaction(
-            account_id,
-            TransactionRequestBuilder::new()
-                .custom_script(deployment_tx_script)
-                .build()
-                .context("Failed to build deployment transaction request")?,
-        )
+    let tx_request = TransactionRequestBuilder::new()
+        .custom_script(deployment_tx_script)
+        .build()
+        .context("Failed to build deployment transaction request")?;
+
+    let tx_id = client
+        .submit_new_transaction(account_id, tx_request)
         .await
-        .context("Failed to create new deployment transaction")
+        .context("Failed to submit deployment transaction")?;
+
+    Ok(tx_id)
 }
 
 /// Executes a get_entry transaction
@@ -318,42 +304,40 @@ pub async fn execute_get_entry_transaction(
         end
         ",
         pair = word_to_masm(pair_word),
-        publisher_id_suffix = publisher.account().id().suffix(),
-        publisher_id_prefix = publisher.account().id().prefix().as_felt(),
+        publisher_id_suffix = publisher.id().suffix(),
+        publisher_id_prefix = publisher.id().prefix().as_felt(),
     );
 
-    let get_entry_script = ScriptBuilder::default()
-        .with_statically_linked_library(&get_oracle_component_library())
+    let oracle_lib = get_oracle_component_library();
+    let get_entry_script = CodeBuilder::default()
+        .with_statically_linked_library(&oracle_lib)
         .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
         .compile_tx_script(tx_script_code)
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
     // Create foreign account
-    let storage_requirements =
-        AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]);
-
+    let publisher_entries_slot = miden_protocol::account::StorageSlotName::new("pragma::publisher::entries").unwrap();
     let foreign_account = ForeignAccount::public(
         publisher_id,
-        AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]),
+        AccountStorageRequirements::new([(publisher_entries_slot, &[StorageMapKey::new(pair_word)])]),
     )
     .unwrap();
 
-    let mut foreign_accounts_set: BTreeSet<ForeignAccount> = BTreeSet::new();
-    foreign_accounts_set.insert(foreign_account);
+    let mut foreign_accounts_map: BTreeMap<AccountId, ForeignAccount> = BTreeMap::new();
+    foreign_accounts_map.insert(foreign_account.account_id(), foreign_account);
     let output_stack = client
         .execute_program(
             oracle_id,
             get_entry_script,
             AdviceInputs::default(),
-            foreign_accounts_set,
+            foreign_accounts_map,
         )
         .await
         .unwrap();
-    let pair: Pair = pair_word[3].into();
     Ok(Entry {
-        pair: pair,
-        price: output_stack[2].into(),
-        decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
-        timestamp: output_stack[0].into(),
+        faucet_id: String::new(),
+        price: output_stack[2].as_canonical_u64(),
+        decimals: output_stack[1].as_canonical_u64() as u32,
+        timestamp: output_stack[0].as_canonical_u64(),
     })
 }
