@@ -1,5 +1,12 @@
 {
   "networks": {
+    "local": {
+      "oracle_account_id": "0xf77fd295dbf592003e9e7678ffb9aa",
+      "publisher_account_ids": [
+        "0x2580558d52033d0044cb223870e296",
+        "0x8d259599dd7f7f007677888f8dff59"
+      ]
+    },
     "testnet": {
       "oracle_account_id": "0xd21b4d351a46c70000be17146009ad",
       "publisher_account_ids": [

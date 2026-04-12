@@ -61,7 +61,7 @@ pub fn get_publisher_component_library() -> Arc<Library> {
         )
         .unwrap();
 
-    TransactionKernel::assembler()
+    TransactionKernel::assembler_with_source_manager(source_manager)
         .assemble_library([publisher_component_module])
         .expect("assembly should succeed")
 }

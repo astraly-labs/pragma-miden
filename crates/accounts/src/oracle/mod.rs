@@ -52,7 +52,7 @@ pub fn get_oracle_component_library() -> Arc<Library> {
             source_manager.clone(),
         )
         .unwrap();
-    TransactionKernel::assembler()
+    TransactionKernel::assembler_with_source_manager(source_manager)
         .assemble_library([oracle_component_module])
         .expect("assembly should succeed")
 }
