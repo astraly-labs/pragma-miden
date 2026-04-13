@@ -49,10 +49,10 @@ impl MedianCmd {
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
 
         let faucet_id_word: Word = [
-            Felt::new(prefix),
+            Felt::new(0),
+            Felt::new(0),
             Felt::new(suffix),
-            Felt::new(0),
-            Felt::new(0),
+            Felt::new(prefix),
         ].into();
 
         let storage = account.storage();

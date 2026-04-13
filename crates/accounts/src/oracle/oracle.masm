@@ -49,11 +49,23 @@ end
 #! Inputs: [PUBLISHER_ID, faucet_id_word]
 #! Output: [ENTRY]
 proc call_publisher_get_entry
-    push.{GET_ENTRY_HASH}
-    # => [GET_ENTRY_HASH, PUBLISHER_ID, faucet_id_word]
-    swapw swap.2 drop swap.2 drop
-    # => [publisher_id,publisher_id,  GET_ENTRY_HASH, faucet_id_word]
+    # Input: [pub_prefix, pub_suffix, 0, 0, faucet_id_word(4)]
+    # execute_foreign_procedure expects: [acct_suffix, acct_prefix, PROC_ROOT(4), inputs(16)...]
+    debug.stack
+    # Save prefix and suffix, drop the 2 padding zeros
+    movup.3 drop movup.2 drop
+    # => [pub_prefix, pub_suffix, faucet_id_word(4)]
 
+    # Swap to get suffix on top
+    swap
+    # => [pub_suffix, pub_prefix, faucet_id_word(4)]
+    debug.stack
+    # Push PROC_ROOT and move suffix/prefix above it
+    push.{GET_ENTRY_HASH}
+    # => [HASH(4), pub_suffix, pub_prefix, faucet_id_word(4)]
+    movup.5 movup.5
+    # => [pub_suffix, pub_prefix, HASH(4), faucet_id_word(4)]
+    debug.stack
     exec.tx::execute_foreign_procedure
     # => [ENTRY]
 end

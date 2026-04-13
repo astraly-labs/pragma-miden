@@ -46,6 +46,7 @@ pub fn get_entry_procedure_hash() -> String {
     digest
         .as_elements()
         .iter()
+        .rev()
         .map(|f| f.as_canonical_u64().to_string())
         .collect::<Vec<_>>()
         .join(".")

@@ -43,14 +43,13 @@ impl GetEntryCmd {
     ) -> anyhow::Result<Entry> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
         let publisher_id = AccountId::from_hex(&self.publisher_id)?;
+        client.import_account_by_id(publisher_id).await?;
+        client.import_account_by_id(oracle_id).await?;
+        client.sync_state().await?;
         let publisher = client
             .get_account(publisher_id)
             .await?
             .expect("Publisher account not found");
-        let _ = client
-            .get_account(oracle_id)
-            .await?
-            .expect("Oracle account not found");
 
         let parts: Vec<&str> = self.faucet_id.split(':').collect();
         if parts.len() != 2 {
@@ -66,10 +65,10 @@ impl GetEntryCmd {
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix"))?;
 
         let faucet_id_word: miden_client::Word = [
-            Felt::new(prefix),
+            Felt::new(0),
+            Felt::new(0),
             Felt::new(suffix),
-            Felt::new(0),
-            Felt::new(0),
+            Felt::new(prefix),
         ]
         .into();
 
@@ -83,7 +82,7 @@ impl GetEntryCmd {
             "
             use oracle_component::oracle_module
             use miden::core::sys
-    
+
             begin
                 push.{faucet_id}
                 push.0.0
@@ -113,7 +112,7 @@ impl GetEntryCmd {
                 foreign_accounts_map,
             )
             .await
-            .map_err(|e| anyhow::anyhow!("Error executing transaction: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Error executing transaction: {:?}", e))?;
         Ok(Entry {
             faucet_id: self.faucet_id.clone(),
             price: output_stack[2].as_canonical_u64(),
