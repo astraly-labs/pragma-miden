@@ -55,6 +55,12 @@ impl MedianCmd {
             Felt::new(prefix),
         ].into();
 
+        // Re-import oracle from chain to get fresh storage state
+        client.import_account_by_id(oracle_id).await?;
+        let account = client
+            .get_account(oracle_id)
+            .await?
+            .expect("Oracle account not found after re-import");
         let storage = account.storage();
 
         let next_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index")
@@ -72,9 +78,11 @@ impl MedianCmd {
                 let w = storage
                     .get_map_item(&publishers_slot, key.into())
                     .with_context(|| format!("Failed to retrieve publisher at index {i}"))?;
-                Ok(AccountId::new_unchecked([w[3], w[2]]))
+                // In 0.14 LE, publisher ID word is [prefix, suffix, 0, 0]
+                Ok(AccountId::new_unchecked([w[0], w[1]]))
             })
             .collect::<Result<_, _>>()?;
+        eprintln!("[DBG] found {} publishers on-chain", publisher_array.len());
 
         let mut foreign_accounts: Vec<ForeignAccount> = vec![];
         let publisher_entries_slot = StorageSlotName::new("pragma::publisher::entries")
