@@ -1,14 +1,15 @@
 // pub mod common;
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::vec;
 mod common;
 use anyhow::{Context, Result};
 use miden_client::account::AccountId;
-use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
+use miden_client::rpc::domain::account::AccountStorageRequirements;
 use miden_client::transaction::{ForeignAccount, TransactionRequestBuilder};
-use miden_client::{Client, Felt, ScriptBuilder, Word, ZERO};
-use miden_protocol::account::{Account, StorageMap, StorageSlot};
+use miden_client::{Client, Felt, Word, ZERO};
+use miden_protocol::account::{Account, AccountType, StorageMap, StorageMapKey, StorageSlot, StorageSlotName};
+use miden_standards::code_builder::CodeBuilder;
 use miden_protocol::vm::AdviceInputs;
 use pm_types::{Currency, Entry, Pair};
 
@@ -28,8 +29,8 @@ use uuid::Uuid;
 
 #[tokio::test]
 async fn test_oracle_get_entry() -> Result<()> {
-    let entry = mock_entry();
-    let pair_word = entry.pair.to_word();
+    let (pair, entry) = mock_entry();
+    let pair_word = pair.to_word();
     let entry_as_word: Word = entry.clone().try_into().unwrap();
 
     let unique_id = Uuid::new_v4();
@@ -46,19 +47,23 @@ async fn test_oracle_get_entry() -> Result<()> {
         publisher_account.id().prefix().as_felt(),
     ];
     let mut storage_slots = vec![
-        // Storage for account (index 0)
-        StorageSlot::Value([Felt::new(4), ZERO, ZERO, ZERO].into()),
-        // Publisher registry
-        StorageSlot::Map(
+        StorageSlot::with_value(
+            StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap(),
+            [Felt::new(4), ZERO, ZERO, ZERO].into(),
+        ),
+        StorageSlot::with_map(
+            StorageSlotName::new("pragma::oracle::publishers").unwrap(),
             StorageMap::with_entries(vec![(
-                publisher_id_word.into(),
+                StorageMapKey::new(publisher_id_word.into()),
                 [Felt::new(2), ZERO, ZERO, ZERO].into(),
             )])
             .unwrap(),
         ),
-        StorageSlot::Value(publisher_id_word.into()),
+        StorageSlot::with_value(
+            StorageSlotName::new("pragma::oracle::publisher_2").unwrap(),
+            publisher_id_word.into(),
+        ),
     ];
-    storage_slots.extend((0..251).map(|_| StorageSlot::empty_value()));
 
     // Create and deploy oracle account
     let oracle_account = create_and_deploy_oracle_account(&mut client, Some(storage_slots)).await?;
@@ -117,8 +122,8 @@ async fn test_oracle_register_publisher() -> Result<()> {
         publisher_id_suffix = publisher_id.suffix(),
     );
 
-    let tx_script = ScriptBuilder::default()
-        .with_statically_linked_library(&get_oracle_component_library())?
+    let tx_script = CodeBuilder::default()
+        .with_statically_linked_library(&*get_oracle_component_library())?
         .compile_tx_script(tx_script_code)?;
 
     let transaction_request = TransactionRequestBuilder::new()
@@ -136,16 +141,12 @@ async fn test_oracle_register_publisher() -> Result<()> {
         .await
         .context("Failed to get oracle account")?
         .context("Oracle account not found")?;
-    let oracle_account = oracle_account.account();
 
     // Check that publisher was registered
+    let next_index_slot = &StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap();
     assert_eq!(
-        oracle_account.storage().get_item(1).unwrap(),
-        [Felt::new(3), ZERO, ZERO, ZERO].into() // We inserted a single publisher
-    );
-    assert_eq!(
-        oracle_account.storage().get_item(3).unwrap(),
-        publisher_id_word.into()
+        oracle_account.storage().get_item(next_index_slot).unwrap(),
+        [Felt::new(3), ZERO, ZERO, ZERO].into()
     );
 
     Ok(())
@@ -188,8 +189,8 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
         publisher_id_suffix = publisher_id.suffix(),
     );
 
-    let tx_script = ScriptBuilder::default()
-        .with_statically_linked_library(&get_oracle_component_library())?
+    let tx_script = CodeBuilder::default()
+        .with_statically_linked_library(&*get_oracle_component_library())?
         .compile_tx_script(tx_script_code.clone())?;
 
     let transaction_request = TransactionRequestBuilder::new()
@@ -204,8 +205,8 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
     client.sync_state().await.context("Failed to sync state")?;
 
     // Now try to register the same publisher again - should fail
-    let tx_script = ScriptBuilder::default()
-        .with_statically_linked_library(&get_oracle_component_library())?
+    let tx_script = CodeBuilder::default()
+        .with_statically_linked_library(&*get_oracle_component_library())?
         .compile_tx_script(tx_script_code)?;
 
     let transaction_request = TransactionRequestBuilder::new()
@@ -215,7 +216,7 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
 
     // The transaction creation should succeed, but execution should fail
     let result = client
-        .new_transaction(oracle_account.id(), transaction_request)
+        .submit_new_transaction(oracle_account.id(), transaction_request)
         .await;
 
     // Check that the transaction execution failed with the expected error
@@ -255,29 +256,23 @@ async fn test_oracle_get_median() -> Result<()> {
     let (mut client, store_config) =
         setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
 
-    // Create entries with different prices for testing median
+    let pair = Pair::new(
+        Currency::new("BTC").context("Invalid currency")?,
+        Currency::new("USD").context("Invalid currency")?,
+    );
     let entry1 = Entry {
-        pair: Pair::new(
-            Currency::new("BTC").context("Invalid currency")?,
-            Currency::new("USD").context("Invalid currency")?,
-        ),
-        price: 50000000000, // $50,000
+        faucet_id: "1:0".to_string(),
+        price: 50000000000,
         decimals: 8,
         timestamp: 1739722449,
     };
-
     let entry2 = Entry {
-        pair: Pair::new(
-            Currency::new("BTC").context("Invalid currency")?,
-            Currency::new("USD").context("Invalid currency")?,
-        ),
-        price: 52000000000, // $52,000
+        faucet_id: "1:0".to_string(),
+        price: 52000000000,
         decimals: 8,
         timestamp: 1739722450,
     };
-
-    // Create pair word (same for both entries since they have the same pair)
-    let pair_word = entry1.pair.to_word();
+    let pair_word = pair.to_word();
     // Create and deploy publisher accounts
     let entry1_as_word: Word = entry1.clone().try_into().unwrap();
     let entry2_as_word: Word = entry2.clone().try_into().unwrap();
@@ -308,8 +303,8 @@ async fn test_oracle_get_median() -> Result<()> {
             publisher_id_suffix = publisher_id.suffix(),
         );
 
-        let tx_script = ScriptBuilder::default()
-            .with_statically_linked_library(&get_oracle_component_library())?
+        let tx_script = CodeBuilder::default()
+            .with_statically_linked_library(&*get_oracle_component_library())?
             .compile_tx_script(tx_script_code)?;
 
         let transaction_request = TransactionRequestBuilder::new()
@@ -338,7 +333,7 @@ async fn test_oracle_get_median() -> Result<()> {
 
         let foreign_account = ForeignAccount::public(
             publisher_id,
-            AccountStorageRequirements::new([(1u8, &[StorageMapKey::from(pair_word)])]),
+            AccountStorageRequirements::new([(StorageSlotName::new("pragma::publisher::entries").unwrap(), &[StorageMapKey::new(pair_word)])]),
         )
         .context("Failed to create foreign account")?;
         foreign_accounts.push(foreign_account);
@@ -361,16 +356,16 @@ async fn test_oracle_get_median() -> Result<()> {
         pair = word_to_masm(pair_word),
     );
 
-    let tx_script = ScriptBuilder::default()
-        .with_statically_linked_library(&get_oracle_component_library())?
+    let tx_script = CodeBuilder::default()
+        .with_statically_linked_library(&*get_oracle_component_library())?
         .compile_tx_script(tx_script_code)?;
-    let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
+    let foreign_accounts_map: BTreeMap<AccountId, ForeignAccount> = foreign_accounts.into_iter().map(|fa| (fa.account_id(), fa)).collect();
     let output_stack = client
         .execute_program(
             oracle_account.id(),
             tx_script,
             AdviceInputs::default(),
-            foreign_accounts_set,
+            foreign_accounts_map,
         )
         .await
         .unwrap();
@@ -379,7 +374,7 @@ async fn test_oracle_get_median() -> Result<()> {
         .first()
         .ok_or_else(|| anyhow::anyhow!("No median value returned"))?;
     let expected_price = (entry1.price + entry2.price) / 2;
-    assert_eq!(expected_price, <Felt as Into<u64>>::into(*median));
+    assert_eq!(expected_price, median.as_canonical_u64());
     Ok(())
 }
 
@@ -387,29 +382,25 @@ async fn test_oracle_get_median() -> Result<()> {
 
 pub async fn generate_publishers_and_median(
     n: usize,
-    client: &mut Client<miden_client::keystore::FilesystemKeyStore<rand::prelude::StdRng>>,
+    client: &mut Client<miden_client::keystore::FilesystemKeyStore>,
 ) -> Result<(Vec<(Word, Account)>, u64)> {
     let mut generated_publishers = Vec::with_capacity(n);
     let mut prices = Vec::with_capacity(n);
 
     for publisher_id in 1..=n as u64 {
-        let entry = random_entry();
-        // Store the price for median calculation
+        let (pair, entry) = random_entry();
         prices.push(entry.price);
 
         let entry_as_word: Word = entry.try_into().unwrap();
-        let pair: Felt = entry_as_word[0];
-        let pair_word: Word = [pair, ZERO, ZERO, ZERO].into();
+        let pair_word: Word = pair.to_word();
 
         let (publisher_account, _) = PublisherAccountBuilder::new()
             .with_storage_slots(vec![
-                StorageSlot::empty_map(),
-                // Entries map
-                StorageSlot::Map(
+                StorageSlot::with_empty_map(StorageSlotName::new("pragma::publisher::entries_empty").unwrap()),
+                StorageSlot::with_map(
+                    StorageSlotName::new("pragma::publisher::entries").unwrap(),
                     StorageMap::with_entries(vec![(
-                        // The key is the pair id
-                        pair_word,
-                        // The value is the entry
+                        StorageMapKey::new(pair_word),
                         entry_as_word,
                     )])
                     .unwrap(),
@@ -435,21 +426,21 @@ pub async fn generate_publishers_and_median(
 
 pub async fn generate_oracle_account(
     publisher_setups: &[(Word, Account)],
-    client: &mut Client<miden_client::keystore::FilesystemKeyStore<rand::prelude::StdRng>>,
+    client: &mut Client<miden_client::keystore::FilesystemKeyStore>,
 ) -> Result<Account> {
     // Start building the storage slots
     let mut storage_slots = Vec::new();
 
-    // 1. Add empty map at index 0
-    storage_slots.push(StorageSlot::empty_map());
+    storage_slots.push(StorageSlot::with_empty_map(
+        StorageSlotName::new("pragma::oracle::registry_empty").unwrap(),
+    ));
 
-    // 2. Next publisher slot (number of publishers + 4)
     let next_publisher_slot = publisher_setups.len() as u64 + 3;
-    storage_slots.push(StorageSlot::Value(
+    storage_slots.push(StorageSlot::with_value(
+        StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap(),
         [Felt::new(next_publisher_slot), ZERO, ZERO, ZERO].into(),
     ));
 
-    // 3. Build publisher registry map
     let mut registry_entries = Vec::new();
     for (i, (_, publisher_account)) in publisher_setups.iter().enumerate() {
         let publisher_id_word = [
@@ -458,24 +449,24 @@ pub async fn generate_oracle_account(
             ZERO,
             ZERO,
         ];
-        let slot_index = (i as u64) + 4; // Start from slot 4
-
+        let slot_index = (i as u64) + 4;
         registry_entries.push((publisher_id_word, [Felt::new(slot_index), ZERO, ZERO, ZERO]));
     }
 
-    storage_slots.push(StorageSlot::Map(
+    storage_slots.push(StorageSlot::with_map(
+        StorageSlotName::new("pragma::oracle::publishers").unwrap(),
         StorageMap::with_entries(
             registry_entries
                 .into_iter()
-                .map(|(k, v)| (k.into(), v.into()))
+                .map(|(k, v)| (StorageMapKey::new(k.into()), v.into()))
                 .collect::<Vec<_>>(),
         )
         .unwrap(),
     ));
 
-    // 4. Add publisher ID values sequentially
-    for (_, publisher_account) in publisher_setups.iter() {
-        storage_slots.push(StorageSlot::Value(
+    for (i, (_, publisher_account)) in publisher_setups.iter().enumerate() {
+        storage_slots.push(StorageSlot::with_value(
+            StorageSlotName::new(format!("pragma::oracle::publisher_{}", i)).unwrap(),
             [
                 publisher_account.id().prefix().as_felt(),
                 publisher_account.id().suffix(),

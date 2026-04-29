@@ -1,9 +1,10 @@
 mod common;
 use anyhow::{Context, Result};
-use miden_client::{transaction::TransactionRequestBuilder, Felt, ScriptBuilder};
+use miden_client::{transaction::TransactionRequestBuilder, Felt};
 use miden_protocol::vm::AdviceInputs;
+use miden_standards::code_builder::CodeBuilder;
 use pm_types::{Currency, Entry, Pair};
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 
@@ -22,21 +23,13 @@ async fn test_publisher_publish_entry() -> Result<()> {
     let (mut client, store_config) =
         setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
 
-    // Create a new entry to publish
+    let pair = Pair::new(
+        Currency::new("BTC").context("Invalid currency")?,
+        Currency::new("USD").context("Invalid currency")?,
+    );
+    let pair_word = pair.to_word();
     let entry = Entry {
-        pair: Pair::new(
-            Currency::new("BTC").context("Invalid currency")?,
-            Currency::new("USD").context("Invalid currency")?,
-        ),
-        price: 51000000000, // $51,000
-        decimals: 8,
-        timestamp: 1739722449,
-    };
-    // Create pair word from entry
-    let pair_word = entry.pair.to_word();
-    let entry = Entry {
-        // Create an empty entry with the same pair
-        pair: entry.pair.clone(),
+        faucet_id: "1:0".to_string(),
         price: 0,
         decimals: 0,
         timestamp: 0,
@@ -52,7 +45,7 @@ async fn test_publisher_publish_entry() -> Result<()> {
         "
 
         use publisher_component::publisher_module
-        use.use.miden::auth::rpo_falcon512-> auth__tx
+        use miden::auth::single_sig-> auth__tx
         use miden::core::sys
 
         begin
@@ -71,8 +64,8 @@ async fn test_publisher_publish_entry() -> Result<()> {
         entry = word_to_masm(entry_as_word)
     );
 
-    let tx_script = ScriptBuilder::default()
-        .with_statically_linked_library(&get_publisher_component_library())
+    let tx_script = CodeBuilder::default()
+        .with_statically_linked_library(&*get_publisher_component_library())
         .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
         .compile_tx_script(tx_script_code)
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {}", e))?;
@@ -92,13 +85,12 @@ async fn test_publisher_publish_entry() -> Result<()> {
         .await
         .context("Failed to get publisher account")?
         .context("Publisher account not found")?;
-    let publisher_account = publisher_account.account();
-
     // Check that the entry was published by retrieving it from storage
     // The entry should be in the map at slot 1 with the pair_word as key
     let storage = publisher_account.storage();
+    let entries_slot = &miden_protocol::account::StorageSlotName::new("pragma::publisher::entries").unwrap();
     let stored_entry = storage
-        .get_map_item(1, pair_word)
+        .get_map_item(entries_slot, pair_word)
         .context("Failed to get entry map")?;
 
     // Verify the stored entry matches what we published
@@ -119,11 +111,8 @@ async fn test_publisher_get_entry() -> Result<()> {
     let (mut client, store_config) =
         setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
 
-    // Create an entry to store in the publisher account
-    let entry = mock_entry();
-
-    // Create pair word from entry
-    let pair_word = entry.pair.to_word();
+    let (pair, entry) = mock_entry();
+    let pair_word = pair.to_word();
     let entry_as_word: Word = entry.clone().try_into().unwrap();
     // Create and deploy publisher account with the entry
     let publisher_account =
@@ -145,8 +134,8 @@ async fn test_publisher_get_entry() -> Result<()> {
         pair = word_to_masm(pair_word),
     );
 
-    let get_entry_script = ScriptBuilder::default()
-        .with_statically_linked_library(&get_publisher_component_library())
+    let get_entry_script = CodeBuilder::default()
+        .with_statically_linked_library(&*get_publisher_component_library())
         .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {}", e))?
         .compile_tx_script(tx_script_code)
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {}", e))?;
@@ -156,16 +145,16 @@ async fn test_publisher_get_entry() -> Result<()> {
             publisher_account.id(),
             get_entry_script,
             AdviceInputs::default(),
-            BTreeSet::new(),
+            BTreeMap::new(),
         )
         .await
         .unwrap();
     println!("Here is the output stack: {:?}", output_stack);
     let expected_entry = Entry {
-        pair: entry.pair.clone(), // Normal, should be removed
-        price: output_stack[2].into(),
-        decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
-        timestamp: output_stack[0].into(),
+        faucet_id: entry.faucet_id.clone(),
+        price: output_stack[2].as_canonical_u64(),
+        decimals: output_stack[1].as_canonical_u64() as u32,
+        timestamp: output_stack[0].as_canonical_u64(),
     };
     assert_eq!(expected_entry, entry);
     Ok(())

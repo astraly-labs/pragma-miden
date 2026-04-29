@@ -5,7 +5,7 @@ use pm_accounts::publisher::get_publisher_component_library;
 use pm_accounts::utils::word_to_masm;
 use pm_types::Entry;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -88,8 +88,9 @@ impl GetEntryCmd {
             faucet_id = word_to_masm(faucet_id_word),
         );
 
+        let publisher_lib = get_publisher_component_library();
         let get_entry_script = CodeBuilder::default()
-            .with_statically_linked_library(&get_publisher_component_library())
+            .with_statically_linked_library(&publisher_lib)
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code)
             .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
@@ -99,16 +100,16 @@ impl GetEntryCmd {
                 publisher_id,
                 get_entry_script,
                 AdviceInputs::default(),
-                BTreeSet::new(),
+                BTreeMap::new(),
             )
             .await
             .unwrap();
         println!("Here is the output stack: {:?}", output_stack);
         Ok(Entry {
             faucet_id: self.faucet_id.clone(),
-            price: output_stack[2].into(),
-            decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
-            timestamp: output_stack[0].into(),
+            price: output_stack[2].as_canonical_u64(),
+            decimals: output_stack[1].as_canonical_u64() as u32,
+            timestamp: output_stack[0].as_canonical_u64(),
         })
     }
 }

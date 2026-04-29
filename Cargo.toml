@@ -49,16 +49,16 @@ tokio = { version = "1.40.0", features = ["rt-multi-thread", "net", "macros"] }
 chrono = "0.4"
 prettytable-rs = "0.10"
 futures = "0.3.31"
-# Miden 0.13 dependencies (
-miden-protocol = { version = "0.13" }
-miden-standards = { version = "0.13" }
-miden-assembly = "0.21.0"
-miden-core = "0.21.0"
-miden-core-lib = "0.21.0"
-miden-crypto = "0.22.2"
-miden-tx = { version = "0.13", features = ["concurrent"] }
-miden-client = { version = "0.13.2", features = ["tonic", "testing"] }
-miden-client-sqlite-store = "0.13.2"
+# Miden 0.14 dependencies
+miden-protocol = { version = "0.14" }
+miden-standards = { version = "0.14" }
+miden-assembly = "0.22"
+miden-core = "0.22"
+miden-core-lib = "0.22"
+miden-crypto = "0.23"
+miden-tx = { version = "0.14", features = ["concurrent"] }
+miden-client = { version = "0.14", features = ["tonic", "testing"] }
+miden-client-sqlite-store = "0.14"
 
 pyo3 = { version = "0.20.0", features = ["extension-module",  "abi3-py37"] }
 uuid = { version = "1.10", features = ["serde", "v4"] }

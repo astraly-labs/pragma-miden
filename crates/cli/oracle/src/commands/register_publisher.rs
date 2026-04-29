@@ -70,8 +70,9 @@ impl RegisterPublisherCmd {
             account_id_prefix = publisher_id.prefix().as_u64(),
             account_id_suffix = publisher_id.suffix(),
         );
+        let oracle_lib = get_oracle_component_library();
         let register_script = CodeBuilder::default()
-            .with_dynamically_linked_library(&get_oracle_component_library())
+            .with_dynamically_linked_library(&oracle_lib)
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code)
             .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;

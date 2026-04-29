@@ -17,6 +17,15 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    cli.command.call(&cli.network).await?;
+    let output = cli.command.call(&cli.network).await?;
+    match output {
+        commands::CommandOutput::Entry(entry) => {
+            println!("Price: {}, Decimals: {}, Timestamp: {}", entry.price, entry.decimals, entry.timestamp);
+        }
+        commands::CommandOutput::Felt(f) => {
+            println!("{}", f);
+        }
+        _ => {}
+    }
     Ok(())
 }

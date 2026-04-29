@@ -49,11 +49,20 @@ end
 #! Inputs: [PUBLISHER_ID, faucet_id_word]
 #! Output: [ENTRY]
 proc call_publisher_get_entry
-    push.{GET_ENTRY_HASH}
-    # => [GET_ENTRY_HASH, PUBLISHER_ID, faucet_id_word]
-    swapw swap.2 drop swap.2 drop
-    # => [publisher_id,publisher_id,  GET_ENTRY_HASH, faucet_id_word]
+    # Input: [pub_prefix, pub_suffix, 0, 0, faucet_id_word(4)]
+    # execute_foreign_procedure expects: [acct_suffix, acct_prefix, PROC_ROOT(4), inputs(16)...]
+    # Save prefix and suffix, drop the 2 padding zeros
+    movup.3 drop movup.2 drop
+    # => [pub_prefix, pub_suffix, faucet_id_word(4)]
 
+    # Swap to get suffix on top
+    swap
+    # => [pub_suffix, pub_prefix, faucet_id_word(4)]
+    # Push PROC_ROOT and move suffix/prefix above it
+    push.{GET_ENTRY_HASH}
+    # => [HASH(4), pub_suffix, pub_prefix, faucet_id_word(4)]
+    movup.5 movup.5
+    # => [pub_suffix, pub_prefix, HASH(4), faucet_id_word(4)]
     exec.tx::execute_foreign_procedure
     # => [ENTRY]
 end
@@ -106,19 +115,21 @@ end
 #! Output : [avg]
 proc compute_average
     u32split
-    # => [a_high, a_low, b]
+    # => [a_lo, a_hi, b] (LE: lo on top)
     movup.2
-    # => [b, a_high, a_low]
+    # => [b, a_lo, a_hi]
     u32split
-    # => [b_high, b_low, a_high, a_low]
+    # => [b_lo, b_hi, a_lo, a_hi]
     exec.u64::wrapping_add
-    # => [c_high, c_low]
-    push.2.0
-    # => [0,2,c_high, c_low]
+    # => [c_lo, c_hi]
+    push.0.2
+    # => [2, 0, c_lo, c_hi] = [b_lo=2, b_hi=0, a_lo, a_hi]
     exec.u64::div
-    # => [avg_high, avg_low]
+    # => [q_lo, q_hi]
+    swap
+    # => [q_hi, q_lo]
     push.MAX_U32
-    # => [MAX_U32,avg_high, avg_low]
+    # => [MAX_U32, q_hi, q_lo]
     mul add
     # => [avg]
 end
@@ -207,10 +218,13 @@ proc ram_get_median
     dup is_odd
     # => [nb_of_entries]
     if.true
-        push.0.2.0
-        exec.u64::div drop
-        # => [index_to_read]
-        # = nb_of_entries / 2
+        # nb / 2 using u64::div in LE: [b_lo, b_hi, a_lo, a_hi]
+        push.0 swap push.0.2
+        # => [2, 0, nb, 0] = divisor=2, dividend=nb
+        exec.u64::div
+        # => [q_lo, q_hi] — q_hi=0 for small values
+        swap drop
+        # => [index_to_read] = nb/2
 
         push.0.0.0.0 movup.4 mul.4 mem_loadw_be
         # => [MEDIAN_ENTRY]
@@ -218,9 +232,9 @@ proc ram_get_median
         exec.entry_to_price
         # => [price_median]
     else
-        push.0.2.0
-        exec.u64::div drop
-        # => [index_to_read]
+        push.0 swap push.0.2
+        exec.u64::div swap drop
+        # => [index_to_read] = nb/2
 
         dup sub.1
         # => [index_to_read - 1, index_to_read]
@@ -266,56 +280,54 @@ end
 pub proc get_median
 
     # => [faucet_id_prefix, faucet_id_suffix, amount, 0]
+
     movup.2 mem_store.10000
-    # -> [faucet_id_prefix, faucet_id_suffix, 0]
     push.0 movdn.3
     # -> [faucet_id_prefix, faucet_id_suffix, 0, 0]
 
-    # Iterate from 3 to NEXT_PUBLISHER_INDEX_SLOT value.
-    push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item drop drop drop
+    push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
+
+    movdn.3 drop drop drop
+
     # => [next_publisher_slot, faucet_id_prefix, faucet_id_suffix, 0]
 
     push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
-    # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, FAUCET_ID]
+
 
     while.true
-        # Get the publisher id at slot [top of the stack]
-        dup push.0.0.0
+
+        # Build KEY in LE: [slot, 0, 0, 0] to match how register stored it
+        dup push.0.0.0 movup.3
         push.PUBLISHERS_MAP_SLOT[0..2] exec.active_account::get_map_item
+
         # => [PUBLISHER_ID, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, FAUCET_ID]
 
         push.0.0 dup.9 dup.9 swapw
         # => [PUBLISHER_ID, faucet_id_word, slot, next_slot, faucet_id_prefix, faucet_id_suffix, 0, 0]
 
-        # Call get_entry
         exec.call_publisher_get_entry
+
         # => [ENTRY, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, FAUCET_ID]
 
-        # Store the entry in the RAM from index 0 to index N
         dup.4 push.PUBLISHERS_STORAGE_SLOT sub mul.4
         mem_storew_be dropw
         # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, FAUCET_ID]
-        # Increment the next index and check if there's still publishers to process
         add.1 exec.felt_is_lower
-        # => [PUBLISHERS_STORAGE_SLOT +1 , next_publisher_slot, FAUCET_ID]
+
     end
-    # Drop the utilities used to get all the entries - only keep the length on the ram.
+
 
     swap drop movdn.4 dropw
-    # => [4]
+
 
     push.PUBLISHERS_STORAGE_SLOT
-    # =>  [PUBLISHER_STORAGE_SLOT, 4]
-
     sub
-    # => [Number of entries]
-    # Sort the entries stored on the RAM
-    exec.ram_bubble_sort
-    # => [4]
 
-    # Retrieves the median from the sorted RAM entries
+
+    exec.ram_bubble_sort
+
+
     exec.ram_get_median
-    # => [median_price]
 
     # Compute is_tracked flag: 1 if median != 0, else 0
     dup push.0 neq
@@ -341,25 +353,26 @@ pub proc register_publisher
     # => [PUBLISHER_ID]
 
     # Retrieve the next available index from storage
+    # get_item returns word in LE: [idx, 0, 0, 0] with idx on top
     push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
-    # => [0, 0, 0, idx, PUBLISHER_ID]
+    # => [idx, 0, 0, 0, PUBLISHER_ID]
 
-    # KEY = [0,0,0,idx] on top, NEW_VALUE = PUBLISHER_ID right behind
+    # KEY = word on top, NEW_VALUE = PUBLISHER_ID right behind
     push.PUBLISHERS_MAP_SLOT[0..2] exec.native_account::set_map_item dropw
     # => []
 
     # Increment next_publisher_index
     push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
-    # => [0, 0, 0, idx]
+    # => [idx, 0, 0, 0]
 
-    drop drop drop
+    # Keep idx (top element in LE)
+    movdn.3 drop drop drop
     # => [idx]
 
     add.1
-    # => [idx+1]
 
-    push.0.0.0
-    # => [0, 0, 0, idx+1]
+    # Rebuild word in LE: [idx+1, 0, 0, 0]
+    push.0.0.0 movup.3
 
     push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.native_account::set_item dropw
     # => []

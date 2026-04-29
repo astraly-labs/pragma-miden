@@ -1,14 +1,14 @@
 use anyhow::Context;
 use miden_client::account::AccountId;
-use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
+use miden_client::rpc::domain::account::AccountStorageRequirements;
 use miden_client::transaction::ForeignAccount;
-use miden_protocol::account::StorageSlotName;
+use miden_protocol::account::{StorageMapKey, StorageSlotName};
 use miden_standards::code_builder::CodeBuilder;
 use miden_client::{keystore::FilesystemKeyStore, Client, Felt, Word, ZERO};
 use miden_protocol::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -32,33 +32,35 @@ impl MedianCmd {
         client.import_account_by_id(oracle_id).await?;
         client.sync_state().await?;
         eprintln!("[DBG] sync1 done");
-        let oracle = client
+        let account = client
             .get_account(oracle_id)
             .await?
             .expect("Oracle account not found");
         eprintln!("[DBG] oracle fetched from store");
-        
+
         let parts: Vec<&str> = self.faucet_id.split(':').collect();
         if parts.len() != 2 {
             return Err(anyhow::anyhow!("Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"));
         }
-        
+
         let prefix = parts[0].parse::<u64>()
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix: {}", parts[0]))?;
         let suffix = parts[1].parse::<u64>()
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
-        
+
         let faucet_id_word: Word = [
-            Felt::new(prefix),
+            Felt::new(0),
+            Felt::new(0),
             Felt::new(suffix),
-            Felt::new(0),
-            Felt::new(0),
+            Felt::new(prefix),
         ].into();
-        
-        let account = match oracle.account_data() {
-            miden_client::store::AccountRecordData::Full(acc) => acc,
-            _ => return Err(anyhow::anyhow!("Expected full account data for oracle")),
-        };
+
+        // Re-import oracle from chain to get fresh storage state
+        client.import_account_by_id(oracle_id).await?;
+        let account = client
+            .get_account(oracle_id)
+            .await?
+            .expect("Oracle account not found after re-import");
         let storage = account.storage();
 
         let next_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index")
@@ -66,7 +68,7 @@ impl MedianCmd {
         let publisher_count = storage
             .get_item(&next_index_slot)
             .context("Unable to retrieve publisher count")?[0]
-            .as_int();
+            .as_canonical_u64();
 
         let publishers_slot = StorageSlotName::new("pragma::oracle::publishers")
             .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
@@ -76,9 +78,11 @@ impl MedianCmd {
                 let w = storage
                     .get_map_item(&publishers_slot, key.into())
                     .with_context(|| format!("Failed to retrieve publisher at index {i}"))?;
-                Ok(AccountId::new_unchecked([w[3], w[2]]))
+                // In 0.14 LE, publisher ID word is [prefix, suffix, 0, 0]
+                Ok(AccountId::new_unchecked([w[0], w[1]]))
             })
             .collect::<Result<_, _>>()?;
+        eprintln!("[DBG] found {} publishers on-chain", publisher_array.len());
 
         let mut foreign_accounts: Vec<ForeignAccount> = vec![];
         let publisher_entries_slot = StorageSlotName::new("pragma::publisher::entries")
@@ -88,7 +92,7 @@ impl MedianCmd {
             eprintln!("[DBG] publisher {publisher_id} imported");
             let foreign_account = ForeignAccount::public(
                 publisher_id,
-                AccountStorageRequirements::new([(publisher_entries_slot.clone(), &[StorageMapKey::from(faucet_id_word)])]),
+                AccountStorageRequirements::new([(publisher_entries_slot.clone(), &[StorageMapKey::new(faucet_id_word)])]),
             )?;
             foreign_accounts.push(foreign_account);
         }
@@ -110,18 +114,19 @@ impl MedianCmd {
             suffix = suffix,
             amount = self.amount,
         );
+        let oracle_lib = get_oracle_component_library();
         let median_script = CodeBuilder::default()
-            .with_dynamically_linked_library(&get_oracle_component_library())
+            .with_dynamically_linked_library(&oracle_lib)
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code.clone())
             .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
-        let foreign_accounts_set: BTreeSet<ForeignAccount> = foreign_accounts.into_iter().collect();
+        let foreign_accounts_map: BTreeMap<AccountId, ForeignAccount> = foreign_accounts.into_iter().map(|fa| (fa.account_id(), fa)).collect();
         let output_stack = client.execute_program(
                 oracle_id,
                 median_script,
                 AdviceInputs::default(),
-                foreign_accounts_set,
+                foreign_accounts_map,
             )
             .await
             .map_err(|e| anyhow::anyhow!("execute_program error: {e:?}"))?;
@@ -136,7 +141,7 @@ impl MedianCmd {
         let median = output_stack[1];
         let returned_amount = output_stack[2];
 
-        if is_tracked.as_int() == 0 {
+        if is_tracked.as_canonical_u64() == 0 {
             println!("Asset not tracked (median: 0, amount: {})", returned_amount);
         } else {
             println!("Median value: {} (amount: {})", median, returned_amount);

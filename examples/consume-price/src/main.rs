@@ -1,16 +1,16 @@
 use anyhow::{Context, Result};
 use miden_client::{
     account::AccountId,
-    rpc::domain::account::{AccountStorageRequirements, StorageMapKey},
-    store::AccountRecordData,
-    transaction::{AdviceInputs, ForeignAccount},
+    rpc::domain::account::AccountStorageRequirements,
+    transaction::ForeignAccount,
     Felt, Word, ZERO,
 };
-use miden_protocol::account::StorageSlotName;
+use miden_protocol::account::{StorageMapKey, StorageSlotName};
+use miden_protocol::vm::AdviceInputs;
 use miden_standards::code_builder::CodeBuilder;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_utils_cli::setup_testnet_client;
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 // ── Pragma Miden testnet oracle ───────────────────────────────────────────────
 const ORACLE_ID: &str = "0xafebd403be621e005bf03b9fec7fe8";
@@ -27,7 +27,7 @@ const SLOT_ENTRIES: &str = "pragma::publisher::entries";
 #[tokio::main]
 async fn main() -> Result<()> {
     let oracle_id = AccountId::from_hex(ORACLE_ID)?;
-    let faucet_word: Word = [Felt::new(PAIR_PREFIX), Felt::new(PAIR_SUFFIX), ZERO, ZERO].into();
+    let faucet_word: Word = [ZERO, ZERO, Felt::new(PAIR_SUFFIX), Felt::new(PAIR_PREFIX)].into();
 
     // Store is created in ./miden_storage/store.sqlite3 relative to CWD.
     let mut client = setup_testnet_client(None, None).await?;
@@ -40,22 +40,17 @@ async fn main() -> Result<()> {
     client.import_account_by_id(oracle_id).await?;
     client.sync_state().await?;
 
-    let oracle_record = client
+    let oracle_account = client
         .get_account(oracle_id)
         .await?
         .context("oracle account not found on testnet")?;
-
-    let oracle_account = match oracle_record.account_data() {
-        AccountRecordData::Full(acc) => acc,
-        _ => anyhow::bail!("expected full oracle account data"),
-    };
 
     let storage = oracle_account.storage();
     let count_slot = StorageSlotName::new(SLOT_NEXT_INDEX)?;
     let publisher_count = storage
         .get_item(&count_slot)
         .context("unable to read next_publisher_index")?[0]
-        .as_int();
+        .as_canonical_u64();
 
     println!("Registered publishers: {}", publisher_count - 2);
 
@@ -82,7 +77,7 @@ async fn main() -> Result<()> {
             *pid,
             AccountStorageRequirements::new([(
                 entries_slot.clone(),
-                &[StorageMapKey::from(faucet_word)],
+                &[StorageMapKey::new(faucet_word)],
             )]),
         )?);
     }
@@ -111,8 +106,9 @@ async fn main() -> Result<()> {
         suffix = PAIR_SUFFIX,
     );
 
+    let oracle_lib = get_oracle_component_library();
     let script = CodeBuilder::default()
-        .with_dynamically_linked_library(&get_oracle_component_library())
+        .with_dynamically_linked_library(&oracle_lib)
         .map_err(|e| anyhow::anyhow!("library error: {e:?}"))?
         .compile_tx_script(script_code)
         .map_err(|e| anyhow::anyhow!("compile error: {e:?}"))?;
@@ -122,14 +118,14 @@ async fn main() -> Result<()> {
             oracle_id,
             script,
             AdviceInputs::default(),
-            foreign_accounts.into_iter().collect::<BTreeSet<_>>(),
+            foreign_accounts.into_iter().map(|fa| (fa.account_id(), fa)).collect::<BTreeMap<_, _>>(),
         )
         .await
         .map_err(|e| anyhow::anyhow!("execute_program failed: {e:?}"))?;
 
     // Stack layout (TOS first): [amount, is_tracked, median, ...]
-    let is_tracked = output_stack[0].as_int();
-    let median = output_stack[1].as_int();
+    let is_tracked = output_stack[0].as_canonical_u64();
+    let median = output_stack[1].as_canonical_u64();
 
     if is_tracked == 0 {
         println!("BTC/USD: not tracked by the oracle.");

@@ -1,10 +1,10 @@
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use miden_client::account::AccountId;
-use miden_client::rpc::domain::account::{AccountStorageRequirements, StorageMapKey};
+use miden_client::rpc::domain::account::AccountStorageRequirements;
 use miden_client::transaction::ForeignAccount;
-use miden_protocol::account::StorageSlotName;
+use miden_protocol::account::{StorageMapKey, StorageSlotName};
 use miden_standards::code_builder::CodeBuilder;
 use miden_client::{keystore::FilesystemKeyStore, Client, Felt};
 
@@ -43,14 +43,13 @@ impl GetEntryCmd {
     ) -> anyhow::Result<Entry> {
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
         let publisher_id = AccountId::from_hex(&self.publisher_id)?;
+        client.import_account_by_id(publisher_id).await?;
+        client.import_account_by_id(oracle_id).await?;
+        client.sync_state().await?;
         let publisher = client
             .get_account(publisher_id)
             .await?
             .expect("Publisher account not found");
-        let _ = client
-            .get_account(oracle_id)
-            .await?
-            .expect("Oracle account not found");
 
         let parts: Vec<&str> = self.faucet_id.split(':').collect();
         if parts.len() != 2 {
@@ -66,10 +65,10 @@ impl GetEntryCmd {
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix"))?;
 
         let faucet_id_word: miden_client::Word = [
-            Felt::new(prefix),
+            Felt::new(0),
+            Felt::new(0),
             Felt::new(suffix),
-            Felt::new(0),
-            Felt::new(0),
+            Felt::new(prefix),
         ]
         .into();
 
@@ -77,13 +76,13 @@ impl GetEntryCmd {
             .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let foreign_account = ForeignAccount::public(
             publisher.id(),
-            AccountStorageRequirements::new([(publisher_entries_slot, &[StorageMapKey::from(faucet_id_word)])]),
+            AccountStorageRequirements::new([(publisher_entries_slot, &[StorageMapKey::new(faucet_id_word)])]),
         )?;
         let tx_script_code = format!(
             "
             use oracle_component::oracle_module
             use miden::core::sys
-    
+
             begin
                 push.{faucet_id}
                 push.0.0
@@ -97,27 +96,28 @@ impl GetEntryCmd {
             account_id_suffix = publisher_id.suffix(),
         );
 
+        let oracle_lib = get_oracle_component_library();
         let get_entry_script = CodeBuilder::default()
-            .with_dynamically_linked_library(&get_oracle_component_library())
+            .with_dynamically_linked_library(&oracle_lib)
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code)
             .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
-        let mut foreign_accounts_set: BTreeSet<ForeignAccount> = BTreeSet::new();
-        foreign_accounts_set.insert(foreign_account);
+        let mut foreign_accounts_map: BTreeMap<AccountId, ForeignAccount> = BTreeMap::new();
+        foreign_accounts_map.insert(foreign_account.account_id(), foreign_account);
         let output_stack = client
             .execute_program(
                 oracle_id,
                 get_entry_script,
                 AdviceInputs::default(),
-                foreign_accounts_set,
+                foreign_accounts_map,
             )
             .await
-            .map_err(|e| anyhow::anyhow!("Error executing transaction: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Error executing transaction: {:?}", e))?;
         Ok(Entry {
             faucet_id: self.faucet_id.clone(),
-            price: output_stack[2].into(),
-            decimals: <Felt as Into<u64>>::into(output_stack[1]) as u32,
-            timestamp: output_stack[0].into(),
+            price: output_stack[2].as_canonical_u64(),
+            decimals: output_stack[1].as_canonical_u64() as u32,
+            timestamp: output_stack[0].as_canonical_u64(),
         })
     }
 }

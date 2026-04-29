@@ -129,8 +129,9 @@ impl PublishBatchCmd {
             publish_calls = publish_calls
         );
 
+        let publisher_lib = get_publisher_component_library();
         let publish_script = CodeBuilder::default()
-            .with_statically_linked_library(&get_publisher_component_library())
+            .with_statically_linked_library(&publisher_lib)
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code)
             .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
