@@ -18,20 +18,16 @@
 
 ## Deployments
 
-### Testnet
+### Testnet (Miden 0.14)
 
 | Role       | Account ID                           | Explorer |
 |------------|--------------------------------------|----------|
-| Oracle     | `0xafebd403be621e005bf03b9fec7fe8`  | [view](https://testnet.midenscan.com/account/0xafebd403be621e005bf03b9fec7fe8) |
-| Publisher1 | `0x474d7a81bb950b001661523cdd7c0b`  | [view](https://testnet.midenscan.com/account/0x474d7a81bb950b001661523cdd7c0b) |
-| Publisher2 | `0x1ab593a30c20ce0001e98f60172dd9`  | [view](https://testnet.midenscan.com/account/0x1ab593a30c20ce0001e98f60172dd9) |
+| Oracle     | `0xec7e450b91bf690015ad79573689f1`  | [view](https://testnet.midenscan.com/account/0xec7e450b91bf690015ad79573689f1) |
+| Publisher1 | `0xaa9c9ad8583c3b0064eff7356152bd`  | [view](https://testnet.midenscan.com/account/0xaa9c9ad8583c3b0064eff7356152bd) |
+| Publisher2 | `0x39c45ece7de124002191469753074f`  | [view](https://testnet.midenscan.com/account/0x39c45ece7de124002191469753074f) |
+| Publisher3 | `0x022c8db22d56b1000643d54faf7487`  | [view](https://testnet.midenscan.com/account/0x022c8db22d56b1000643d54faf7487) |
 
 > Addresses change between testnet iterations. This table is the source of truth.
-
-This address is likely going to be the one with live data
-| Role       | Account ID                           | Explorer |
-|------------|--------------------------------------|----------|
-| Oracle     | `0x1afd74d988a4c3006b2f6b6665086d` | [view](https://testnet.midenscan.com/account/0x1afd74d988a4c3006b2f6b6665086d) |
 
 ---
 

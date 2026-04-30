@@ -7,6 +7,13 @@
         "0x3bc65a383d1a1c004847f88a93fc9e"
       ]
     },
-    "testnet": {}
+    "testnet": {
+      "oracle_account_id": "0xec7e450b91bf690015ad79573689f1",
+      "publisher_account_ids": [
+        "0xaa9c9ad8583c3b0064eff7356152bd",
+        "0x39c45ece7de124002191469753074f",
+        "0x022c8db22d56b1000643d54faf7487"
+      ]
+    }
   }
 }

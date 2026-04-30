@@ -15,10 +15,11 @@ Expected output:
 ```
 Syncing with testnet...
 Latest block: 651945
-Registered publishers: 2
-Imported publisher: 0x474d7a81bb950b001661523cdd7c0b
-Imported publisher: 0x1ab593a30c20ce0001e98f60172dd9
-BTC/USD: $84500.00  (raw: 84500000000, 6 decimals)
+Registered publishers: 3
+Imported publisher: 0xaa9c9ad8583c3b0064eff7356152bd
+Imported publisher: 0x39c45ece7de124002191469753074f
+Imported publisher: 0x022c8db22d56b1000643d54faf7487
+BTC/USD: $76316.00  (raw: 76316000000, 6 decimals)
 ```
 
 ## How it works
