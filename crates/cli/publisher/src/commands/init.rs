@@ -46,7 +46,10 @@ impl InitCmd {
         // if JsonStorage::exists(PRAGMA_ACCOUNTS_STORAGE) && JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE).get_key(PUBLISHER_ACCOUNT_ID).is_some() {
         //     bail!("A Publisher has already been created! Delete it if you wanna start over.");
         // }
-        client.sync_state().await.unwrap();
+        client
+            .sync_state()
+            .await
+            .map_err(|e| anyhow::anyhow!("Could not sync state during init: {}", e))?;
 
         let (publisher_account, _) = PublisherAccountBuilder::new()
             .with_client(client)

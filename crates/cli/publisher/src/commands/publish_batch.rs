@@ -52,13 +52,7 @@ impl PublishBatchCmd {
         client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<()> {
-        let publisher_id = if let Some(id) = &self.publisher_id {
-            AccountId::from_hex(id)?
-        } else {
-            get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?
-        };
-
-        let mut entries_data = Vec::new();
+        let mut typed_entries = Vec::with_capacity(self.entries.len());
         for entry_str in &self.entries {
             let parts: Vec<&str> = entry_str.split(':').collect();
             if parts.len() != 5 {
@@ -67,7 +61,6 @@ impl PublishBatchCmd {
                     entry_str
                 ));
             }
-
             let prefix = parts[0]
                 .parse::<u64>()
                 .map_err(|e| anyhow::anyhow!("Invalid faucet_id prefix '{}': {}", parts[0], e))?;
@@ -83,71 +76,109 @@ impl PublishBatchCmd {
             let timestamp = parts[4]
                 .parse::<u64>()
                 .map_err(|e| anyhow::anyhow!("Invalid timestamp '{}': {}", parts[4], e))?;
-
-            let faucet_id_word: Word = [
-                Felt::new(0),
-                Felt::new(0),
-                Felt::new(suffix),
-                Felt::new(prefix),
-            ].into();
-
-            let entry_word: Word = [
-                Felt::new(0),
-                Felt::new(price),
-                Felt::new(decimals as u64),
-                Felt::new(timestamp),
-            ].into();
-
-            let faucet_id_str = format!("{}:{}", prefix, suffix);
-            entries_data.push((faucet_id_str, faucet_id_word, entry_word));
+            typed_entries.push((format!("{}:{}", prefix, suffix), price, decimals, timestamp));
         }
+        publish_batch(client, network, &typed_entries, self.publisher_id.as_deref()).await
+    }
+}
 
-        let mut publish_calls = String::new();
-        for (_faucet_id_str, faucet_id_word, entry_word) in &entries_data {
-            publish_calls.push_str(&format!(
-                "
-                    push.{entry}
-                    push.{faucet_id_word}
-                    call.publisher_module::publish_entry
-                    dropw
-                ",
-                faucet_id_word = word_to_masm(*faucet_id_word),
-                entry = word_to_masm(*entry_word)
+/// Publish a batch of price entries in a single Miden transaction.
+///
+/// Each entry is `(faucet_id, price, decimals, timestamp)` where `faucet_id`
+/// is `"PREFIX:SUFFIX"` (e.g. `"1:0"` for BTC/USD).
+///
+/// Exposed as a free function so it can be called directly by other crates
+/// (notably the pyo3 binding) without having to round-trip through the
+/// CLI's string format.
+pub async fn publish_batch(
+    client: &mut Client<FilesystemKeyStore>,
+    network: &str,
+    entries: &[(String, u64, u32, u64)],
+    publisher_id_override: Option<&str>,
+) -> anyhow::Result<()> {
+    let publisher_id = if let Some(id) = publisher_id_override {
+        AccountId::from_hex(id)?
+    } else {
+        get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?
+    };
+
+    let mut entries_data = Vec::with_capacity(entries.len());
+    for (faucet_id, price, decimals, timestamp) in entries {
+        let parts: Vec<&str> = faucet_id.split(':').collect();
+        if parts.len() != 2 {
+            return Err(anyhow::anyhow!(
+                "Invalid faucet_id format '{}'. Expected PREFIX:SUFFIX (e.g., 1:0)",
+                faucet_id
             ));
         }
+        let prefix = parts[0]
+            .parse::<u64>()
+            .map_err(|e| anyhow::anyhow!("Invalid faucet_id prefix '{}': {}", parts[0], e))?;
+        let suffix = parts[1]
+            .parse::<u64>()
+            .map_err(|e| anyhow::anyhow!("Invalid faucet_id suffix '{}': {}", parts[1], e))?;
 
-        let tx_script_code = format!(
-            "
-                use publisher_component::publisher_module
-                use miden::core::sys
-        
-                begin
-                    {publish_calls}
-                    exec.sys::truncate_stack                    
-                end
-            ",
-            publish_calls = publish_calls
-        );
-
-        let publisher_lib = get_publisher_component_library();
-        let publish_script = CodeBuilder::default()
-            .with_statically_linked_library(&publisher_lib)
-            .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
-            .compile_tx_script(tx_script_code)
-            .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
-
-        let transaction_request = TransactionRequestBuilder::new()
-            .custom_script(publish_script)
-            .build()
-            .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
-
-        client
-            .submit_new_transaction(publisher_id, transaction_request)
-            .await
-            .map_err(|e| anyhow::anyhow!("Error while submitting transaction: {e:?}"))?;
-
-        println!("✓ Batch publish successful! ({} entries)", entries_data.len());
-
-        Ok(())
+        let faucet_id_word: Word = [
+            Felt::new(0),
+            Felt::new(0),
+            Felt::new(suffix),
+            Felt::new(prefix),
+        ]
+        .into();
+        let entry_word: Word = [
+            Felt::new(0),
+            Felt::new(*price),
+            Felt::new(*decimals as u64),
+            Felt::new(*timestamp),
+        ]
+        .into();
+        entries_data.push((faucet_id_word, entry_word));
     }
+
+    let mut publish_calls = String::new();
+    for (faucet_id_word, entry_word) in &entries_data {
+        publish_calls.push_str(&format!(
+            "
+                push.{entry}
+                push.{faucet_id_word}
+                call.publisher_module::publish_entry
+                dropw
+            ",
+            faucet_id_word = word_to_masm(*faucet_id_word),
+            entry = word_to_masm(*entry_word)
+        ));
+    }
+
+    let tx_script_code = format!(
+        "
+            use publisher_component::publisher_module
+            use miden::core::sys
+
+            begin
+                {publish_calls}
+                exec.sys::truncate_stack
+            end
+        ",
+        publish_calls = publish_calls
+    );
+
+    let publisher_lib = get_publisher_component_library();
+    let publish_script = CodeBuilder::default()
+        .with_statically_linked_library(&publisher_lib)
+        .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
+        .compile_tx_script(tx_script_code)
+        .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
+
+    let transaction_request = TransactionRequestBuilder::new()
+        .custom_script(publish_script)
+        .build()
+        .map_err(|e| anyhow::anyhow!("Error while building transaction request: {e:?}"))?;
+
+    client
+        .submit_new_transaction(publisher_id, transaction_request)
+        .await
+        .map_err(|e| anyhow::anyhow!("Error while submitting transaction: {e:?}"))?;
+
+    println!("✓ Batch publish successful! ({} entries)", entries_data.len());
+    Ok(())
 }
