@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "pm-publisher"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 description = "Python bindings for Pragma Miden Publisher CLI"
 authors = [{ name = "Pragma", email = "jordy@pragma.build" }]
 requires-python = ">=3.7"
