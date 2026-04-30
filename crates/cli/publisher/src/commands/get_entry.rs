@@ -103,7 +103,7 @@ impl GetEntryCmd {
                 BTreeMap::new(),
             )
             .await
-            .unwrap();
+            .map_err(|e| anyhow::anyhow!("Failed to execute get_entry program: {}", e))?;
         println!("Here is the output stack: {:?}", output_stack);
         Ok(Entry {
             faucet_id: self.faucet_id.clone(),

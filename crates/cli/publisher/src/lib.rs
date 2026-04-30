@@ -4,7 +4,8 @@ use pyo3::prelude::*;
 use std::path::PathBuf;
 mod commands;
 use crate::commands::{
-    entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, publish::PublishCmd, sync::SyncCmd,
+    entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, publish::PublishCmd,
+    publish_batch::publish_batch as do_publish_batch, sync::SyncCmd,
 };
 use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client, STORE_FILENAME};
 
@@ -79,7 +80,8 @@ fn py_publish(
     })
 }
 
-/// Get entry
+/// Get entry. Returns the entry serialized as a JSON string:
+/// `{"faucet_id": "1:0", "price": 6819900000000, "decimals": 8, "timestamp": 1700000000}`.
 #[pyfunction]
 #[pyo3(name = "get_entry")]
 fn py_get_entry(
@@ -99,11 +101,18 @@ fn py_get_entry(
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
 
         let cmd = GetEntryCmd { faucet_id };
-        cmd.call(&mut client, network_str)
+        let entry = cmd
+            .call(&mut client, network_str)
             .await
             .map_err(|e| PyValueError::new_err(format!("Get entry failed: {}", e)))?;
 
-        Ok("Entry retrieved successfully!".to_string())
+        Ok(serde_json::json!({
+            "faucet_id": entry.faucet_id,
+            "price": entry.price,
+            "decimals": entry.decimals,
+            "timestamp": entry.timestamp,
+        })
+        .to_string())
     })
 }
 
@@ -132,6 +141,37 @@ fn py_entry(
             .map_err(|e| PyValueError::new_err(format!("Entry failed: {}", e)))?;
 
         Ok("Entry details retrieved successfully!".to_string())
+    })
+}
+
+/// Publish a batch of price entries in a single Miden transaction.
+///
+/// `entries` is a list of `(faucet_id, price, decimals, timestamp)` tuples,
+/// where `faucet_id` is the `"PREFIX:SUFFIX"` string (e.g. `"1:0"`).
+#[pyfunction]
+#[pyo3(name = "publish_batch")]
+fn py_publish_batch(
+    entries: Vec<(String, u64, u32, u64)>,
+    storage_path: Option<String>,
+    keystore_path: Option<String>,
+    network: Option<String>,
+) -> PyResult<()> {
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
+
+    rt.block_on(async {
+        let store_config = get_store_config(storage_path);
+        let network_str = network.as_deref().unwrap_or("testnet");
+        let mut client = setup_client(network_str, store_config, keystore_path).await?;
+
+        do_publish_batch(&mut client, network_str, &entries, None)
+            .await
+            .map_err(|e| PyValueError::new_err(format!("Publish batch failed: {}", e)))?;
+
+        Ok(())
     })
 }
 
@@ -168,6 +208,7 @@ fn py_sync(
 fn pm_publisher(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(py_init))?;
     m.add_wrapped(wrap_pyfunction!(py_publish))?;
+    m.add_wrapped(wrap_pyfunction!(py_publish_batch))?;
     m.add_wrapped(wrap_pyfunction!(py_get_entry))?;
     m.add_wrapped(wrap_pyfunction!(py_entry))?;
     m.add_wrapped(wrap_pyfunction!(py_sync))?;
