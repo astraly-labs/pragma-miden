@@ -3,12 +3,34 @@ use miden_client::{keystore::FilesystemKeyStore, Client};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::path::PathBuf;
+use std::sync::OnceLock;
+use tokio::runtime::{Builder, Runtime};
 mod commands;
 use crate::commands::{
     entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, publish::PublishCmd,
     publish_batch::publish_batch as do_publish_batch, sync::SyncCmd,
 };
 use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client, STORE_FILENAME};
+
+/// Single shared Tokio runtime for the lifetime of the Python process.
+/// Creating one runtime per pyo3 call (the previous behaviour) was
+/// allocating ~200-400Mi RSS each tick, which crashed long-running
+/// embedders like the pragma-sdk price-pusher with OOMKilled.
+static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+
+fn rt() -> &'static Runtime {
+    RUNTIME.get_or_init(|| {
+        // 2 worker threads is enough for the bindings' workload (one
+        // gRPC call + a tx submit). Avoid the default `num_cpus` which
+        // would be wasteful in a price-pusher pod.
+        Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .thread_name("pm-publisher")
+            .build()
+            .expect("failed to build pm-publisher Tokio runtime")
+    })
+}
 
 
 /// Initialize publisher and return a client handle
@@ -20,10 +42,7 @@ fn py_init(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<()> {
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
-
-    rt.block_on(async {
+    rt().block_on(async {
         // Convert storage_path to PathBuf, default to current dir if None
         let store_config = get_store_config(storage_path);
 
@@ -55,9 +74,7 @@ fn py_publish(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<()> {
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
-    rt.block_on(async {
+    rt().block_on(async {
         // Create client inside the function like the other functions
         let store_config = get_store_config(storage_path);
 
@@ -91,10 +108,7 @@ fn py_get_entry(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
-
-    rt.block_on(async {
+    rt().block_on(async {
         let store_config = get_store_config(storage_path);
 
         let network_str = network.as_deref().unwrap_or("testnet");
@@ -126,10 +140,7 @@ fn py_entry(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
-
-    rt.block_on(async {
+    rt().block_on(async {
         let store_config = get_store_config(storage_path);
 
         let network_str = network.as_deref().unwrap_or("testnet");
@@ -160,10 +171,7 @@ fn py_publish_batch(
     if entries.is_empty() {
         return Ok(());
     }
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
-
-    rt.block_on(async {
+    rt().block_on(async {
         let store_config = get_store_config(storage_path);
         let network_str = network.as_deref().unwrap_or("testnet");
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
@@ -189,10 +197,7 @@ fn py_import_account(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<()> {
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
-
-    rt.block_on(async {
+    rt().block_on(async {
         let store_config = get_store_config(storage_path);
         let network_str = network.as_deref().unwrap_or("testnet");
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
@@ -217,10 +222,7 @@ fn py_sync(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
-
-    rt.block_on(async {
+    rt().block_on(async {
         let store_config = get_store_config(storage_path);
 
         let network_str = network.as_deref().unwrap_or("testnet");
