@@ -1,3 +1,4 @@
+use miden_client::account::AccountId;
 use miden_client::{keystore::FilesystemKeyStore, Client};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -175,6 +176,39 @@ fn py_publish_batch(
     })
 }
 
+/// Import an existing on-chain public account (oracle or publisher) into the
+/// local store so its state is tracked across restarts. This is required when
+/// the local SQLite store has been wiped (e.g. ephemeral pod storage in K8s)
+/// but the account itself still lives on-chain. Idempotent — a second call
+/// for an already-tracked account just re-fetches and updates state.
+#[pyfunction]
+#[pyo3(name = "import_account")]
+fn py_import_account(
+    account_id: String,
+    storage_path: Option<String>,
+    keystore_path: Option<String>,
+    network: Option<String>,
+) -> PyResult<()> {
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| PyValueError::new_err(format!("Failed to create async runtime: {}", e)))?;
+
+    rt.block_on(async {
+        let store_config = get_store_config(storage_path);
+        let network_str = network.as_deref().unwrap_or("testnet");
+        let mut client = setup_client(network_str, store_config, keystore_path).await?;
+
+        let id = AccountId::from_hex(&account_id)
+            .map_err(|e| PyValueError::new_err(format!("Invalid account_id '{}': {}", account_id, e)))?;
+
+        client
+            .import_account_by_id(id)
+            .await
+            .map_err(|e| PyValueError::new_err(format!("Import account failed: {}", e)))?;
+
+        Ok(())
+    })
+}
+
 /// Sync state
 #[pyfunction]
 #[pyo3(name = "sync")]
@@ -212,6 +246,7 @@ fn pm_publisher(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(py_get_entry))?;
     m.add_wrapped(wrap_pyfunction!(py_entry))?;
     m.add_wrapped(wrap_pyfunction!(py_sync))?;
+    m.add_wrapped(wrap_pyfunction!(py_import_account))?;
     Ok(())
 }
 
