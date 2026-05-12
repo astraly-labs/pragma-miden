@@ -13,11 +13,9 @@ const DOWNSAMPLE_INTERVAL_SECONDS = 30 * 60;
 const BYBIT_SYMBOL_MAP: Record<string, string> = {
   'BTC/USD': 'BTCUSDT',
   'ETH/USD': 'ETHUSDT',
-  'SOL/USD': 'SOLUSDT',
-  'BNB/USD': 'BNBUSDT',
-  'XRP/USD': 'XRPUSDT',
-  'HYPE/USD': 'HYPEUSDT',
-  'POL/USD': 'POLUSDT',
+  'WBTC/USD': 'WBTCUSDT',
+  'USDT/USD': 'USDCUSDT', // no direct USDT/USD on Bybit; USDC/USDT is the closest 1:1 reference
+  'DAI/USD': 'DAIUSDT',
 };
 
 async function fetchBybitHistory(pair: string): Promise<PriceHistoryRow[]> {

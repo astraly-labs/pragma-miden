@@ -13,11 +13,9 @@ const REFRESH_INTERVAL = 10000;
 const FAUCET_IDS = [
   { id: "1:0", pair: "BTC/USD" },
   { id: "2:0", pair: "ETH/USD" },
-  { id: "3:0", pair: "SOL/USD" },
-  { id: "4:0", pair: "BNB/USD" },
-  { id: "5:0", pair: "XRP/USD" },
-  { id: "6:0", pair: "HYPE/USD" },
-  { id: "7:0", pair: "POL/USD" },
+  { id: "3:0", pair: "WBTC/USD" },
+  { id: "4:0", pair: "USDT/USD" },
+  { id: "5:0", pair: "DAI/USD" },
 ];
 
 const CONTRACTS = [

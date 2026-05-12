@@ -4,7 +4,7 @@ import { getCached, setCache } from '@/lib/cache';
 import { fetchMultiple24hStats } from '@/lib/binance-api';
 import { insertPriceHistory } from '@/lib/db';
 import type { Asset } from '@/types/asset';
-import { FAUCET_CONFIGS, FAUCET_ID_TO_PAIR, PAIR_TO_FAUCET_ID } from '@/lib/faucet-config';
+import { FAUCET_CONFIGS, FAUCET_ID_TO_PAIR, FAUCET_ID_TO_DECIMALS, PAIR_TO_FAUCET_ID } from '@/lib/faucet-config';
 
 const execAsync = promisify(exec);
 
@@ -43,8 +43,9 @@ async function fetchAllMediansWithRetry(faucetIds: string[]): Promise<Map<string
           if (!is_tracked) return;
           
           const pair = FAUCET_ID_TO_PAIR.get(faucet_id);
-          if (pair) {
-            priceMap.set(pair, median / 1_000_000);
+          const decimals = FAUCET_ID_TO_DECIMALS.get(faucet_id);
+          if (pair && decimals !== undefined) {
+            priceMap.set(pair, median / Math.pow(10, decimals));
           }
         });
         
@@ -64,14 +65,15 @@ async function fetchAllMediansWithRetry(faucetIds: string[]): Promise<Map<string
 function storeLivePrices(priceMap: Map<string, number>): void {
   try {
     const timestamp = Math.floor(Date.now() / 1000);
-    
-    const rows = Array.from(priceMap.entries()).map(([pair, price]) => ({
-      pair,
-      price,
-      decimals: 6,
-      timestamp,
-    }));
-    
+
+    const rows = Array.from(priceMap.entries()).map(([pair, price]) => {
+      const faucetId = PAIR_TO_FAUCET_ID.get(pair);
+      const decimals = faucetId !== undefined
+        ? FAUCET_ID_TO_DECIMALS.get(faucetId) ?? 8
+        : 8;
+      return { pair, price, decimals, timestamp };
+    });
+
     insertPriceHistory(rows);
   } catch (error) {
     console.error('Failed to store live prices:', error);
