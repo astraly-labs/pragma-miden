@@ -31,7 +31,7 @@ RUN pnpm build
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
 FROM node:20-slim AS runner
 
-RUN apt-get update && apt-get install -y libsqlite3-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libsqlite3-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
