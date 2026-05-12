@@ -7,8 +7,16 @@ WORKSPACE="${ORACLE_WORKSPACE_PATH:-/data/oracle-workspace}"
 mkdir -p "${WORKSPACE}/keystore"
 mkdir -p "${WORKSPACE}/miden_storage"
 
-# Copy embedded pragma_miden.json
-cp /app/pragma_miden.json "${WORKSPACE}/pragma_miden.json"
+# Prefer a config mounted from a K8s secret at /secrets/config/pragma_miden.json
+# (used by deployments that point this image at a custom oracle), otherwise
+# fall back to the one baked into the image.
+if [ -f /secrets/config/pragma_miden.json ]; then
+  cp /secrets/config/pragma_miden.json "${WORKSPACE}/pragma_miden.json"
+  echo "Using pragma_miden.json from mounted secret"
+else
+  cp /app/pragma_miden.json "${WORKSPACE}/pragma_miden.json"
+  echo "Using pragma_miden.json baked into image"
+fi
 
 # Copy keystore files from mounted secrets
 for f in /secrets/keystore/*; do
