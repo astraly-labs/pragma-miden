@@ -101,7 +101,11 @@ impl MedianBatchCmd {
                 storage
                     .get_map_item(&publishers_slot, key.into())
                     .with_context(|| format!("Failed to retrieve publisher at index {i}"))
-                    .map(|w| AccountId::new_unchecked([w[3], w[2]]))
+                    // In 0.14 LE, publisher ID word is [prefix, suffix, 0, 0]
+                    // (same convention as median.rs). The previous [w[3], w[2]]
+                    // decoded to all-zero, which manifested in prod as:
+                    //   "account 0x0...0 not found at block ..."
+                    .map(|w| AccountId::new_unchecked([w[0], w[1]]))
             })
             .collect::<Result<_, _>>()
             .context("Failed to collect publisher array")?;
