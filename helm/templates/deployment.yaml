@@ -125,5 +125,5 @@ spec:
         {{- if .Values.configSecret }}
         - name: config-secret
           secret:
-            secretName: {{ .configSecret.secretName }}
+            secretName: {{ .Values.configSecret.secretName }}
         {{- end }}
