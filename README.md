@@ -14,6 +14,10 @@
   <a href="https://docs.pragma.build/pragma/miden/consumer">Consume Data</a>
 </p>
 
+<p align="center">
+  🟢 <strong>Live oracle:</strong> <a href="https://miden.pragma.build">miden.pragma.build</a> — real-time BTC / ETH / WBTC / USDT / DAI medians, published every Starknet tick by the <a href="https://github.com/astraly-labs/pragma-sdk">pragma-sdk</a> price-pusher.
+</p>
+
 ---
 
 ## Deployments

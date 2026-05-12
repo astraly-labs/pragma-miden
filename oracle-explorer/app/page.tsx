@@ -19,9 +19,8 @@ const FAUCET_IDS = [
 ];
 
 const CONTRACTS = [
-  { name: "Oracle", address: "mtst1ar2frsv7kjz2gqzt2mt74d0xlyen8re3", url: "https://testnet.midenscan.com/account/mtst1arfh7akzc9m0wqz8m9a8xyup85g6ls32" },
-  { name: "Publisher 1", address: "mtst1aqwdujtul020gqz8dlc6v00lgunczddf", url: "https://testnet.midenscan.com/account/mtst1arm5hzrpf5sg2qpry2a9r4w6f50rgfj4" },
-  { name: "Publisher 2", address: "mtst1apkfkmest8g2sqq6qct5jt6s9s7834t6", url: "https://testnet.midenscan.com/account/mtst1ar4ucrw059sdvqzfekvvvt03dgs229pc" },
+  { name: "Oracle", address: "mtst1argwzwzwyxnr2qpfmqqj366ugsax2t3x", url: "https://testnet.midenscan.com/account/mtst1argwzwzwyxnr2qpfmqqj366ugsax2t3x" },
+  { name: "Publisher", address: "mtst1aqhn4fnd8x8duqr9y4ku23qqwyzdndw3", url: "https://testnet.midenscan.com/account/mtst1aqhn4fnd8x8duqr9y4ku23qqwyzdndw3" },
 ];
 
 const PUBLISHER_STEPS = [
@@ -257,15 +256,22 @@ export default function Home() {
 
         <hr className="divider" />
 
-        {/* Faucet IDs */}
+        {/* Asset → Faucet ID mapping */}
         <section className="py-16">
-          <p className="text-[rgba(255,255,255,0.3)] text-xs font-mono uppercase tracking-[0.2em] mb-6">Faucet IDs</p>
-          <div className="flex flex-wrap gap-3">
+          <p className="text-[rgba(255,255,255,0.3)] text-xs font-mono uppercase tracking-[0.2em] mb-3">Pair index</p>
+          <h2 className="h2 text-white mb-2">Asset to faucet ID</h2>
+          <p className="text-[rgba(255,255,255,0.5)] text-sm mb-10">
+            Each asset is indexed on-chain by a faucet ID. Pass it to{" "}
+            <code className="text-[rgba(255,255,255,0.7)] font-mono text-xs">pm-oracle-cli median &lt;FAUCET_ID&gt;</code>{" "}
+            or any client query.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {FAUCET_IDS.map((faucet) => (
-              <div key={faucet.id} className="flex items-center gap-2 px-3 py-2 border border-[rgba(255,255,255,0.08)] rounded">
-                <span className="text-[rgba(255,255,255,0.5)] font-mono text-xs">{faucet.id}</span>
-                <span className="text-[rgba(255,255,255,0.3)] text-xs">&rarr;</span>
-                <span className="text-[rgba(255,255,255,0.5)] text-xs font-mono">{faucet.pair}</span>
+              <div key={faucet.id} className="card p-4 flex flex-col gap-1">
+                <span className="text-[rgba(255,255,255,0.3)] text-xs font-mono uppercase tracking-wider">
+                  {faucet.id}
+                </span>
+                <span className="text-white text-sm font-medium">{faucet.pair}</span>
               </div>
             ))}
           </div>
