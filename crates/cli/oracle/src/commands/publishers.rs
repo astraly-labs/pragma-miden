@@ -83,8 +83,9 @@ impl PublishersCmd {
             let publisher_word = storage
                 .get_map_item(&publishers_slot, key.into())
                 .with_context(|| format!("Failed to retrieve publisher at index {i}"))?;
-            // VALUE raw: MASM stack has prefix at top -> word[3], suffix -> word[2]
-            let publisher_id = AccountId::new_unchecked([publisher_word[3], publisher_word[2]]);
+            // In 0.14 LE, publisher ID word is [prefix, suffix, 0, 0]
+            // (matches median.rs and the on-chain storage layout).
+            let publisher_id = AccountId::new_unchecked([publisher_word[0], publisher_word[1]]);
 
             let status = if publisher_word != [ZERO, ZERO, ZERO, ZERO].into() {
                 "Active ✅"
