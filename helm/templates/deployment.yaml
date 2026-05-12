@@ -53,6 +53,12 @@ spec:
               subPath: keystore
               readOnly: true
             {{- end }}
+            {{- if .Values.configSecret }}
+            - name: config-secret
+              mountPath: /secrets/config/pragma_miden.json
+              subPath: config
+              readOnly: true
+            {{- end }}
       containers:
         - name: {{ include "oracle-explorer.fullname" . }}
           securityContext:
@@ -115,4 +121,9 @@ spec:
         - name: keystore-{{ .fileName }}
           secret:
             secretName: {{ .secretName }}
+        {{- end }}
+        {{- if .Values.configSecret }}
+        - name: config-secret
+          secret:
+            secretName: {{ .configSecret.secretName }}
         {{- end }}
