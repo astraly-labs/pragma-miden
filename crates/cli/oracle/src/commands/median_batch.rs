@@ -68,6 +68,10 @@ impl MedianBatchCmd {
         // STEP 1: Setup - done ONCE for all pairs
         let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
+        // Re-import oracle from chain to get fresh storage state. sync_state
+        // only refreshes accounts already in the tracked set, so on a fresh
+        // store (e.g. emptyDir K8s deployments) we need to import first.
+        client.import_account_by_id(oracle_id).await?;
         client.sync_state().await?;
         let account = client
             .get_account(oracle_id)
