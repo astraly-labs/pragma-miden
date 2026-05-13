@@ -2,7 +2,7 @@
 
 const footerLinks = {
   Developers: [
-    { label: "Documentation", href: "https://docs.pragma.build" },
+    { label: "Documentation", href: "https://docs.pragma.build/miden/introduction" },
     { label: "GitHub", href: "https://github.com/astraly-labs/pragma-miden" },
     { label: "Block Explorer", href: "https://testnet.midenscan.com" },
   ],

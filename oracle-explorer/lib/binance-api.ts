@@ -12,13 +12,16 @@ interface Binance24hTicker {
   lowPrice: string;
 }
 
+// Must mirror the pairs in lib/faucet-config.ts. Used to fetch 24h stats
+// (change%, high, low) from Binance for each pair displayed on the home page.
+// USDT/USD has no direct counterpart on Binance — we use USDCUSDT as the
+// closest 1:1 reference (USDC/USDT trades within ±0.1% of par).
 const SYMBOL_MAP: Record<string, string> = {
   'BTC/USD': 'BTCUSDT',
   'ETH/USD': 'ETHUSDT',
-  'SOL/USD': 'SOLUSDT',
-  'BNB/USD': 'BNBUSDT',
-  'XRP/USD': 'XRPUSDT',
-  'POL/USD': 'POLUSDT',
+  'WBTC/USD': 'WBTCUSDT',
+  'USDT/USD': 'USDCUSDT',
+  'DAI/USD': 'DAIUSDT',
 };
 
 /**

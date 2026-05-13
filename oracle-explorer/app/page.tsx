@@ -126,7 +126,7 @@ export default function Home() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-10">
             <a href="#prices" className="btn-primary">View Live Prices</a>
-            <a href="https://docs.pragma.build" target="_blank" rel="noopener noreferrer" className="btn-outline">Read the Docs</a>
+            <a href="https://docs.pragma.build/miden/introduction" target="_blank" rel="noopener noreferrer" className="btn-outline">Read the Docs</a>
           </div>
         </div>
       </section>

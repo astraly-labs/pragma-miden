@@ -25,7 +25,7 @@ export function Header({ lastUpdate }: HeaderProps) {
           <nav className="hidden md:flex items-center gap-6">
             {[
               { label: "Explorer", href: "#prices" },
-              { label: "Docs", href: "https://docs.pragma.build", external: true },
+              { label: "Docs", href: "https://docs.pragma.build/miden/introduction", external: true },
               { label: "GitHub", href: "https://github.com/astraly-labs/pragma-miden", external: true },
             ].map((link) => (
               <a
@@ -51,7 +51,7 @@ export function Header({ lastUpdate }: HeaderProps) {
               </div>
             )}
             <a
-              href="https://docs.pragma.build"
+              href="https://docs.pragma.build/miden/introduction"
               target="_blank"
               rel="noopener noreferrer"
               className="btn-primary text-xs px-4 py-2"
@@ -87,9 +87,9 @@ export function Header({ lastUpdate }: HeaderProps) {
             </div>
           )}
           <a href="#prices" onClick={() => setMobileOpen(false)} className="block text-sm text-[rgba(255,255,255,0.45)] hover:text-white py-1">Explorer</a>
-          <a href="https://docs.pragma.build" target="_blank" rel="noopener noreferrer" className="block text-sm text-[rgba(255,255,255,0.45)] hover:text-white py-1">Docs</a>
+          <a href="https://docs.pragma.build/miden/introduction" target="_blank" rel="noopener noreferrer" className="block text-sm text-[rgba(255,255,255,0.45)] hover:text-white py-1">Docs</a>
           <a href="https://github.com/astraly-labs/pragma-miden" target="_blank" rel="noopener noreferrer" className="block text-sm text-[rgba(255,255,255,0.45)] hover:text-white py-1">GitHub</a>
-          <a href="https://docs.pragma.build" target="_blank" rel="noopener noreferrer" className="btn-primary text-xs px-4 py-2 mt-2">Start Building</a>
+          <a href="https://docs.pragma.build/miden/introduction" target="_blank" rel="noopener noreferrer" className="btn-primary text-xs px-4 py-2 mt-2">Start Building</a>
         </div>
       )}
     </header>
