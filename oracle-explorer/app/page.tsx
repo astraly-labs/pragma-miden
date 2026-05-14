@@ -138,7 +138,9 @@ export default function Home() {
         <section id="prices" className="py-16">
           <p className="text-[rgba(255,255,255,0.3)] text-xs font-mono uppercase tracking-[0.2em] mb-3">Live Feeds</p>
           <h2 className="h2 text-white mb-2">Real-time oracle prices</h2>
-          <p className="text-[rgba(255,255,255,0.35)] text-sm mb-10">Updated every 10 seconds &middot; On-chain Miden data</p>
+          <p className="text-[rgba(255,255,255,0.35)] text-sm mb-10">
+            Medians from the Pragma-owned Miden testnet oracle &middot; refreshed every 10s &middot; 24h stats from Binance
+          </p>
 
           {loading && assets.length === 0 ? (
             <div className="flex items-center justify-center h-48 gap-3">
