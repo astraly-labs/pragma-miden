@@ -104,7 +104,7 @@ impl<'a> OracleAccountBuilder<'a> {
 
         Self {
             client: None,
-            account_type: ClientAccountType::RegularAccountImmutableCode.to_string(),
+            account_type: ClientAccountType::RegularAccountUpdatableCode.to_string(),
             storage_slots: default_storage_slots,
             keystore_path: "./keystore".to_string(),
         }
