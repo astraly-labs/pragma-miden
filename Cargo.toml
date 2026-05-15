@@ -57,6 +57,7 @@ miden-core = "0.22"
 miden-core-lib = "0.22"
 miden-crypto = "0.23"
 miden-tx = { version = "0.14", features = ["concurrent"] }
+miden-testing = { version = "0.14" }
 miden-client = { version = "0.14", features = ["tonic", "testing"] }
 miden-client-sqlite-store = "0.14"
 

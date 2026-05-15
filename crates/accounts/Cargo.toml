@@ -25,3 +25,8 @@ rand_chacha.workspace = true
 once_cell = "1.18.0"
 tempfile = "3.8.0"
 uuid.workspace = true
+
+[dev-dependencies]
+miden-testing.workspace = true
+miden-protocol = { workspace = true, features = ["testing"] }
+miden-processor = "0.22"
