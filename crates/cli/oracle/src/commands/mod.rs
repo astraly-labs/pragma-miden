@@ -4,6 +4,7 @@ pub mod median;
 pub mod median_batch;
 pub mod publishers;
 pub mod register_publisher;
+pub mod remove_publisher;
 pub mod sync;
 
 use std::path::PathBuf;
@@ -18,6 +19,7 @@ use median_batch::MedianBatchCmd;
 use pm_types::Entry;
 use publishers::PublishersCmd;
 use register_publisher::RegisterPublisherCmd;
+use remove_publisher::RemovePublisherCmd;
 use sync::SyncCmd;
 
 use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client, STORE_FILENAME};
@@ -38,6 +40,8 @@ pub enum SubCommand {
     Sync(SyncCmd),
     #[clap(name = "register-publisher", bin_name = "register-publisher")]
     RegisterPublisher(RegisterPublisherCmd),
+    #[clap(name = "remove-publisher", bin_name = "remove-publisher")]
+    RemovePublisher(RemovePublisherCmd),
     #[clap(name = "median", bin_name = "median")]
     Median(MedianCmd),
     #[clap(name = "median-batch", bin_name = "median-batch")]
@@ -83,6 +87,10 @@ impl SubCommand {
                 Ok(CommandOutput::None)
             }
             Self::RegisterPublisher(cmd) => {
+                cmd.call(&mut client, network).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::RemovePublisher(cmd) => {
                 cmd.call(&mut client, network).await?;
                 Ok(CommandOutput::None)
             }

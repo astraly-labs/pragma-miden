@@ -1,111 +1,60 @@
-// pub mod common;
+//! Oracle integration tests against an in-process MockChain.
+//!
+//! Each test builds a fresh chain with the accounts it needs, runs the
+//! relevant tx script, and inspects either the resulting account delta
+//! (state mutation tests) or just asserts the tx succeeds (for
+//! `get_median` over soft-deleted publishers, where the meaningful
+//! signal is that FPI to a zero AccountId is *not* attempted).
 
-use std::collections::BTreeMap;
-use std::vec;
-mod common;
 use anyhow::{Context, Result};
 use miden_client::account::AccountId;
-use miden_client::rpc::domain::account::AccountStorageRequirements;
-use miden_client::transaction::{ForeignAccount, TransactionRequestBuilder};
-use miden_client::{Client, Felt, Word, ZERO};
-use miden_protocol::account::{Account, AccountType, StorageMap, StorageMapKey, StorageSlot, StorageSlotName};
+use miden_client::transaction::TransactionScript;
+use miden_protocol::account::{
+    auth::AuthScheme, AccountComponent, AccountComponentMetadata, AccountType, StorageMap,
+    StorageMapKey, StorageSlot, StorageSlotName,
+};
+use miden_protocol::errors::MasmError;
+use miden_protocol::{Felt, Word, ZERO};
 use miden_standards::code_builder::CodeBuilder;
-use miden_protocol::vm::AdviceInputs;
-use pm_types::{Currency, Entry, Pair};
+use miden_testing::{assert_transaction_executor_error, Auth, MockChainBuilder};
 
 use pm_accounts::{
-    oracle::{get_oracle_component_library, OracleAccountBuilder},
-    publisher::PublisherAccountBuilder,
+    oracle::{get_oracle_component, get_oracle_component_library},
+    publisher::get_publisher_component_library,
     utils::word_to_masm,
 };
+use pm_types::{Currency, Entry, Pair};
 
-use common::{
-    create_and_deploy_oracle_account, create_and_deploy_publisher_account,
-    execute_get_entry_transaction, execute_tx_and_sync, mock_entry, random_entry,
-    setup_test_environment,
-};
-use pm_utils_cli::STORE_TEST_FILENAME;
-use uuid::Uuid;
+// ============================================================================
+// Helpers
+// ============================================================================
 
-#[tokio::test]
-async fn test_oracle_get_entry() -> Result<()> {
-    let (pair, entry) = mock_entry();
-    let pair_word = pair.to_word();
-    let entry_as_word: Word = entry.clone().try_into().unwrap();
+const ERR_PUBLISHER_ALREADY_REGISTERED: MasmError =
+    MasmError::from_static_str("publisher already registered");
+const ERR_PUBLISHER_NOT_REGISTERED: MasmError =
+    MasmError::from_static_str("publisher not registered");
 
-    let unique_id = Uuid::new_v4();
-    let (mut client, store_config) =
-        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
-
-    let publisher_account =
-        create_and_deploy_publisher_account(&mut client, pair_word, entry_as_word).await?;
-
-    let publisher_id_word: [Felt; 4] = [
-        ZERO,
-        ZERO,
-        publisher_account.id().suffix(),
-        publisher_account.id().prefix().as_felt(),
-    ];
-    let mut storage_slots = vec![
-        StorageSlot::with_value(
-            StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap(),
-            [Felt::new(4), ZERO, ZERO, ZERO].into(),
-        ),
-        StorageSlot::with_map(
-            StorageSlotName::new("pragma::oracle::publishers").unwrap(),
-            StorageMap::with_entries(vec![(
-                StorageMapKey::new(publisher_id_word.into()),
-                [Felt::new(2), ZERO, ZERO, ZERO].into(),
-            )])
-            .unwrap(),
-        ),
-        StorageSlot::with_value(
-            StorageSlotName::new("pragma::oracle::publisher_2").unwrap(),
-            publisher_id_word.into(),
-        ),
-    ];
-
-    // Create and deploy oracle account
-    let oracle_account = create_and_deploy_oracle_account(&mut client, Some(storage_slots)).await?;
-
-    // Sync state
-    client.sync_state().await.context("Failed to sync state")?;
-
-    // Execute get_entry transaction
-    let res_entry = execute_get_entry_transaction(
-        &mut client,
-        oracle_account.id(),
-        publisher_account.id(),
-        pair_word,
-    )
-    .await?;
-
-    assert_eq!(res_entry, entry);
-
-    Ok(())
+fn falcon_auth() -> Auth {
+    Auth::BasicAuth {
+        auth_scheme: AuthScheme::Falcon512Poseidon2,
+    }
 }
 
-#[tokio::test]
-async fn test_oracle_register_publisher() -> Result<()> {
-    // Setup client and environment
-    let unique_id = Uuid::new_v4();
-    let (mut client, store_config) =
-        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
+/// Builds a publisher AccountComponent seeded with one entry for the given
+/// `(pair, entry)` pair, so FPI from the oracle sees the price without
+/// needing the publisher to run a separate publish_entry tx.
+fn publisher_component_with_entry(pair: Word, entry: Word) -> AccountComponent {
+    let library = (*get_publisher_component_library()).clone();
+    let storage_slot = StorageSlot::with_map(
+        StorageSlotName::new("pragma::publisher::entries").unwrap(),
+        StorageMap::with_entries(vec![(StorageMapKey::new(pair), entry)]).unwrap(),
+    );
+    let metadata = AccountComponentMetadata::new("pragma::publisher", AccountType::all());
+    AccountComponent::new(library, vec![storage_slot], metadata)
+        .expect("publisher component should assemble")
+}
 
-    // Create and deploy oracle account with default storage
-    let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
-
-    // Define publisher ID to register
-    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")
-        .context("Failed to parse publisher ID")?;
-    let publisher_id_word: [Felt; 4] = [
-        ZERO,
-        ZERO,
-        publisher_id.suffix(),
-        publisher_id.prefix().as_felt(),
-    ];
-
-    // Create transaction script for registering publisher
+fn register_publisher_script(publisher_id: AccountId) -> Result<TransactionScript> {
     let tx_script_code = format!(
         "
         use oracle_component::oracle_module
@@ -113,66 +62,20 @@ async fn test_oracle_register_publisher() -> Result<()> {
 
         begin
             push.0.0
-            push.{publisher_id_suffix} push.{publisher_id_prefix}
+            push.{suffix} push.{prefix}
             call.oracle_module::register_publisher
             exec.sys::truncate_stack
         end
         ",
-        publisher_id_prefix = publisher_id.prefix().as_u64(),
-        publisher_id_suffix = publisher_id.suffix(),
+        prefix = publisher_id.prefix().as_u64(),
+        suffix = publisher_id.suffix(),
     );
-
-    let tx_script = CodeBuilder::default()
+    Ok(CodeBuilder::default()
         .with_statically_linked_library(&*get_oracle_component_library())?
-        .compile_tx_script(tx_script_code)?;
-
-    let transaction_request = TransactionRequestBuilder::new()
-        .custom_script(tx_script)
-        .build()
-        .context("Error while building transaction request")?;
-
-    // Execute transaction and wait for it to be processed
-    execute_tx_and_sync(&mut client, oracle_account.id(), transaction_request).await?;
-
-    // Verify storage changes
-    client.sync_state().await.context("Failed to sync state")?;
-    let oracle_account = client
-        .get_account(oracle_account.id())
-        .await
-        .context("Failed to get oracle account")?
-        .context("Oracle account not found")?;
-
-    // Check that publisher was registered
-    let next_index_slot = &StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap();
-    assert_eq!(
-        oracle_account.storage().get_item(next_index_slot).unwrap(),
-        [Felt::new(3), ZERO, ZERO, ZERO].into()
-    );
-
-    Ok(())
+        .compile_tx_script(tx_script_code)?)
 }
 
-#[tokio::test]
-async fn test_oracle_register_publisher_fails_if_publisher_already_registered() -> Result<()> {
-    // Setup client and environment
-    let unique_id = Uuid::new_v4();
-    let (mut client, store_config) =
-        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
-
-    // Create and deploy oracle account with default storage
-    let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
-
-    // Define publisher ID to register
-    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")
-        .context("Failed to parse publisher ID")?;
-    let publisher_id_word: [Felt; 4] = [
-        ZERO,
-        ZERO,
-        publisher_id.suffix(),
-        publisher_id.prefix().as_felt(),
-    ];
-
-    // Create transaction script for registering publisher
+fn remove_publisher_script(publisher_id: AccountId) -> Result<TransactionScript> {
     let tx_script_code = format!(
         "
         use oracle_component::oracle_module
@@ -180,168 +83,20 @@ async fn test_oracle_register_publisher_fails_if_publisher_already_registered() 
 
         begin
             push.0.0
-            push.{publisher_id_suffix} push.{publisher_id_prefix}
-            call.oracle_module::register_publisher
+            push.{suffix} push.{prefix}
+            call.oracle_module::remove_publisher
             exec.sys::truncate_stack
         end
         ",
-        publisher_id_prefix = publisher_id.prefix().as_u64(),
-        publisher_id_suffix = publisher_id.suffix(),
+        prefix = publisher_id.prefix().as_u64(),
+        suffix = publisher_id.suffix(),
     );
-
-    let tx_script = CodeBuilder::default()
+    Ok(CodeBuilder::default()
         .with_statically_linked_library(&*get_oracle_component_library())?
-        .compile_tx_script(tx_script_code.clone())?;
-
-    let transaction_request = TransactionRequestBuilder::new()
-        .custom_script(tx_script)
-        .build()
-        .context("Error while building transaction request")?;
-
-    // First registration should succeed
-    execute_tx_and_sync(&mut client, oracle_account.id(), transaction_request).await?;
-
-    // Verify storage changes to confirm publisher was registered
-    client.sync_state().await.context("Failed to sync state")?;
-
-    // Now try to register the same publisher again - should fail
-    let tx_script = CodeBuilder::default()
-        .with_statically_linked_library(&*get_oracle_component_library())?
-        .compile_tx_script(tx_script_code)?;
-
-    let transaction_request = TransactionRequestBuilder::new()
-        .custom_script(tx_script)
-        .build()
-        .context("Error while building second transaction request")?;
-
-    // The transaction creation should succeed, but execution should fail
-    let result = client
-        .submit_new_transaction(oracle_account.id(), transaction_request)
-        .await;
-
-    // Check that the transaction execution failed with the expected error
-    match result {
-        Ok(_) => {
-            // If the transaction was created successfully, executing it should fail
-            let tx_result = client.sync_state().await;
-            assert!(
-                tx_result.is_err(),
-                "Expected transaction to fail when registering publisher twice"
-            );
-
-            // We should be able to see the specific error if we capture the error message
-            // The error should mention publisher already registered (error code 100)
-            if let Err(err) = tx_result {
-                println!("Expected error received: {}", err);
-                assert!(
-                    err.to_string().contains("100")
-                        || err.to_string().contains("publisher already registered"),
-                    "Error should mention publisher already registered"
-                );
-            }
-        }
-        Err(err) => {
-            // Some implementations might fail immediately on transaction creation
-            println!("Transaction creation failed as expected: {}", err);
-        }
-    }
-
-    Ok(())
+        .compile_tx_script(tx_script_code)?)
 }
 
-#[tokio::test]
-async fn test_oracle_get_median() -> Result<()> {
-    // Setup client and environment
-    let unique_id = Uuid::new_v4();
-    let (mut client, store_config) =
-        setup_test_environment(format!("{STORE_TEST_FILENAME}_{unique_id}.sqlite3")).await;
-
-    let pair = Pair::new(
-        Currency::new("BTC").context("Invalid currency")?,
-        Currency::new("USD").context("Invalid currency")?,
-    );
-    let entry1 = Entry {
-        faucet_id: "1:0".to_string(),
-        price: 50000000000,
-        decimals: 8,
-        timestamp: 1739722449,
-    };
-    let entry2 = Entry {
-        faucet_id: "1:0".to_string(),
-        price: 52000000000,
-        decimals: 8,
-        timestamp: 1739722450,
-    };
-    let pair_word = pair.to_word();
-    // Create and deploy publisher accounts
-    let entry1_as_word: Word = entry1.clone().try_into().unwrap();
-    let entry2_as_word: Word = entry2.clone().try_into().unwrap();
-
-    let publisher1 =
-        create_and_deploy_publisher_account(&mut client, pair_word, entry1_as_word).await?;
-    let publisher2 =
-        create_and_deploy_publisher_account(&mut client, pair_word, entry2_as_word).await?;
-
-    // Create and deploy oracle account
-    let oracle_account = create_and_deploy_oracle_account(&mut client, None).await?;
-
-    // Register publishers in the oracle
-    for publisher_id in [publisher1.id(), publisher2.id()] {
-        let tx_script_code = format!(
-            "
-            use oracle_component::oracle_module
-            use miden::core::sys
-    
-            begin
-                push.0.0
-                push.{publisher_id_suffix} push.{publisher_id_prefix}
-                call.oracle_module::register_publisher
-                exec.sys::truncate_stack
-            end
-            ",
-            publisher_id_prefix = publisher_id.prefix().as_u64(),
-            publisher_id_suffix = publisher_id.suffix(),
-        );
-
-        let tx_script = CodeBuilder::default()
-            .with_statically_linked_library(&*get_oracle_component_library())?
-            .compile_tx_script(tx_script_code)?;
-
-        let transaction_request = TransactionRequestBuilder::new()
-            .custom_script(tx_script)
-            .build()
-            .context("Error while building transaction request")?;
-
-        execute_tx_and_sync(&mut client, oracle_account.id(), transaction_request).await?;
-        println!(
-            "publisher {:?} registered successfully!",
-            publisher_id.to_hex()
-        );
-    }
-
-    // Sync state to ensure we have the latest account state
-    client.sync_state().await.context("Failed to sync state")?;
-
-    // Create foreign accounts for the get_median transaction
-    let mut foreign_accounts = Vec::new();
-    for publisher_id in [publisher1.id(), publisher2.id()] {
-        let publisher_account = client
-            .get_account(publisher_id)
-            .await
-            .context("Failed to get publisher account")?
-            .context("Publisher account not found")?;
-
-        let foreign_account = ForeignAccount::public(
-            publisher_id,
-            AccountStorageRequirements::new([(StorageSlotName::new("pragma::publisher::entries").unwrap(), &[StorageMapKey::new(pair_word)])]),
-        )
-        .context("Failed to create foreign account")?;
-        foreign_accounts.push(foreign_account);
-    }
-
-    println!("Trying to query the median");
-
-    // Create transaction script for get_median
+fn get_median_script(pair_word: Word) -> Result<TransactionScript> {
     let tx_script_code = format!(
         "
         use oracle_component::oracle_module
@@ -355,133 +110,248 @@ async fn test_oracle_get_median() -> Result<()> {
         ",
         pair = word_to_masm(pair_word),
     );
-
-    let tx_script = CodeBuilder::default()
+    Ok(CodeBuilder::default()
         .with_statically_linked_library(&*get_oracle_component_library())?
-        .compile_tx_script(tx_script_code)?;
-    let foreign_accounts_map: BTreeMap<AccountId, ForeignAccount> = foreign_accounts.into_iter().map(|fa| (fa.account_id(), fa)).collect();
-    let output_stack = client
-        .execute_program(
-            oracle_account.id(),
-            tx_script,
-            AdviceInputs::default(),
-            foreign_accounts_map,
-        )
-        .await
+        .compile_tx_script(tx_script_code)?)
+}
+
+fn btc_usd_pair() -> Result<Pair> {
+    Ok(Pair::new(
+        Currency::new("BTC").context("Invalid currency")?,
+        Currency::new("USD").context("Invalid currency")?,
+    ))
+}
+
+// ============================================================================
+// Tests: register_publisher
+// ============================================================================
+
+#[tokio::test]
+async fn test_oracle_register_publisher() -> Result<()> {
+    let mut builder = MockChainBuilder::new();
+    let oracle =
+        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+    let mock_chain = builder.build()?;
+
+    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")?;
+
+    let tx_context = mock_chain
+        .build_tx_context(oracle.id(), &[], &[])?
+        .tx_script(register_publisher_script(publisher_id)?)
+        .build()?;
+    let executed_tx = tx_context.execute().await?;
+
+    let mut oracle = oracle.clone();
+    oracle.apply_delta(executed_tx.account_delta())?;
+
+    let next_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap();
+    assert_eq!(
+        oracle.storage().get_item(&next_index_slot).unwrap(),
+        [Felt::new(3), ZERO, ZERO, ZERO].into(),
+        "next_publisher_index must advance from 2 to 3"
+    );
+
+    let publishers_slot = StorageSlotName::new("pragma::oracle::publishers").unwrap();
+    let slot_key: Word = [Felt::new(2), ZERO, ZERO, ZERO].into();
+    let stored = oracle
+        .storage()
+        .get_map_item(&publishers_slot, slot_key)
         .unwrap();
-    // Get the median value from the stack
-    let median = output_stack
-        .first()
-        .ok_or_else(|| anyhow::anyhow!("No median value returned"))?;
-    let expected_price = (entry1.price + entry2.price) / 2;
-    assert_eq!(expected_price, median.as_canonical_u64());
+    assert_eq!(
+        stored,
+        [
+            publisher_id.prefix().as_felt(),
+            publisher_id.suffix(),
+            ZERO,
+            ZERO,
+        ]
+        .into(),
+        "publisher slot 2 must hold the registered id"
+    );
+
     Ok(())
 }
 
-// ================ UTILITIES ================
+#[tokio::test]
+async fn test_oracle_register_publisher_fails_if_already_registered() -> Result<()> {
+    let mut builder = MockChainBuilder::new();
+    let oracle =
+        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+    let mut mock_chain = builder.build()?;
 
-pub async fn generate_publishers_and_median(
-    n: usize,
-    client: &mut Client<miden_client::keystore::FilesystemKeyStore>,
-) -> Result<(Vec<(Word, Account)>, u64)> {
-    let mut generated_publishers = Vec::with_capacity(n);
-    let mut prices = Vec::with_capacity(n);
+    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")?;
 
-    for publisher_id in 1..=n as u64 {
-        let (pair, entry) = random_entry();
-        prices.push(entry.price);
+    // First registration: succeed and commit so the next tx sees the new state.
+    let first_tx = mock_chain
+        .build_tx_context(oracle.id(), &[], &[])?
+        .tx_script(register_publisher_script(publisher_id)?)
+        .build()?;
+    let first_executed = first_tx.execute().await?;
+    mock_chain.add_pending_executed_transaction(&first_executed)?;
+    mock_chain.prove_next_block()?;
 
-        let entry_as_word: Word = entry.try_into().unwrap();
-        let pair_word: Word = pair.to_word();
+    // Second registration: must fail with ERR_PUBLISHER_ALREADY_REGISTERED.
+    let second_tx = mock_chain
+        .build_tx_context(oracle.id(), &[], &[])?
+        .tx_script(register_publisher_script(publisher_id)?)
+        .build()?;
+    let result = second_tx.execute().await;
 
-        let (publisher_account, _) = PublisherAccountBuilder::new()
-            .with_storage_slots(vec![
-                StorageSlot::with_empty_map(StorageSlotName::new("pragma::publisher::entries_empty").unwrap()),
-                StorageSlot::with_map(
-                    StorageSlotName::new("pragma::publisher::entries").unwrap(),
-                    StorageMap::with_entries(vec![(
-                        StorageMapKey::new(pair_word),
-                        entry_as_word,
-                    )])
-                    .unwrap(),
-                ),
-            ])
-            .with_client(client)
-            .build()
-            .await;
+    assert_transaction_executor_error!(result, ERR_PUBLISHER_ALREADY_REGISTERED);
 
-        generated_publishers.push((pair_word, publisher_account));
-    }
-
-    // Calculate median
-    prices.sort_unstable();
-    let median = if prices.len() % 2 == 0 {
-        (prices[prices.len() / 2 - 1] + prices[prices.len() / 2]) / 2
-    } else {
-        prices[prices.len() / 2]
-    };
-
-    Ok((generated_publishers, median))
+    Ok(())
 }
 
-pub async fn generate_oracle_account(
-    publisher_setups: &[(Word, Account)],
-    client: &mut Client<miden_client::keystore::FilesystemKeyStore>,
-) -> Result<Account> {
-    // Start building the storage slots
-    let mut storage_slots = Vec::new();
+// ============================================================================
+// Tests: remove_publisher
+// ============================================================================
 
-    storage_slots.push(StorageSlot::with_empty_map(
-        StorageSlotName::new("pragma::oracle::registry_empty").unwrap(),
-    ));
+#[tokio::test]
+async fn test_oracle_remove_publisher() -> Result<()> {
+    let mut builder = MockChainBuilder::new();
+    let oracle =
+        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+    let mut mock_chain = builder.build()?;
 
-    let next_publisher_slot = publisher_setups.len() as u64 + 3;
-    storage_slots.push(StorageSlot::with_value(
-        StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap(),
-        [Felt::new(next_publisher_slot), ZERO, ZERO, ZERO].into(),
-    ));
+    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")?;
 
-    let mut registry_entries = Vec::new();
-    for (i, (_, publisher_account)) in publisher_setups.iter().enumerate() {
-        let publisher_id_word = [
-            publisher_account.id().prefix().as_felt(),
-            publisher_account.id().suffix(),
-            ZERO,
-            ZERO,
-        ];
-        let slot_index = (i as u64) + 4;
-        registry_entries.push((publisher_id_word, [Felt::new(slot_index), ZERO, ZERO, ZERO]));
+    // Register first.
+    let register_tx = mock_chain
+        .build_tx_context(oracle.id(), &[], &[])?
+        .tx_script(register_publisher_script(publisher_id)?)
+        .build()?;
+    let register_executed = register_tx.execute().await?;
+    mock_chain.add_pending_executed_transaction(&register_executed)?;
+    mock_chain.prove_next_block()?;
+
+    // Now remove.
+    let remove_tx = mock_chain
+        .build_tx_context(oracle.id(), &[], &[])?
+        .tx_script(remove_publisher_script(publisher_id)?)
+        .build()?;
+    let remove_executed = remove_tx.execute().await?;
+
+    let mut oracle = mock_chain.committed_account(oracle.id())?.clone();
+    oracle.apply_delta(remove_executed.account_delta())?;
+
+    let next_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap();
+    assert_eq!(
+        oracle.storage().get_item(&next_index_slot).unwrap(),
+        [Felt::new(3), ZERO, ZERO, ZERO].into(),
+        "next_publisher_index must NOT move when a publisher is soft-deleted"
+    );
+
+    let publishers_slot = StorageSlotName::new("pragma::oracle::publishers").unwrap();
+    let slot_key: Word = [Felt::new(2), ZERO, ZERO, ZERO].into();
+    let stored = oracle
+        .storage()
+        .get_map_item(&publishers_slot, slot_key)
+        .unwrap();
+    assert_eq!(
+        stored,
+        [ZERO, ZERO, ZERO, ZERO].into(),
+        "publisher slot 2 must be zeroed after remove_publisher"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_oracle_remove_publisher_fails_if_not_registered() -> Result<()> {
+    let mut builder = MockChainBuilder::new();
+    let oracle =
+        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+    let mock_chain = builder.build()?;
+
+    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")?;
+
+    let tx_context = mock_chain
+        .build_tx_context(oracle.id(), &[], &[])?
+        .tx_script(remove_publisher_script(publisher_id)?)
+        .build()?;
+    let result = tx_context.execute().await;
+
+    assert_transaction_executor_error!(result, ERR_PUBLISHER_NOT_REGISTERED);
+
+    Ok(())
+}
+
+// ============================================================================
+// Tests: get_median over soft-deleted publishers
+// ============================================================================
+
+/// Verifies that `get_median` skips publishers whose registry entry has been
+/// zeroed out by `remove_publisher`. If the skip logic in `get_median` were
+/// not in place, the kernel would attempt a Foreign Procedure Invocation on
+/// AccountId(0, 0) (which is invalid) and the tx would fail.
+///
+/// The mockchain testing API does not expose the final stack of a tx-script
+/// execution, so we don't assert the median *value* here — only that the tx
+/// completes without attempting FPI on the zeroed publisher slot.
+#[tokio::test]
+async fn test_oracle_get_median_skips_soft_deleted_publishers() -> Result<()> {
+    let pair_word = btc_usd_pair()?.to_word();
+    let entry1 = Entry {
+        faucet_id: "1:0".to_string(),
+        price: 50_000_000_000,
+        decimals: 8,
+        timestamp: 1_739_722_449,
+    };
+    let entry2 = Entry {
+        faucet_id: "1:0".to_string(),
+        price: 52_000_000_000,
+        decimals: 8,
+        timestamp: 1_739_722_450,
+    };
+    let entry1_word: Word = entry1.try_into().unwrap();
+    let entry2_word: Word = entry2.try_into().unwrap();
+
+    let mut builder = MockChainBuilder::new();
+    let publisher1 = builder.add_existing_account_from_components(
+        falcon_auth(),
+        [publisher_component_with_entry(pair_word, entry1_word)],
+    )?;
+    let publisher2 = builder.add_existing_account_from_components(
+        falcon_auth(),
+        [publisher_component_with_entry(pair_word, entry2_word)],
+    )?;
+    let oracle =
+        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+    let mut mock_chain = builder.build()?;
+
+    // Register both publishers.
+    for publisher_id in [publisher1.id(), publisher2.id()] {
+        let tx = mock_chain
+            .build_tx_context(oracle.id(), &[], &[])?
+            .tx_script(register_publisher_script(publisher_id)?)
+            .build()?;
+        let executed = tx.execute().await?;
+        mock_chain.add_pending_executed_transaction(&executed)?;
+        mock_chain.prove_next_block()?;
     }
 
-    storage_slots.push(StorageSlot::with_map(
-        StorageSlotName::new("pragma::oracle::publishers").unwrap(),
-        StorageMap::with_entries(
-            registry_entries
-                .into_iter()
-                .map(|(k, v)| (StorageMapKey::new(k.into()), v.into()))
-                .collect::<Vec<_>>(),
-        )
-        .unwrap(),
-    ));
+    // Soft-delete publisher1.
+    let remove_tx = mock_chain
+        .build_tx_context(oracle.id(), &[], &[])?
+        .tx_script(remove_publisher_script(publisher1.id())?)
+        .build()?;
+    let remove_executed = remove_tx.execute().await?;
+    mock_chain.add_pending_executed_transaction(&remove_executed)?;
+    mock_chain.prove_next_block()?;
 
-    for (i, (_, publisher_account)) in publisher_setups.iter().enumerate() {
-        storage_slots.push(StorageSlot::with_value(
-            StorageSlotName::new(format!("pragma::oracle::publisher_{}", i)).unwrap(),
-            [
-                publisher_account.id().prefix().as_felt(),
-                publisher_account.id().suffix(),
-                ZERO,
-                ZERO,
-            ]
-            .into(),
-        ));
-    }
+    // get_median with only publisher2 in the foreign-account set. If the
+    // skip logic is missing, the tx would attempt FPI on AccountId(0, 0)
+    // (the zeroed publisher1 slot) and fail.
+    let foreign_inputs = vec![mock_chain.get_foreign_account_inputs(publisher2.id())?];
+    let tx_context = mock_chain
+        .build_tx_context(oracle.id(), &[], &[])?
+        .foreign_accounts(foreign_inputs)
+        .tx_script(get_median_script(pair_word)?)
+        .build()?;
+    tx_context
+        .execute()
+        .await
+        .context("get_median must not attempt FPI on the zeroed publisher slot")?;
 
-    let (oracle_account, _) = OracleAccountBuilder::new()
-        .with_storage_slots(storage_slots)
-        .with_client(client)
-        .build()
-        .await;
-
-    Ok(oracle_account)
+    Ok(())
 }

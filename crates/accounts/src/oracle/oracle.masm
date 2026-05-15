@@ -14,6 +14,9 @@ const MAX_U32=0x0000000100000000
 # Error if the publisher is already registered in the registry
 const ERR_PUBLISHER_ALREADY_REGISTERED = "publisher already registered"
 
+# Error if the publisher to remove is not present in the registry
+const ERR_PUBLISHER_NOT_REGISTERED = "publisher not registered"
+
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
 const NEXT_PUBLISHER_INDEX_SLOT=word("pragma::oracle::next_publisher_index")
@@ -274,6 +277,9 @@ pub proc get_entry
 end
 
 #! Gets the median price of a given asset in USD value.
+#! Publishers whose stored id is [0,0,0,0] (soft-deleted) are skipped: no
+#! Foreign Procedure Invocation is performed for them, and they don't take a
+#! slot in the entries laid out in RAM for the median computation.
 #!
 #! Inputs:  [faucet_id_prefix, faucet_id_suffix, amount, 0]
 #! Outputs: [is_tracked, median_price]
@@ -285,11 +291,14 @@ pub proc get_median
     push.0 movdn.3
     # -> [faucet_id_prefix, faucet_id_suffix, 0, 0]
 
+    # Initialize valid_count = 0 (counts publishers that pass the soft-delete check)
+    push.0 mem_store.10001
+
     push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
 
     movdn.3 drop drop drop
 
-    # => [next_publisher_slot, faucet_id_prefix, faucet_id_suffix, 0]
+    # => [next_publisher_slot, faucet_id_prefix, faucet_id_suffix, 0, 0]
 
     push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
 
@@ -300,41 +309,58 @@ pub proc get_median
         dup push.0.0.0 movup.3
         push.PUBLISHERS_MAP_SLOT[0..2] exec.active_account::get_map_item
 
-        # => [PUBLISHER_ID, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, 0, 0, FAUCET_ID]
+        # => [pub_p, pub_s, 0, 0, current_slot, next_slot, fid_p, fid_s, 0, 0]
 
-        push.0.0 dup.9 dup.9 swapw
-        # => [PUBLISHER_ID, faucet_id_word, slot, next_slot, faucet_id_prefix, faucet_id_suffix, 0, 0]
+        # Skip soft-deleted publishers: real AccountId prefixes are never zero.
+        dup eq.0
+        if.true
+            # Soft-deleted: drop the publisher word, do not FPI, do not write.
+            drop drop drop drop
+            # => [current_slot, next_slot, fid_p, fid_s, 0, 0]
+        else
+            # Build faucet_id_word above PUBLISHER_ID for call_publisher_get_entry
+            push.0.0 dup.9 dup.9 swapw
+            # => [PUBLISHER_ID, faucet_id_word, current_slot, next_slot, fid_p, fid_s, 0, 0]
 
-        exec.call_publisher_get_entry
+            exec.call_publisher_get_entry
+            # => [ENTRY, current_slot, next_slot, fid_p, fid_s, 0, 0]
 
-        # => [ENTRY, PUBLISHERS_STORAGE_SLOT, next_publisher_slot, FAUCET_ID]
+            # Write ENTRY at offset valid_count * 4
+            mem_load.10001 mul.4
+            mem_storew_be dropw
+            # => [current_slot, next_slot, fid_p, fid_s, 0, 0]
 
-        dup.4 push.PUBLISHERS_STORAGE_SLOT sub mul.4
-        mem_storew_be dropw
-        # => [PUBLISHERS_STORAGE_SLOT, next_publisher_slot, FAUCET_ID]
+            # Increment valid_count
+            mem_load.10001 add.1 mem_store.10001
+        end
+
         add.1 exec.felt_is_lower
 
     end
 
+    # After loop: [current_slot, next_slot, fid_p, fid_s, 0, 0]
+    drop drop drop drop drop drop
+    # => []
 
-    swap drop movdn.4 dropw
-
-
-    push.PUBLISHERS_STORAGE_SLOT
-    sub
-
-
-    exec.ram_bubble_sort
-
-
-    exec.ram_get_median
+    # Compute the median over the valid entries only.
+    mem_load.10001
+    # => [valid_count]
+    dup eq.0
+    if.true
+        # No valid entries at all → median = 0.
+        drop push.0
+    else
+        exec.ram_bubble_sort
+        exec.ram_get_median
+    end
+    # => [median_price]
 
     # Compute is_tracked flag: 1 if median != 0, else 0
     dup push.0 neq
     # => [is_tracked, median_price]
 
-    # Load the amount 
-    mem_load.10000 
+    # Load the amount
+    mem_load.10000
     # => [amount, is_tracked, median_price]
     movdn.2
 
@@ -414,6 +440,87 @@ pub proc register_publisher
 
     push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.native_account::set_item dropw
     # => []
+
+    exec.sys::truncate_stack
+end
+
+#! Soft-deletes a publisher from the registry. The entry at the matching index
+#! is overwritten with the zero word, so subsequent get_median calls skip it.
+#! next_publisher_index is left unchanged: removed slots are NOT reused.
+#! Can only be called by the Owner of the Oracle account.
+#! Fails with ERR_PUBLISHER_NOT_REGISTERED if no slot matches PUBLISHER_ID.
+#!
+#! Inputs:  [PUBLISHER_ID]
+#! Outputs: []
+pub proc remove_publisher
+
+    # => [prefix, suffix, 0, 0]
+
+    # match_count = 0
+    push.0 mem_store.30000
+
+    # Get next_publisher_index
+    push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
+    movdn.3 drop drop drop
+    # => [next_idx, prefix, suffix, 0, 0]
+
+    # Loop init
+    push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
+    # => [bool, current_idx=2, next_idx, prefix, suffix, 0, 0]
+
+    while.true
+        # => [current_idx, next_idx, prefix, suffix, 0, 0]
+
+        # Build map KEY = [current_idx, 0, 0, 0]
+        dup push.0.0.0 movup.3
+        # => [current_idx, 0, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+
+        push.PUBLISHERS_MAP_SLOT[0..2] exec.active_account::get_map_item
+        # => [stored_p, stored_s, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+
+        # Compare (stored_p, stored_s) against (prefix, suffix)
+        dup.6 eq
+        # => [eq_p, stored_s, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+        swap dup.7 eq
+        # => [eq_s, eq_p, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+        and
+        # => [is_match, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+
+        if.true
+            # Match: overwrite publishers[current_idx] with the zero word.
+            # Stack here: [0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+            drop drop
+            # => [current_idx, next_idx, prefix, suffix, 0, 0]
+
+            # VALUE = [0, 0, 0, 0]
+            push.0.0.0.0
+            # => [0, 0, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+
+            # KEY = [current_idx, 0, 0, 0] (current_idx is at depth 4)
+            dup.4 push.0.0.0 movup.3
+            # => [current_idx, 0, 0, 0, 0, 0, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+
+            push.PUBLISHERS_MAP_SLOT[0..2] exec.native_account::set_map_item dropw
+            # => [current_idx, next_idx, prefix, suffix, 0, 0]
+
+            mem_load.30000 add.1 mem_store.30000
+        else
+            # No match: discard the leftover zeros from the comparison.
+            drop drop
+            # => [current_idx, next_idx, prefix, suffix, 0, 0]
+        end
+
+        add.1 exec.felt_is_lower
+    end
+
+    # After loop: [current_idx, next_idx, prefix, suffix, 0, 0]
+    drop drop drop drop drop drop
+    # => []
+
+    # Assert at least one match was found.
+    mem_load.30000
+    eq.0
+    assertz.err=ERR_PUBLISHER_NOT_REGISTERED
 
     exec.sys::truncate_stack
 end
