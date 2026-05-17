@@ -199,6 +199,10 @@ pub async fn setup_test_environment(store_filename: String) -> (TestClient, Path
     (client, store_config)
 }
 
+/// Keystore path used by both the test client and the account builders so the
+/// signing key produced at account creation is found by the authenticator.
+const TEST_KEYSTORE_PATH: &str = "./crates/accounts/tests/keystore";
+
 /// Creates and deploys a publisher account with the given entry data
 pub async fn create_and_deploy_publisher_account(
     client: &mut TestClient,
@@ -210,6 +214,7 @@ pub async fn create_and_deploy_publisher_account(
             miden_protocol::account::StorageSlotName::new("pragma::publisher::entries").unwrap(),
             StorageMap::with_entries(vec![(StorageMapKey::new(pair_word), entry_as_word)]).unwrap(),
         )])
+        .with_keystore_path(TEST_KEYSTORE_PATH.to_string())
         .with_client(client)
         .build()
         .await;
@@ -226,7 +231,9 @@ pub async fn create_and_deploy_oracle_account(
     storage_slots: Option<Vec<StorageSlot>>,
 ) -> Result<Account> {
     // Create oracle account builder
-    let mut builder = OracleAccountBuilder::new().with_client(client);
+    let mut builder = OracleAccountBuilder::new()
+        .with_keystore_path(TEST_KEYSTORE_PATH.to_string())
+        .with_client(client);
 
     // Add storage slots if provided
     if let Some(slots) = storage_slots {
@@ -247,15 +254,17 @@ pub async fn create_and_deploy_oracle_account(
     Ok(oracle_account)
 }
 
-/// Deploys the given account by submitting a deployment transaction
+/// Deploys the given account by submitting a no-op transaction. The auth
+/// procedure marked with `@auth_script` on the account is invoked automatically
+/// by the transaction kernel, so the tx script only needs to be a valid no-op.
 async fn deploy_account(
     client: &mut TestClient,
     account_id: AccountId,
 ) -> Result<TransactionId> {
     let deployment_tx_script = CodeBuilder::default().compile_tx_script(
-        "use miden::auth::single_sig
+        "use miden::core::sys
         begin
-            call.::miden::auth::single_sig::authenticate_transaction
+            exec.sys::truncate_stack
         end",
     )?;
 

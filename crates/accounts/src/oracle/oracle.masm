@@ -12,7 +12,7 @@ const MAX_U32=0x0000000100000000
 # =================================================================================================
 
 # Error if the publisher is already registered in the registry
-# const ERR_PUBLISHER_ALREADY_REGISTERED = 100
+const ERR_PUBLISHER_ALREADY_REGISTERED = "publisher already registered"
 
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
@@ -345,34 +345,72 @@ end
 #! Can only be called by the Owner of the Oracle account.
 #! Will reserve a storage slot for the publisher if it's not already registered,
 #! which mean this publisher will be able to publish data.
+#! Fails with ERR_PUBLISHER_ALREADY_REGISTERED if the publisher id is already
+#! present in the registry.
 #!
 #! Inputs:  [PUBLISHER_ID]
 #! Outputs: []
 pub proc register_publisher
 
-    # => [PUBLISHER_ID]
+    # => [prefix, suffix, 0, 0]
 
     # Retrieve the next available index from storage
     # get_item returns word in LE: [idx, 0, 0, 0] with idx on top
     push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
-    # => [idx, 0, 0, 0, PUBLISHER_ID]
+    movdn.3 drop drop drop
+    # => [next_idx, prefix, suffix, 0, 0]
 
-    # KEY = word on top, NEW_VALUE = PUBLISHER_ID right behind
+    # Iterate from PUBLISHERS_STORAGE_SLOT to next_idx-1, fail if (prefix,suffix)
+    # matches any already-registered publisher.
+    push.PUBLISHERS_STORAGE_SLOT exec.felt_is_lower
+    # => [bool, current_idx=2, next_idx, prefix, suffix, 0, 0]
+
+    while.true
+        # => [current_idx, next_idx, prefix, suffix, 0, 0]
+
+        # Build map KEY = [current_idx, 0, 0, 0]
+        dup push.0.0.0 movup.3
+        # => [current_idx, 0, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+
+        push.PUBLISHERS_MAP_SLOT[0..2] exec.active_account::get_map_item
+        # => [stored_prefix, stored_suffix, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+
+        # Compare (stored_prefix, stored_suffix) against (prefix, suffix)
+        dup.6 eq
+        # => [eq_prefix, stored_suffix, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+        swap dup.7 eq
+        # => [eq_suffix, eq_prefix, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+        and
+        # => [is_dup, 0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+
+        assertz.err=ERR_PUBLISHER_ALREADY_REGISTERED
+        # => [0, 0, current_idx, next_idx, prefix, suffix, 0, 0]
+
+        drop drop
+        # => [current_idx, next_idx, prefix, suffix, 0, 0]
+
+        add.1 exec.felt_is_lower
+    end
+
+    # => [current_idx, next_idx, prefix, suffix, 0, 0]
+    drop drop
+    # => [prefix, suffix, 0, 0]
+
+    # Append the new publisher at index next_idx
+    push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
+    # => [idx, 0, 0, 0, prefix, suffix, 0, 0]
+
     push.PUBLISHERS_MAP_SLOT[0..2] exec.native_account::set_map_item dropw
     # => []
 
     # Increment next_publisher_index
     push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
-    # => [idx, 0, 0, 0]
-
-    # Keep idx (top element in LE)
     movdn.3 drop drop drop
     # => [idx]
 
     add.1
-
-    # Rebuild word in LE: [idx+1, 0, 0, 0]
     push.0.0.0 movup.3
+    # => [idx+1, 0, 0, 0]
 
     push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.native_account::set_item dropw
     # => []
