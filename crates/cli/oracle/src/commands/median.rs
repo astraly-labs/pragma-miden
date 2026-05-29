@@ -72,16 +72,21 @@ impl MedianCmd {
 
         let publishers_slot = StorageSlotName::new("pragma::oracle::publishers")
             .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
+        // Publisher ID word is [prefix, suffix, 0, 0]. A slot zeroed out by
+        // `remove_publisher` decodes to AccountId(0, 0) which doesn't exist on
+        // the network — skip those slots before importing.
         let publisher_array: Vec<AccountId> = (2..publisher_count)
-            .map(|i: u64| -> anyhow::Result<AccountId> {
+            .map(|i: u64| -> anyhow::Result<Word> {
                 let key: [Felt; 4] = [Felt::new(i), ZERO, ZERO, ZERO];
-                let w = storage
+                storage
                     .get_map_item(&publishers_slot, key.into())
-                    .with_context(|| format!("Failed to retrieve publisher at index {i}"))?;
-                // In 0.14 LE, publisher ID word is [prefix, suffix, 0, 0]
-                Ok(AccountId::new_unchecked([w[0], w[1]]))
+                    .with_context(|| format!("Failed to retrieve publisher at index {i}"))
             })
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .filter(|w| !(w[0] == ZERO && w[1] == ZERO))
+            .map(|w| AccountId::new_unchecked([w[0], w[1]]))
+            .collect();
         eprintln!("[DBG] found {} publishers on-chain", publisher_array.len());
 
         let mut foreign_accounts: Vec<ForeignAccount> = vec![];

@@ -95,20 +95,22 @@ impl MedianBatchCmd {
         // Collect publishers from the map slot
         let publishers_slot = StorageSlotName::new("pragma::oracle::publishers")
             .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
+        // Publisher ID word is [prefix, suffix, 0, 0]. A slot zeroed out by
+        // `remove_publisher` decodes to AccountId(0, 0) which doesn't exist on
+        // the network — skip those slots before importing.
         let publisher_array: Vec<AccountId> = (2..publisher_count)
-            .map(|i| {
+            .map(|i| -> anyhow::Result<Word> {
                 let key: [Felt; 4] = [Felt::new(i), ZERO, ZERO, ZERO];
                 storage
                     .get_map_item(&publishers_slot, key.into())
                     .with_context(|| format!("Failed to retrieve publisher at index {i}"))
-                    // In 0.14 LE, publisher ID word is [prefix, suffix, 0, 0]
-                    // (same convention as median.rs). The previous [w[3], w[2]]
-                    // decoded to all-zero, which manifested in prod as:
-                    //   "account 0x0...0 not found at block ..."
-                    .map(|w| AccountId::new_unchecked([w[0], w[1]]))
             })
-            .collect::<Result<_, _>>()
-            .context("Failed to collect publisher array")?;
+            .collect::<Result<Vec<_>, _>>()
+            .context("Failed to collect publisher array")?
+            .into_iter()
+            .filter(|w| !(w[0] == ZERO && w[1] == ZERO))
+            .map(|w| AccountId::new_unchecked([w[0], w[1]]))
+            .collect();
 
         // STEP 2: Process each faucet_id
         let mut results = Vec::with_capacity(self.faucet_ids.len());

@@ -2986,8 +2986,10 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "anyhow",
  "miden-client",
+ "miden-processor",
  "miden-protocol",
  "miden-standards",
+ "miden-testing",
  "miden-tx",
  "once_cell",
  "pm-types",
