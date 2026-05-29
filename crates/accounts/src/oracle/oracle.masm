@@ -17,6 +17,11 @@ const ERR_PUBLISHER_ALREADY_REGISTERED = "publisher already registered"
 # Error if the publisher to remove is not present in the registry
 const ERR_PUBLISHER_NOT_REGISTERED = "publisher not registered"
 
+# Maximum age (in seconds, relative to the reference block timestamp) for a
+# publisher entry to be included in the median computation. Entries older than
+# this threshold are skipped — same path as soft-deleted slots.
+const MAX_ENTRY_AGE_SECONDS=3600
+
 # Holds the next storage slot index available. Will be used when we register a publisher,
 # so we can assign it a slot.
 const NEXT_PUBLISHER_INDEX_SLOT=word("pragma::oracle::next_publisher_index")
@@ -323,15 +328,37 @@ pub proc get_median
             # => [PUBLISHER_ID, faucet_id_word, current_slot, next_slot, fid_p, fid_s, 0, 0]
 
             exec.call_publisher_get_entry
-            # => [ENTRY, current_slot, next_slot, fid_p, fid_s, 0, 0]
+            # => [ts, decimals, price, 0, current_slot, next_slot, fid_p, fid_s, 0, 0]
 
-            # Write ENTRY at offset valid_count * 4
-            mem_load.10001 mul.4
-            mem_storew_be dropw
-            # => [current_slot, next_slot, fid_p, fid_s, 0, 0]
+            # Staleness check. The entry's timestamp is at depth 0 (Miden stores
+            # the published word with the last-pushed felt on top — see
+            # publisher CLI's `push.{entry}` over `[0, price, decimals, ts]`).
+            # Skip if `(now - entry_ts) > MAX_ENTRY_AGE_SECONDS`.
+            exec.tx::get_block_timestamp
+            # => [now, ts, decimals, price, 0, ...]
+            dup.1
+            # => [ts, now, ts, decimals, price, 0, ...]
+            sub
+            # => [age=now-ts, ts, decimals, price, 0, ...]
+            push.MAX_ENTRY_AGE_SECONDS exec.felt_is_lower
+            # => [is_stale=(MAX_AGE<age), MAX_AGE, age, ts, decimals, price, 0, ...]
 
-            # Increment valid_count
-            mem_load.10001 add.1 mem_store.10001
+            if.true
+                # Stale: drop MAX_AGE, age, ts, decimals, price, 0 (6 felts).
+                drop drop drop drop drop drop
+                # => [current_slot, next_slot, fid_p, fid_s, 0, 0]
+            else
+                # Fresh: drop MAX_AGE, age — leave [ts, decimals, price, 0] for
+                # the RAM write, then bump valid_count.
+                drop drop
+                # => [ts, decimals, price, 0, current_slot, next_slot, fid_p, fid_s, 0, 0]
+
+                mem_load.10001 mul.4
+                mem_storew_be dropw
+                # => [current_slot, next_slot, fid_p, fid_s, 0, 0]
+
+                mem_load.10001 add.1 mem_store.10001
+            end
         end
 
         add.1 exec.felt_is_lower
