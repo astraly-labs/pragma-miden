@@ -34,7 +34,7 @@ pub async fn setup_local_client(
         Some(p) => p,
         None => {
             let exec_dir = PathBuf::new();
-            
+
             exec_dir.join(STORE_FILENAME)
         }
     };
@@ -94,7 +94,7 @@ pub async fn setup_devnet_client(
         Some(p) => p,
         None => {
             let exec_dir = PathBuf::new();
-            
+
             exec_dir.join(STORE_FILENAME)
         }
     };
@@ -160,7 +160,7 @@ pub async fn setup_testnet_client(
         Some(p) => p,
         None => {
             let exec_dir = PathBuf::new();
-            
+
             exec_dir.join(STORE_FILENAME)
         }
     };
