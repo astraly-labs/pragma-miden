@@ -1,4 +1,4 @@
-name: Build and Test
+name: CI
 
 on:
   push:
@@ -6,175 +6,40 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
 jobs:
   test:
-    name: Build and Test
+    name: Build & Test
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          token: ${{ github.token }}
-      
-      - name: Install Rust (simplified for act)
-        if: ${{ env.ACT }}
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          source "$HOME/.cargo/env"
-          
-          # Install specific nightly toolchain for edition 2024 support
-          rustup toolchain install nightly-2025-03-11
-          rustup default nightly-2025-03-11
-          
-          rustup component add rustfmt clippy
-      
-      - name: Install Rust (GitHub Actions)
-        if: ${{ !env.ACT }}
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly-2025-03-11
-          override: true
-          components: rustfmt, clippy
-      
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      
-      - name: Cleanup existing containers
-        run: |
-          # Stop and remove any existing containers with the same names
-          docker stop miden-node miden-node-init miden-node-genesis 2>/dev/null || true
-          docker rm miden-node miden-node-init miden-node-genesis 2>/dev/null || true
-      
-      - name: Checkout Miden Node v0.8
-        uses: actions/checkout@v3
-        with:
-          repository: 0xPolygonMiden/miden-node
-          path: miden-node
-          ref: v0.8
-          token: ${{ github.token }}
-      
-      - name: Clone Miden Node (fallback)
-        if: ${{ failure() }}
-        run: |
-          git clone --depth 1 --branch v0.8 https://github.com/0xPolygonMiden/miden-node.git miden-node
-      
-      - name: Build Miden Node Docker Image
-        run: |
-          cd miden-node
-          
-          # Build the Docker image using the commands from the Makefile
-          CREATED=$(date) && \
-          VERSION=$(cat bin/node/Cargo.toml | grep -m 1 '^version' | cut -d '"' -f 2) && \
-          COMMIT=$(git rev-parse HEAD) && \
-          docker build --build-arg CREATED="$CREATED" \
-                      --build-arg VERSION="$VERSION" \
-                      --build-arg COMMIT="$COMMIT" \
-                      -f bin/node/Dockerfile \
-                      -t miden-node-image .
-      
-      - name: Initialize and Start Miden Node
-        run: |
-          # Clean up any existing data directory
-          rm -rf data accounts
-          
-          # Create directories for node data and accounts
-          mkdir -p data
-          mkdir -p accounts
-          
-          # Generate genesis configuration
-          docker run --name miden-node-genesis \
-                    -v "$(pwd):/workspace" \
-                    -w /workspace \
-                    miden-node-image \
-                    miden-node store dump-genesis > genesis.toml
-          
-          # Bootstrap the node
-          docker run --name miden-node-bootstrap \
-                    -v "$(pwd):/workspace" \
-                    -w /workspace \
-                    miden-node-image \
-                    miden-node bundled bootstrap \
-                    --data-directory data \
-                    --accounts-directory accounts \
-                    --config genesis.toml
-          
-          # Clean up bootstrap container
-          docker rm miden-node-bootstrap miden-node-genesis
-          
-          # Start the node
-          docker run --name miden-node \
-                    -p 57123:57123 \
-                    -v "$(pwd):/workspace" \
-                    -w /workspace \
-                    -d miden-node-image \
-                    miden-node bundled start \
-                    --data-directory data \
-                    --rpc.url http://0.0.0.0:57123
-          
-          # Wait for the node to start
-          echo "Waiting for Miden node to start..."
-          sleep 30
-          
-          # Check if the node is running
-          if ! docker ps | grep miden-node > /dev/null; then
-            echo "Miden node failed to start"
-            docker logs miden-node || true
-            exit 1
-          else
-            echo "Miden node started successfully"
-            docker logs miden-node
-          fi
-      
-      - name: Build Project
-        run: |
-          # Source cargo environment if running with act
-          if [ -n "$ACT" ]; then
-            source "$HOME/.cargo/env"
-          fi
-          
-          cargo build --verbose
-      
-      - name: Run tests
-        run: |
-          # Source cargo environment if running with act
-          if [ -n "$ACT" ]; then
-            source "$HOME/.cargo/env"
-          fi
-          
-          # Set environment variables to connect to the Docker container
-          export MIDEN_NODE_URL=http://localhost:57291
-          export RUST_BACKTRACE=1
-          
-          # Run tests one at a time to avoid database conflicts
-          echo "Running test_oracle_get_entry..."
-          cargo test --package pm-accounts --test test_oracle test_oracle_get_entry --verbose -- --nocapture
-          
-          echo "Running test_oracle_register_publisher..."
-          cargo test --package pm-accounts --test test_oracle test_oracle_register_publisher --verbose -- --nocapture
-          
-          echo "Running test_oracle_get_median..."
-          cargo test --package pm-accounts --test test_oracle test_oracle_get_median --verbose -- --nocapture
-          
-          echo "Running test_publisher tests..."
-          cargo test --package pm-accounts --test test_publisher --verbose -- --nocapture
-      
-      - name: Show Node Logs
-        if: always()
-        run: |
-          docker logs miden-node || true
-      
-      - name: Stop Miden Node
-        if: always()
-        run: |
-          docker stop miden-node || true
-          docker rm miden-node || true 
+      - uses: actions/checkout@v4
+
+      # Installs the toolchain pinned in rust-toolchain.toml (channel, clippy,
+      # rustfmt, wasm32 target) and caches the cargo registry + target dir.
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      # All oracle tests run in-process against miden_testing::MockChain, so no
+      # external miden-node is needed. `--workspace` also compiles the
+      # examples/consume-price member (excluded from default-members).
+      - name: Build
+        run: cargo build --workspace --all-targets --verbose
+
+      - name: Test
+        run: cargo test --workspace --verbose
+
+  lint:
+    name: Lint (fmt + clippy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: rustfmt
+        run: cargo fmt --all --check
+
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
