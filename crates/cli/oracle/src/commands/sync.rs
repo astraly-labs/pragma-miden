@@ -9,7 +9,7 @@ impl SyncCmd {
         let _ = client
             .sync_state()
             .await
-            .map_err(|e| anyhow::anyhow!("Could not sync state: {}", e.to_string()))?;
+            .map_err(|e| anyhow::anyhow!("Could not sync state: {}", e))?;
 
         println!("🔁 Sync successful!\n");
         Ok(())

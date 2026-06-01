@@ -381,7 +381,7 @@ mod tests {
         let pair_string = long_pair.to_string();
         assert_eq!(pair_string.len(), 16, "Verify string length is 16");
 
-        let felts_needed = (pair_string.len() + 7) / 8; // Ceiling division
+        let felts_needed = pair_string.len().div_ceil(8); // Ceiling division
         assert_eq!(felts_needed, 2, "Should require 2 Felts");
 
         let result = long_pair.try_to_decimal_felt_array::<1>();
@@ -420,7 +420,7 @@ mod tests {
             long_string,
             long_string.len()
         );
-        let felts_needed = (long_string.len() + 7) / 8; // Ceiling division
+        let felts_needed = long_string.len().div_ceil(8); // Ceiling division
         assert!(felts_needed > 2, "Test needs a pair requiring >2 Felts");
 
         // Test failure with insufficient size array

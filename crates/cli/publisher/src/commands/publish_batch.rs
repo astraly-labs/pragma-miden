@@ -49,6 +49,9 @@ impl PublishBatchCmd {
     /// - Any entry string cannot be parsed
     /// - The transaction script compilation fails
     /// - The transaction submission fails
+    // Used by the binary via SubCommand::call; the lib uses the free
+    // `publish_batch` fn, so this method is dead code in the lib target only.
+    #[allow(dead_code)]
     pub async fn call(
         &self,
         client: &mut Client<FilesystemKeyStore>,

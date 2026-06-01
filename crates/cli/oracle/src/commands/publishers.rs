@@ -95,7 +95,7 @@ impl PublishersCmd {
 
             table.add_row(Row::new(vec![
                 Cell::new(&format!("{}", i - 1)).style_spec("Fg"),
-                Cell::new(&format!("{}", publisher_id.to_hex())).style_spec("Fy"),
+                Cell::new(&publisher_id.to_hex().to_string()).style_spec("Fy"),
                 Cell::new(status).style_spec("Fw"),
             ]));
         }

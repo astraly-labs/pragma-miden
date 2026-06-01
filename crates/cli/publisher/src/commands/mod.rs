@@ -17,6 +17,10 @@ use publish::PublishCmd;
 use publish_batch::PublishBatchCmd;
 use sync::SyncCmd;
 
+// `commands` is shared by the pm-publisher binary (which dispatches through
+// SubCommand::call) and the pyo3 lib (which calls each subcommand directly), so
+// these dispatch helpers read as dead code in the lib target only.
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum CommandOutput {
     /// No specific output value
@@ -42,6 +46,7 @@ pub enum SubCommand {
 }
 
 impl SubCommand {
+    #[allow(dead_code)] // entry point of the pm-publisher binary; unused by the lib target
     pub async fn call(&self, network: &str) -> anyhow::Result<CommandOutput> {
         let crate_path = PathBuf::new();
         let store_config = crate_path.join(STORE_FILENAME);

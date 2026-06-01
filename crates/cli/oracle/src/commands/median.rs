@@ -32,7 +32,7 @@ impl MedianCmd {
         client.import_account_by_id(oracle_id).await?;
         client.sync_state().await?;
         eprintln!("[DBG] sync1 done");
-        let account = client
+        let _account = client
             .get_account(oracle_id)
             .await?
             .expect("Oracle account not found");

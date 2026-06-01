@@ -39,7 +39,7 @@ pub fn get_entry_procedure_hash() -> String {
         })
         .expect("get_entry procedure not found in publisher library");
 
-    let node_id = lib.get_export_node_id(&export.path());
+    let node_id = lib.get_export_node_id(export.path());
     let digest = lib
         .mast_forest()
         .get_node_by_id(node_id)

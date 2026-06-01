@@ -11,7 +11,7 @@ pub fn get_networks_config(storage_path: &Path) -> Result<Value> {
     let storage = JsonStorage::new(storage_path_str)?;
 
     match storage.get_key("networks") {
-        Some(json_str) => serde_json::from_str::<Value>(&json_str)
+        Some(json_str) => serde_json::from_str::<Value>(json_str)
             .context("Failed to parse networks configuration"),
         None => Err(anyhow::anyhow!(
             "No networks configuration found in storage"
@@ -77,14 +77,14 @@ pub fn set_account_id(
     let mut config = read_config_file(storage_path)?;
 
     // Ensure networks exists and is an object
-    if !config.get("networks").map_or(false, |v| v.is_object()) {
+    if !config.get("networks").is_some_and(|v| v.is_object()) {
         config["networks"] = json!({});
     }
 
     // Ensure the specific network exists and is an object
     if !config["networks"]
         .get(network)
-        .map_or(false, |v| v.is_object())
+        .is_some_and(|v| v.is_object())
     {
         config["networks"][network] = json!({});
     }
@@ -136,14 +136,14 @@ pub fn add_publisher_id(storage_path: &Path, network: &str, account_id: &Account
     let mut config = read_config_file(storage_path)?;
 
     // Ensure networks exists and is an object
-    if !config.get("networks").map_or(false, |v| v.is_object()) {
+    if !config.get("networks").is_some_and(|v| v.is_object()) {
         config["networks"] = json!({});
     }
 
     // Ensure the specific network exists and is an object
     if !config["networks"]
         .get(network)
-        .map_or(false, |v| v.is_object())
+        .is_some_and(|v| v.is_object())
     {
         config["networks"][network] = json!({});
     }

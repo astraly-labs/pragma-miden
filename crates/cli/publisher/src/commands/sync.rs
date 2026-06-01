@@ -11,7 +11,7 @@ impl SyncCmd {
         let new_details = client
             .sync_state()
             .await
-            .map_err(|e| anyhow::anyhow!("Could not sync state: {}", e.to_string()))?;
+            .map_err(|e| anyhow::anyhow!("Could not sync state: {}", e))?;
         println!("🔁 Sync successful!\n");
 
         println!("State synced to block {}", new_details.block_num);

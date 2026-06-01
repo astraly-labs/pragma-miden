@@ -281,10 +281,10 @@ async fn setup_client(
                 .map_err(|e| PyValueError::new_err(format!("Failed to setup local client: {}", e)))
         }
         other => {
-            return Err(PyValueError::new_err(format!(
+            Err(PyValueError::new_err(format!(
                 "Unknown network '{}'. Must be 'local', 'devnet' or 'testnet'",
                 other
-            )));
+            )))
         }
     }
 }
