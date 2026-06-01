@@ -14,8 +14,6 @@ pub struct EntryCmd {
     pub faucet_id: String,
 }
 
-
-
 impl EntryCmd {
     pub async fn call(
         &self,
@@ -52,8 +50,9 @@ impl EntryCmd {
         ]
         .into();
 
-        let publisher_entries_slot = miden_protocol::account::StorageSlotName::new("pragma::publisher::entries")
-            .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
+        let publisher_entries_slot =
+            miden_protocol::account::StorageSlotName::new("pragma::publisher::entries")
+                .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let entry_word = publisher
             .storage()
             .get_map_item(&publisher_entries_slot, faucet_id_word)

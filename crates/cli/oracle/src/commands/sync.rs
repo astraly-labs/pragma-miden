@@ -5,10 +5,7 @@ use miden_client::{keystore::FilesystemKeyStore, Client};
 pub struct SyncCmd {}
 
 impl SyncCmd {
-    pub async fn call(
-        &self,
-        client: &mut Client<FilesystemKeyStore>,
-    ) -> anyhow::Result<()> {
+    pub async fn call(&self, client: &mut Client<FilesystemKeyStore>) -> anyhow::Result<()> {
         let _ = client
             .sync_state()
             .await

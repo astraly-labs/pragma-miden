@@ -32,7 +32,6 @@ fn rt() -> &'static Runtime {
     })
 }
 
-
 /// Initialize publisher and return a client handle
 #[pyfunction]
 #[pyo3(name = "init")]
@@ -202,8 +201,9 @@ fn py_import_account(
         let network_str = network.as_deref().unwrap_or("testnet");
         let mut client = setup_client(network_str, store_config, keystore_path).await?;
 
-        let id = AccountId::from_hex(&account_id)
-            .map_err(|e| PyValueError::new_err(format!("Invalid account_id '{}': {}", account_id, e)))?;
+        let id = AccountId::from_hex(&account_id).map_err(|e| {
+            PyValueError::new_err(format!("Invalid account_id '{}': {}", account_id, e))
+        })?;
 
         client
             .import_account_by_id(id)
@@ -278,9 +278,7 @@ async fn setup_client(
             println!("Initializing local client");
             setup_local_client(Some(store_config), keystore_path)
                 .await
-                .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to setup local client: {}", e))
-                })
+                .map_err(|e| PyValueError::new_err(format!("Failed to setup local client: {}", e)))
         }
         other => {
             return Err(PyValueError::new_err(format!(

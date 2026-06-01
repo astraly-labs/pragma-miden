@@ -14,7 +14,10 @@ use miden_client::{
 };
 
 use miden_protocol::{
-    account::{AccountBuilder, AccountComponent, AccountComponentMetadata, AccountType, StorageSlot, StorageSlotName},
+    account::{
+        AccountBuilder, AccountComponent, AccountComponentMetadata, AccountType, StorageSlot,
+        StorageSlotName,
+    },
     assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
     transaction::TransactionKernel,
 };
@@ -70,12 +73,10 @@ pub fn get_publisher_component_library() -> Arc<Library> {
 pub fn get_publisher_component() -> AccountComponent {
     let library = get_publisher_component_library();
     let library = Arc::try_unwrap(library).unwrap_or_else(|arc| (*arc).clone());
-    let storage_slot = StorageSlot::with_empty_map(
-        StorageSlotName::new("pragma::publisher::entries").unwrap()
-    );
+    let storage_slot =
+        StorageSlot::with_empty_map(StorageSlotName::new("pragma::publisher::entries").unwrap());
     let metadata = AccountComponentMetadata::new("pragma::publisher", AccountType::all());
-    AccountComponent::new(library, vec![storage_slot], metadata)
-        .expect("assembly should succeed")
+    AccountComponent::new(library, vec![storage_slot], metadata).expect("assembly should succeed")
 }
 
 pub struct PublisherAccountBuilder<'a> {
@@ -87,11 +88,9 @@ pub struct PublisherAccountBuilder<'a> {
 
 impl<'a> PublisherAccountBuilder<'a> {
     pub fn new() -> Self {
-        let default_storage_slots = vec![
-            StorageSlot::with_empty_map(
-                StorageSlotName::new("pragma::publisher::entries").unwrap()
-            )
-        ];
+        let default_storage_slots = vec![StorageSlot::with_empty_map(
+            StorageSlotName::new("pragma::publisher::entries").unwrap(),
+        )];
         Self {
             client: None,
             account_type: AccountType::RegularAccountImmutableCode,
@@ -110,10 +109,7 @@ impl<'a> PublisherAccountBuilder<'a> {
         self
     }
 
-    pub fn with_client(
-        mut self,
-        client: &'a mut Client<FilesystemKeyStore>,
-    ) -> Self {
+    pub fn with_client(mut self, client: &'a mut Client<FilesystemKeyStore>) -> Self {
         self.client = Some(client);
         self
     }
@@ -129,7 +125,10 @@ impl<'a> PublisherAccountBuilder<'a> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component = AuthSingleSig::new(public_key.to_commitment().into(), AuthScheme::Falcon512Poseidon2);
+        let auth_component = AuthSingleSig::new(
+            public_key.to_commitment().into(),
+            AuthScheme::Falcon512Poseidon2,
+        );
 
         let publisher_component: AccountComponent = get_publisher_component();
         let from_seed = client_rng.random();
@@ -147,7 +146,10 @@ impl<'a> PublisherAccountBuilder<'a> {
         client.add_account(&account, true).await.unwrap();
         let keystore = FilesystemKeyStore::new(self.keystore_path.into()).unwrap();
         keystore
-            .add_key(&AuthSecretKey::Falcon512Poseidon2(private_key), account.id())
+            .add_key(
+                &AuthSecretKey::Falcon512Poseidon2(private_key),
+                account.id(),
+            )
             .await
             .unwrap();
 

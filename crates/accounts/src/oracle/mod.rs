@@ -13,7 +13,10 @@ use miden_client::{
     Client, Felt, Word, ZERO,
 };
 use miden_protocol::{
-    account::{AccountBuilder, AccountComponent, AccountComponentMetadata, AccountType, StorageSlot, StorageSlotName},
+    account::{
+        AccountBuilder, AccountComponent, AccountComponentMetadata, AccountType, StorageSlot,
+        StorageSlotName,
+    },
     assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
     transaction::TransactionKernel,
 };
@@ -36,9 +39,7 @@ pub fn oracle_storage_slots() -> Vec<StorageSlot> {
             StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap(),
             [Felt::new(2), ZERO, ZERO, ZERO].into(),
         ),
-        StorageSlot::with_empty_map(
-            StorageSlotName::new("pragma::oracle::publishers").unwrap(),
-        ),
+        StorageSlot::with_empty_map(StorageSlotName::new("pragma::oracle::publishers").unwrap()),
     ]
 }
 
@@ -120,10 +121,7 @@ impl<'a> OracleAccountBuilder<'a> {
         self
     }
 
-    pub fn with_client(
-        mut self,
-        client: &'a mut Client<FilesystemKeyStore>,
-    ) -> Self {
+    pub fn with_client(mut self, client: &'a mut Client<FilesystemKeyStore>) -> Self {
         self.client = Some(client);
         self
     }
@@ -141,7 +139,10 @@ impl<'a> OracleAccountBuilder<'a> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component = AuthSingleSig::new(public_key.to_commitment().into(), AuthScheme::Falcon512Poseidon2);
+        let auth_component = AuthSingleSig::new(
+            public_key.to_commitment().into(),
+            AuthScheme::Falcon512Poseidon2,
+        );
         let from_seed = client_rng.random();
 
         let account = AccountBuilder::new(from_seed)
@@ -156,7 +157,10 @@ impl<'a> OracleAccountBuilder<'a> {
 
         let keystore = FilesystemKeyStore::new(self.keystore_path.into()).unwrap();
         keystore
-            .add_key(&AuthSecretKey::Falcon512Poseidon2(private_key), account.id())
+            .add_key(
+                &AuthSecretKey::Falcon512Poseidon2(private_key),
+                account.id(),
+            )
             .await
             .unwrap();
 

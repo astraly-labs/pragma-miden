@@ -2,10 +2,10 @@ use anyhow::Context;
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::AccountStorageRequirements;
 use miden_client::transaction::ForeignAccount;
-use miden_protocol::account::{StorageMapKey, StorageSlotName};
-use miden_standards::code_builder::CodeBuilder;
 use miden_client::{keystore::FilesystemKeyStore, Client, Felt, Word, ZERO};
+use miden_protocol::account::{StorageMapKey, StorageSlotName};
 use miden_protocol::vm::AdviceInputs;
+use miden_standards::code_builder::CodeBuilder;
 use pm_accounts::oracle::get_oracle_component_library;
 
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
@@ -85,8 +85,9 @@ impl MedianBatchCmd {
         let storage = account.storage();
 
         // Get publisher count from storage
-        let next_publisher_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index")
-            .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
+        let next_publisher_index_slot =
+            StorageSlotName::new("pragma::oracle::next_publisher_index")
+                .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let publisher_count = storage
             .get_item(&next_publisher_index_slot)
             .context("Unable to retrieve publisher count")?[0]
@@ -118,20 +119,26 @@ impl MedianBatchCmd {
         for faucet_id_str in &self.faucet_ids {
             let parts: Vec<&str> = faucet_id_str.split(':').collect();
             if parts.len() != 2 {
-                return Err(anyhow::anyhow!("Invalid faucet_id format: {}. Expected PREFIX:SUFFIX (e.g., 1:0)", faucet_id_str));
+                return Err(anyhow::anyhow!(
+                    "Invalid faucet_id format: {}. Expected PREFIX:SUFFIX (e.g., 1:0)",
+                    faucet_id_str
+                ));
             }
-            
-            let prefix = parts[0].parse::<u64>()
+
+            let prefix = parts[0]
+                .parse::<u64>()
                 .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix: {}", parts[0]))?;
-            let suffix = parts[1].parse::<u64>()
+            let suffix = parts[1]
+                .parse::<u64>()
                 .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
-            
+
             let faucet_id_word: Word = [
                 Felt::new(0),
                 Felt::new(0),
                 Felt::new(suffix),
                 Felt::new(prefix),
-            ].into();
+            ]
+            .into();
 
             let mut foreign_accounts: Vec<ForeignAccount> = vec![];
             let publisher_entries_slot = StorageSlotName::new("pragma::publisher::entries")
@@ -171,8 +178,10 @@ impl MedianBatchCmd {
                 .compile_tx_script(tx_script_code.clone())
                 .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
-            let foreign_accounts_map: BTreeMap<AccountId, ForeignAccount> =
-                foreign_accounts.into_iter().map(|fa| (fa.account_id(), fa)).collect();
+            let foreign_accounts_map: BTreeMap<AccountId, ForeignAccount> = foreign_accounts
+                .into_iter()
+                .map(|fa| (fa.account_id(), fa))
+                .collect();
 
             let output_stack = client
                 .execute_program(
@@ -182,12 +191,17 @@ impl MedianBatchCmd {
                     foreign_accounts_map,
                 )
                 .await
-                .with_context(|| format!("Failed to execute median for faucet_id: {}", faucet_id_str))?;
+                .with_context(|| {
+                    format!("Failed to execute median for faucet_id: {}", faucet_id_str)
+                })?;
 
             if output_stack.len() < 3 {
-                return Err(anyhow::anyhow!("Invalid output for {}: expected [is_tracked, median_price, amount]", faucet_id_str));
+                return Err(anyhow::anyhow!(
+                    "Invalid output for {}: expected [is_tracked, median_price, amount]",
+                    faucet_id_str
+                ));
             }
-            
+
             let is_tracked = output_stack[0].as_canonical_u64();
             let median = output_stack[1].as_canonical_u64();
             let amount = output_stack[2].as_canonical_u64();
@@ -202,15 +216,21 @@ impl MedianBatchCmd {
 
         // STEP 3: Output results
         if self.json {
-            let json_output = serde_json::to_string(&results)
-                .context("Failed to serialize results to JSON")?;
+            let json_output =
+                serde_json::to_string(&results).context("Failed to serialize results to JSON")?;
             println!("{}", json_output);
         } else {
             for result in &results {
                 if result.is_tracked {
-                    println!("{}: {} (amount: {})", result.faucet_id, result.median, result.amount);
+                    println!(
+                        "{}: {} (amount: {})",
+                        result.faucet_id, result.median, result.amount
+                    );
                 } else {
-                    println!("{}: Not tracked (amount: {})", result.faucet_id, result.amount);
+                    println!(
+                        "{}: Not tracked (amount: {})",
+                        result.faucet_id, result.amount
+                    );
                 }
             }
         }

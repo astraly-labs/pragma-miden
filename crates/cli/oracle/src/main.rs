@@ -20,7 +20,10 @@ async fn main() -> anyhow::Result<()> {
     let output = cli.command.call(&cli.network).await?;
     match output {
         commands::CommandOutput::Entry(entry) => {
-            println!("Price: {}, Decimals: {}, Timestamp: {}", entry.price, entry.decimals, entry.timestamp);
+            println!(
+                "Price: {}, Decimals: {}, Timestamp: {}",
+                entry.price, entry.decimals, entry.timestamp
+            );
         }
         commands::CommandOutput::Felt(f) => {
             println!("{}", f);

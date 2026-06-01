@@ -4,9 +4,9 @@ use std::path::Path;
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::AccountStorageRequirements;
 use miden_client::transaction::ForeignAccount;
+use miden_client::{keystore::FilesystemKeyStore, Client, Felt};
 use miden_protocol::account::{StorageMapKey, StorageSlotName};
 use miden_standards::code_builder::CodeBuilder;
-use miden_client::{keystore::FilesystemKeyStore, Client, Felt};
 
 use miden_protocol::vm::AdviceInputs;
 use pm_accounts::oracle::get_oracle_component_library;
@@ -76,7 +76,10 @@ impl GetEntryCmd {
             .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let foreign_account = ForeignAccount::public(
             publisher.id(),
-            AccountStorageRequirements::new([(publisher_entries_slot, &[StorageMapKey::new(faucet_id_word)])]),
+            AccountStorageRequirements::new([(
+                publisher_entries_slot,
+                &[StorageMapKey::new(faucet_id_word)],
+            )]),
         )?;
         let tx_script_code = format!(
             "

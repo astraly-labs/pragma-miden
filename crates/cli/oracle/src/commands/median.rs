@@ -2,10 +2,10 @@ use anyhow::Context;
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::AccountStorageRequirements;
 use miden_client::transaction::ForeignAccount;
-use miden_protocol::account::{StorageMapKey, StorageSlotName};
-use miden_standards::code_builder::CodeBuilder;
 use miden_client::{keystore::FilesystemKeyStore, Client, Felt, Word, ZERO};
+use miden_protocol::account::{StorageMapKey, StorageSlotName};
 use miden_protocol::vm::AdviceInputs;
+use miden_standards::code_builder::CodeBuilder;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use std::collections::BTreeMap;
@@ -15,7 +15,7 @@ use std::path::Path;
 #[clap(about = "Compute the median for a given faucet_id")]
 pub struct MedianCmd {
     pub faucet_id: String,
-    
+
     /// Optional amount parameter (defaults to 0)
     #[clap(short, long, default_value = "0")]
     pub amount: u64,
@@ -40,12 +40,16 @@ impl MedianCmd {
 
         let parts: Vec<&str> = self.faucet_id.split(':').collect();
         if parts.len() != 2 {
-            return Err(anyhow::anyhow!("Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"));
+            return Err(anyhow::anyhow!(
+                "Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"
+            ));
         }
 
-        let prefix = parts[0].parse::<u64>()
+        let prefix = parts[0]
+            .parse::<u64>()
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix: {}", parts[0]))?;
-        let suffix = parts[1].parse::<u64>()
+        let suffix = parts[1]
+            .parse::<u64>()
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
 
         let faucet_id_word: Word = [
@@ -53,7 +57,8 @@ impl MedianCmd {
             Felt::new(0),
             Felt::new(suffix),
             Felt::new(prefix),
-        ].into();
+        ]
+        .into();
 
         // Re-import oracle from chain to get fresh storage state
         client.import_account_by_id(oracle_id).await?;
@@ -97,7 +102,10 @@ impl MedianCmd {
             eprintln!("[DBG] publisher {publisher_id} imported");
             let foreign_account = ForeignAccount::public(
                 publisher_id,
-                AccountStorageRequirements::new([(publisher_entries_slot.clone(), &[StorageMapKey::new(faucet_id_word)])]),
+                AccountStorageRequirements::new([(
+                    publisher_entries_slot.clone(),
+                    &[StorageMapKey::new(faucet_id_word)],
+                )]),
             )?;
             foreign_accounts.push(foreign_account);
         }
@@ -126,8 +134,12 @@ impl MedianCmd {
             .compile_tx_script(tx_script_code.clone())
             .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;
 
-        let foreign_accounts_map: BTreeMap<AccountId, ForeignAccount> = foreign_accounts.into_iter().map(|fa| (fa.account_id(), fa)).collect();
-        let output_stack = client.execute_program(
+        let foreign_accounts_map: BTreeMap<AccountId, ForeignAccount> = foreign_accounts
+            .into_iter()
+            .map(|fa| (fa.account_id(), fa))
+            .collect();
+        let output_stack = client
+            .execute_program(
                 oracle_id,
                 median_script,
                 AdviceInputs::default(),
@@ -136,12 +148,13 @@ impl MedianCmd {
             .await
             .map_err(|e| anyhow::anyhow!("execute_program error: {e:?}"))?;
 
-
         // Stack output: [amount, is_tracked, median_price]
         if output_stack.len() < 3 {
-            return Err(anyhow::anyhow!("Invalid output: expected [amount, is_tracked, median_price]"));
+            return Err(anyhow::anyhow!(
+                "Invalid output: expected [amount, is_tracked, median_price]"
+            ));
         }
-        
+
         let is_tracked = output_stack[0];
         let median = output_stack[1];
         let returned_amount = output_stack[2];

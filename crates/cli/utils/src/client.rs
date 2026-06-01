@@ -217,7 +217,10 @@ where
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(storage_mode)
-        .with_component(AuthSingleSig::new(key_pair.public_key().to_commitment().into(), AuthScheme::Falcon512Poseidon2))
+        .with_component(AuthSingleSig::new(
+            key_pair.public_key().to_commitment().into(),
+            AuthScheme::Falcon512Poseidon2,
+        ))
         .with_component(BasicWallet)
         .build()
         .unwrap();

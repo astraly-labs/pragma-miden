@@ -6,8 +6,8 @@ use miden_client::{
 use miden_standards::code_builder::CodeBuilder;
 
 use miden_client::account::AccountId;
-use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use miden_client::Felt;
+use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -62,12 +62,16 @@ impl PublishCmd {
 
         let parts: Vec<&str> = self.faucet_id.split(':').collect();
         if parts.len() != 2 {
-            return Err(anyhow::anyhow!("Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"));
+            return Err(anyhow::anyhow!(
+                "Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"
+            ));
         }
-        
-        let prefix = parts[0].parse::<u64>()
+
+        let prefix = parts[0]
+            .parse::<u64>()
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix: {}", parts[0]))?;
-        let suffix = parts[1].parse::<u64>()
+        let suffix = parts[1]
+            .parse::<u64>()
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
 
         let entry_as_word: Word = [
@@ -75,8 +79,9 @@ impl PublishCmd {
             Felt::new(self.price),
             Felt::new(self.decimals as u64),
             Felt::new(self.timestamp),
-        ].into();
-        
+        ]
+        .into();
+
         let tx_script_code = format!(
             "
                 use publisher_component::publisher_module
