@@ -6,12 +6,14 @@ use miden_client::{
 use miden_standards::code_builder::CodeBuilder;
 
 use miden_client::account::AccountId;
-use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use miden_client::Felt;
+use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
-#[clap(about = "Publish multiple entries in a single transaction (Callable by the publisher itself)")]
+#[clap(
+    about = "Publish multiple entries in a single transaction (Callable by the publisher itself)"
+)]
 pub struct PublishBatchCmd {
     /// Faucet IDs to publish in format: "1:0:98000000000:6:1234567890 2:0:1900000000:6:1234567890"
     /// Format per entry: FAUCET_ID:PRICE:DECIMALS:TIMESTAMP (e.g., "1:0" for BTC/USD)
@@ -47,6 +49,9 @@ impl PublishBatchCmd {
     /// - Any entry string cannot be parsed
     /// - The transaction script compilation fails
     /// - The transaction submission fails
+    // Used by the binary via SubCommand::call; the lib uses the free
+    // `publish_batch` fn, so this method is dead code in the lib target only.
+    #[allow(dead_code)]
     pub async fn call(
         &self,
         client: &mut Client<FilesystemKeyStore>,
@@ -78,7 +83,13 @@ impl PublishBatchCmd {
                 .map_err(|e| anyhow::anyhow!("Invalid timestamp '{}': {}", parts[4], e))?;
             typed_entries.push((format!("{}:{}", prefix, suffix), price, decimals, timestamp));
         }
-        publish_batch(client, network, &typed_entries, self.publisher_id.as_deref()).await
+        publish_batch(
+            client,
+            network,
+            &typed_entries,
+            self.publisher_id.as_deref(),
+        )
+        .await
     }
 }
 
@@ -179,6 +190,9 @@ pub async fn publish_batch(
         .await
         .map_err(|e| anyhow::anyhow!("Error while submitting transaction: {e:?}"))?;
 
-    println!("✓ Batch publish successful! ({} entries)", entries_data.len());
+    println!(
+        "✓ Batch publish successful! ({} entries)",
+        entries_data.len()
+    );
     Ok(())
 }

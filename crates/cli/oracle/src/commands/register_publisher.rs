@@ -2,8 +2,8 @@ use std::path::Path;
 
 use miden_client::account::AccountId;
 use miden_client::transaction::TransactionRequestBuilder;
-use miden_standards::code_builder::CodeBuilder;
 use miden_client::{keystore::FilesystemKeyStore, Client};
+use miden_standards::code_builder::CodeBuilder;
 use pm_accounts::oracle::get_oracle_component_library;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
@@ -87,7 +87,9 @@ impl RegisterPublisherCmd {
             .await
             .map_err(|e| anyhow::anyhow!("Error while submitting transaction: {e:?}"))?;
 
-        client.sync_state().await
+        client
+            .sync_state()
+            .await
             .map_err(|e| anyhow::anyhow!("Error while syncing state after register: {e:?}"))?;
 
         println!("✅ Register successful!");

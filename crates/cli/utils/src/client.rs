@@ -34,8 +34,8 @@ pub async fn setup_local_client(
         Some(p) => p,
         None => {
             let exec_dir = PathBuf::new();
-            let p = exec_dir.join(STORE_FILENAME);
-            p
+
+            exec_dir.join(STORE_FILENAME)
         }
     };
 
@@ -59,7 +59,7 @@ pub async fn setup_local_client(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).ok();
     }
-    let store = SqliteStore::new(path.try_into().expect("Path should be valid"))
+    let store = SqliteStore::new(path)
         .await
         .map_err(ClientError::StoreError)?;
     let arc_store = Arc::new(store);
@@ -94,8 +94,8 @@ pub async fn setup_devnet_client(
         Some(p) => p,
         None => {
             let exec_dir = PathBuf::new();
-            let p = exec_dir.join(STORE_FILENAME);
-            p
+
+            exec_dir.join(STORE_FILENAME)
         }
     };
 
@@ -121,7 +121,7 @@ pub async fn setup_devnet_client(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).ok();
     }
-    let store = SqliteStore::new(path.try_into().expect("Path should be valid"))
+    let store = SqliteStore::new(path)
         .await
         .map_err(ClientError::StoreError)?;
     let arc_store = Arc::new(store);
@@ -160,8 +160,8 @@ pub async fn setup_testnet_client(
         Some(p) => p,
         None => {
             let exec_dir = PathBuf::new();
-            let p = exec_dir.join(STORE_FILENAME);
-            p
+
+            exec_dir.join(STORE_FILENAME)
         }
     };
 
@@ -187,7 +187,7 @@ pub async fn setup_testnet_client(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).ok();
     }
-    let store = SqliteStore::new(path.try_into().expect("Path must be valid"))
+    let store = SqliteStore::new(path)
         .await
         .map_err(ClientError::StoreError)?;
     let arc_store = Arc::new(store);
@@ -217,7 +217,10 @@ where
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountImmutableCode)
         .storage_mode(storage_mode)
-        .with_component(AuthSingleSig::new(key_pair.public_key().to_commitment().into(), AuthScheme::Falcon512Poseidon2))
+        .with_component(AuthSingleSig::new(
+            key_pair.public_key().to_commitment().into(),
+            AuthScheme::Falcon512Poseidon2,
+        ))
         .with_component(BasicWallet)
         .build()
         .unwrap();

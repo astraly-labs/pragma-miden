@@ -1,9 +1,7 @@
 use anyhow::{Context, Result};
 use miden_client::{
-    account::AccountId,
-    rpc::domain::account::AccountStorageRequirements,
-    transaction::ForeignAccount,
-    Felt, Word, ZERO,
+    account::AccountId, rpc::domain::account::AccountStorageRequirements,
+    transaction::ForeignAccount, Felt, Word, ZERO,
 };
 use miden_protocol::account::{StorageMapKey, StorageSlotName};
 use miden_protocol::vm::AdviceInputs;
@@ -118,7 +116,10 @@ async fn main() -> Result<()> {
             oracle_id,
             script,
             AdviceInputs::default(),
-            foreign_accounts.into_iter().map(|fa| (fa.account_id(), fa)).collect::<BTreeMap<_, _>>(),
+            foreign_accounts
+                .into_iter()
+                .map(|fa| (fa.account_id(), fa))
+                .collect::<BTreeMap<_, _>>(),
         )
         .await
         .map_err(|e| anyhow::anyhow!("execute_program failed: {e:?}"))?;

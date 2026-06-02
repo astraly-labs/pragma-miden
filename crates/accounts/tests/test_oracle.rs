@@ -72,7 +72,7 @@ fn register_publisher_script(publisher_id: AccountId) -> Result<TransactionScrip
         suffix = publisher_id.suffix(),
     );
     Ok(CodeBuilder::default()
-        .with_statically_linked_library(&*get_oracle_component_library())?
+        .with_statically_linked_library(&get_oracle_component_library())?
         .compile_tx_script(tx_script_code)?)
 }
 
@@ -93,7 +93,7 @@ fn remove_publisher_script(publisher_id: AccountId) -> Result<TransactionScript>
         suffix = publisher_id.suffix(),
     );
     Ok(CodeBuilder::default()
-        .with_statically_linked_library(&*get_oracle_component_library())?
+        .with_statically_linked_library(&get_oracle_component_library())?
         .compile_tx_script(tx_script_code)?)
 }
 
@@ -112,7 +112,7 @@ fn get_median_script(pair_word: Word) -> Result<TransactionScript> {
         pair = word_to_masm(pair_word),
     );
     Ok(CodeBuilder::default()
-        .with_statically_linked_library(&*get_oracle_component_library())?
+        .with_statically_linked_library(&get_oracle_component_library())?
         .compile_tx_script(tx_script_code)?)
 }
 
