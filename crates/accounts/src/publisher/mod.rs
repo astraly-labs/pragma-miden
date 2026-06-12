@@ -8,7 +8,6 @@ use miden_client::{
         Account, AccountStorageMode, AccountType as ClientAccountType,
     },
     auth::AuthSecretKey,
-    crypto::rpo_falcon512::SecretKey,
     keystore::{FilesystemKeyStore, Keystore},
     Client, Word,
 };
@@ -121,17 +120,16 @@ impl<'a> PublisherAccountBuilder<'a> {
 
     pub async fn build(self) -> (Account, Word) {
         let client = self.client.expect("build must have a Miden Client!");
-        let client_rng = client.rng();
-        let private_key = SecretKey::with_rng(client_rng);
-        let public_key = private_key.public_key();
-
+        // ECDSA (secp256k1/keccak) auth: far fewer VM cycles than Falcon512 to
+        // verify in-circuit, which directly shrinks the publish tx proof.
+        let auth_key = AuthSecretKey::new_ecdsa_k256_keccak();
         let auth_component = AuthSingleSig::new(
-            public_key.to_commitment().into(),
-            AuthScheme::Falcon512Poseidon2,
+            auth_key.public_key().to_commitment(),
+            AuthScheme::EcdsaK256Keccak,
         );
 
         let publisher_component: AccountComponent = get_publisher_component();
-        let from_seed = client_rng.random();
+        let from_seed = client.rng().random();
         let account_type: String = self.account_type.to_string();
         let client_account_type: ClientAccountType = account_type.parse().unwrap();
         let account = AccountBuilder::new(from_seed)
@@ -145,13 +143,7 @@ impl<'a> PublisherAccountBuilder<'a> {
 
         client.add_account(&account, true).await.unwrap();
         let keystore = FilesystemKeyStore::new(self.keystore_path.into()).unwrap();
-        keystore
-            .add_key(
-                &AuthSecretKey::Falcon512Poseidon2(private_key),
-                account.id(),
-            )
-            .await
-            .unwrap();
+        keystore.add_key(&auth_key, account.id()).await.unwrap();
 
         (account, account_seed)
     }
