@@ -1,4 +1,5 @@
 use crate::STORE_FILENAME;
+use miden_client::grpc_support::{DEVNET_PROVER_ENDPOINT, TESTNET_PROVER_ENDPOINT};
 use miden_client::{
     account::{
         component::{AuthScheme, AuthSingleSig, BasicWallet},
@@ -8,50 +9,41 @@ use miden_client::{
     crypto::{rpo_falcon512::SecretKey, RandomCoin},
     keystore::{FilesystemKeyStore, Keystore},
     rpc::{Endpoint, GrpcClient},
-    Client, ClientError, Felt, Word,
+    Client, ClientError, Felt, RemoteTransactionProver, Word,
 };
 use miden_client_sqlite_store::SqliteStore;
-use rand::{Rng, RngCore};
+use rand::RngCore;
 use std::{fs, path::PathBuf, sync::Arc};
 
 // Client Setup
 // ================================================================================================
 
-pub async fn setup_local_client(
+// Bounds every node RPC call, including SubmitProvenTx. 10s was too tight for
+// the heavier first submit after a cold start (account deploy) — observed real
+// >10s submits on testnet. 60s gives headroom and is itself bounded by the
+// SDK-side 180s publish_batch timeout.
+const RPC_TIMEOUT_MS: u64 = 60_000;
+
+/// Build a Miden client for the given network endpoint.
+///
+/// When `prover_endpoint` is `Some`, transaction proving is delegated to
+/// Miden's hosted remote prover. Proving a `publish_batch` tx in-process
+/// (the default `LocalTransactionProver`) takes 60-120s and >4Gi RSS on the
+/// publisher pod, so testnet/devnet offload it; `local` keeps local proving
+/// since a local node has no hosted prover.
+async fn setup_client(
+    endpoint: Endpoint,
+    prover_endpoint: Option<&str>,
     path: Option<PathBuf>,
     keystore_path: Option<String>,
 ) -> Result<Client<FilesystemKeyStore>, ClientError> {
-    let endpoint = Endpoint::localhost();
-    let timeout_ms = 10_000;
-
-    let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
+    let rpc_api = Arc::new(GrpcClient::new(&endpoint, RPC_TIMEOUT_MS));
 
     let coin_seed: [u64; 4] = rand::random();
-
     let rng = Box::new(RandomCoin::new(coin_seed.map(Felt::new).into()));
 
-    let path = match path {
-        Some(p) => p,
-        None => {
-            let exec_dir = PathBuf::new();
-
-            exec_dir.join(STORE_FILENAME)
-        }
-    };
-
-    let keystore_path_str = keystore_path.unwrap_or_else(|| {
-        let mut current_dir = std::env::current_dir().expect("Failed to get current directory");
-        loop {
-            if current_dir.join("Cargo.toml").exists() {
-                return current_dir.join("keystore").to_string_lossy().to_string();
-            }
-            if let Some(parent) = current_dir.parent() {
-                current_dir = parent.to_path_buf();
-            } else {
-                return "./keystore".to_string();
-            }
-        }
-    });
+    let path = path.unwrap_or_else(|| PathBuf::new().join(STORE_FILENAME));
+    let keystore_path_str = keystore_path.unwrap_or_else(default_keystore_path);
     let keystore = FilesystemKeyStore::new(keystore_path_str.into())
         .unwrap()
         .into();
@@ -62,146 +54,69 @@ pub async fn setup_local_client(
     let store = SqliteStore::new(path)
         .await
         .map_err(ClientError::StoreError)?;
-    let arc_store = Arc::new(store);
 
-    let client = ClientBuilder::new()
+    let mut builder = ClientBuilder::new()
         .authenticator(keystore)
         .rpc(rpc_api)
         .rng(rng)
-        .store(arc_store)
-        .in_debug_mode(miden_client::DebugMode::Enabled)
-        .build()
-        .await?;
+        .store(Arc::new(store))
+        .in_debug_mode(miden_client::DebugMode::Enabled);
 
-    Ok(client)
+    if let Some(prover_url) = prover_endpoint {
+        builder = builder.prover(Arc::new(RemoteTransactionProver::new(
+            prover_url.to_string(),
+        )));
+    }
+
+    builder.build().await
+}
+
+/// Resolve the keystore directory by walking up to the project root
+/// (first ancestor containing a `Cargo.toml`), falling back to `./keystore`.
+fn default_keystore_path() -> String {
+    let mut current_dir = std::env::current_dir().expect("Failed to get current directory");
+    loop {
+        if current_dir.join("Cargo.toml").exists() {
+            return current_dir.join("keystore").to_string_lossy().to_string();
+        }
+        match current_dir.parent() {
+            Some(parent) => current_dir = parent.to_path_buf(),
+            None => return "./keystore".to_string(),
+        }
+    }
+}
+
+pub async fn setup_local_client(
+    path: Option<PathBuf>,
+    keystore_path: Option<String>,
+) -> Result<Client<FilesystemKeyStore>, ClientError> {
+    setup_client(Endpoint::localhost(), None, path, keystore_path).await
 }
 
 pub async fn setup_devnet_client(
     path: Option<PathBuf>,
     keystore_path: Option<String>,
 ) -> Result<Client<FilesystemKeyStore>, ClientError> {
-    // RPC endpoint and timeout
-    let endpoint = Endpoint::devnet();
-    let timeout_ms = 10_000;
-
-    let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
-
-    let coin_seed: [u64; 4] = rand::random();
-
-    let rng = Box::new(RandomCoin::new(coin_seed.map(Felt::new).into()));
-
-    let path = match path {
-        Some(p) => p,
-        None => {
-            let exec_dir = PathBuf::new();
-
-            exec_dir.join(STORE_FILENAME)
-        }
-    };
-
-    let keystore_path_str = keystore_path.unwrap_or_else(|| {
-        // Find the project root by looking for Cargo.toml
-        let mut current_dir = std::env::current_dir().expect("Failed to get current directory");
-        loop {
-            if current_dir.join("Cargo.toml").exists() {
-                return current_dir.join("keystore").to_string_lossy().to_string();
-            }
-            if let Some(parent) = current_dir.parent() {
-                current_dir = parent.to_path_buf();
-            } else {
-                // Fallback to relative path if we can't find project root
-                return "./keystore".to_string();
-            }
-        }
-    });
-    let keystore = FilesystemKeyStore::new(keystore_path_str.into())
-        .unwrap()
-        .into();
-
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).ok();
-    }
-    let store = SqliteStore::new(path)
-        .await
-        .map_err(ClientError::StoreError)?;
-    let arc_store = Arc::new(store);
-
-    let client = ClientBuilder::new()
-        .authenticator(keystore)
-        .rpc(rpc_api)
-        .rng(rng)
-        .store(arc_store)
-        .in_debug_mode(miden_client::DebugMode::Enabled)
-        .build()
-        .await?;
-
-    Ok(client)
+    setup_client(
+        Endpoint::devnet(),
+        Some(DEVNET_PROVER_ENDPOINT),
+        path,
+        keystore_path,
+    )
+    .await
 }
 
 pub async fn setup_testnet_client(
     storage_path: Option<PathBuf>,
     keystore_path: Option<String>,
 ) -> Result<Client<FilesystemKeyStore>, ClientError> {
-    // RPC endpoint and timeout
-    let endpoint = Endpoint::testnet();
-    let timeout_ms = 10_000;
-
-    // Build RPC client
-    let rpc_api = Arc::new(GrpcClient::new(&endpoint, timeout_ms));
-
-    // Seed RNG
-    let mut seed_rng = rand::rng();
-    let coin_seed: [u64; 4] = seed_rng.random();
-
-    // Create random coin instance
-    let rng = Box::new(RandomCoin::new(coin_seed.map(Felt::new).into()));
-
-    let path = match storage_path {
-        Some(p) => p,
-        None => {
-            let exec_dir = PathBuf::new();
-
-            exec_dir.join(STORE_FILENAME)
-        }
-    };
-
-    let keystore_path_str = keystore_path.unwrap_or_else(|| {
-        // Find the project root by looking for Cargo.toml
-        let mut current_dir = std::env::current_dir().expect("Failed to get current directory");
-        loop {
-            if current_dir.join("Cargo.toml").exists() {
-                return current_dir.join("keystore").to_string_lossy().to_string();
-            }
-            if let Some(parent) = current_dir.parent() {
-                current_dir = parent.to_path_buf();
-            } else {
-                // Fallback to relative path if we can't find project root
-                return "./keystore".to_string();
-            }
-        }
-    });
-    let keystore = FilesystemKeyStore::new(keystore_path_str.into())
-        .unwrap()
-        .into();
-
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).ok();
-    }
-    let store = SqliteStore::new(path)
-        .await
-        .map_err(ClientError::StoreError)?;
-    let arc_store = Arc::new(store);
-
-    let client = ClientBuilder::new()
-        .authenticator(keystore)
-        .rpc(rpc_api)
-        .rng(rng)
-        .store(arc_store)
-        .in_debug_mode(miden_client::DebugMode::Enabled)
-        .build()
-        .await?;
-
-    Ok(client)
+    setup_client(
+        Endpoint::testnet(),
+        Some(TESTNET_PROVER_ENDPOINT),
+        storage_path,
+        keystore_path,
+    )
+    .await
 }
 
 pub async fn create_wallet<K>(
