@@ -19,8 +19,8 @@ const FAUCET_IDS = [
 ];
 
 const CONTRACTS = [
-  { name: "Oracle", address: "mtst1argwzwzwyxnr2qpfmqqj366ugsax2t3x", url: "https://testnet.midenscan.com/account/mtst1argwzwzwyxnr2qpfmqqj366ugsax2t3x" },
-  { name: "Publisher", address: "mtst1aqhn4fnd8x8duqr9y4ku23qqwyzdndw3", url: "https://testnet.midenscan.com/account/mtst1aqhn4fnd8x8duqr9y4ku23qqwyzdndw3" },
+  { name: "Oracle", address: "mtst1ar908pt2ahaykyrdtxvc0zf53uujtu0c", url: "https://testnet.midenscan.com/account/mtst1ar908pt2ahaykyrdtxvc0zf53uujtu0c" },
+  { name: "Publisher", address: "mtst1azuzz98j5kvpqqrdqsg2d3zwgcx394vh", url: "https://testnet.midenscan.com/account/mtst1azuzz98j5kvpqqrdqsg2d3zwgcx394vh" },
 ];
 
 const PUBLISHER_STEPS = [
