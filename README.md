@@ -26,10 +26,8 @@
 
 | Role       | Account ID                           | Explorer |
 |------------|--------------------------------------|----------|
-| Oracle     | `0xec7e450b91bf690015ad79573689f1`  | [view](https://testnet.midenscan.com/account/0xec7e450b91bf690015ad79573689f1) |
-| Publisher1 | `0xaa9c9ad8583c3b0064eff7356152bd`  | [view](https://testnet.midenscan.com/account/0xaa9c9ad8583c3b0064eff7356152bd) |
-| Publisher2 | `0x39c45ece7de124002191469753074f`  | [view](https://testnet.midenscan.com/account/0x39c45ece7de124002191469753074f) |
-| Publisher3 | `0x022c8db22d56b1000643d54faf7487`  | [view](https://testnet.midenscan.com/account/0x022c8db22d56b1000643d54faf7487) |
+| Oracle     | `0xcaf3856aedfa4b106d59998789348f`  | [view](https://testnet.midenscan.com/account/mtst1ar908pt2ahaykyrdtxvc0zf53uujtu0c) |
+| Publisher  | `0xb82114f2a59810006d0410a6c44e46`  | [view](https://testnet.midenscan.com/account/mtst1azuzz98j5kvpqqrdqsg2d3zwgcx394vh) |
 
 > Addresses change between testnet iterations. This table is the source of truth.
 
