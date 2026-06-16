@@ -2,9 +2,11 @@ use miden_client::account::AccountId;
 use miden_client::{keystore::FilesystemKeyStore, Client};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use tokio::runtime::{Builder, Runtime};
+use tokio::sync::Mutex as AsyncMutex;
 mod commands;
 use crate::commands::{
     entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, publish::PublishCmd,
@@ -32,6 +34,36 @@ fn rt() -> &'static Runtime {
     })
 }
 
+/// Cache of Miden clients keyed by (network, store path, keystore path), so we
+/// reuse one client — and its open SQLite store + RPC channel — across pyo3
+/// calls instead of rebuilding it on every call. The long-running price-pusher
+/// publishes every few seconds, so rebuilding a client each time (reopening the
+/// store, re-logging "Initializing testnet client") was pure overhead.
+type CachedClient = Arc<AsyncMutex<Client<FilesystemKeyStore>>>;
+static CLIENTS: OnceLock<StdMutex<HashMap<String, CachedClient>>> = OnceLock::new();
+
+async fn cached_client(
+    network: &str,
+    store_config: PathBuf,
+    keystore_path: Option<String>,
+) -> PyResult<CachedClient> {
+    let key = format!(
+        "{network}|{}|{}",
+        store_config.to_string_lossy(),
+        keystore_path.as_deref().unwrap_or("")
+    );
+    let cache = CLIENTS.get_or_init(|| StdMutex::new(HashMap::new()));
+    if let Some(client) = cache.lock().unwrap().get(&key) {
+        return Ok(client.clone());
+    }
+    // Build outside the lock (setup is async); if another call raced us, keep
+    // the first client that made it into the map.
+    let client = Arc::new(AsyncMutex::new(
+        setup_client(network, store_config, keystore_path).await?,
+    ));
+    Ok(cache.lock().unwrap().entry(key).or_insert(client).clone())
+}
+
 /// Initialize publisher and return a client handle
 #[pyfunction]
 #[pyo3(name = "init")]
@@ -47,7 +79,8 @@ fn py_init(
 
         // Use appropriate client setup based on network parameter
         let network_str = network.as_deref().unwrap_or("testnet");
-        let mut client = setup_client(network_str, store_config, keystore_path).await?;
+        let client_arc = cached_client(network_str, store_config, keystore_path).await?;
+        let mut client = client_arc.lock().await;
 
         let cmd = InitCmd {
             oracle_id: Some(oracle_id),
@@ -79,7 +112,8 @@ fn py_publish(
 
         let network_str = network.as_deref().unwrap_or("testnet");
 
-        let mut client = setup_client(network_str, store_config, keystore_path).await?;
+        let client_arc = cached_client(network_str, store_config, keystore_path).await?;
+        let mut client = client_arc.lock().await;
 
         let cmd = PublishCmd {
             faucet_id,
@@ -112,7 +146,8 @@ fn py_get_entry(
 
         let network_str = network.as_deref().unwrap_or("testnet");
 
-        let mut client = setup_client(network_str, store_config, keystore_path).await?;
+        let client_arc = cached_client(network_str, store_config, keystore_path).await?;
+        let mut client = client_arc.lock().await;
 
         let cmd = GetEntryCmd { faucet_id };
         let entry = cmd
@@ -144,7 +179,8 @@ fn py_entry(
 
         let network_str = network.as_deref().unwrap_or("testnet");
 
-        let mut client = setup_client(network_str, store_config, keystore_path).await?;
+        let client_arc = cached_client(network_str, store_config, keystore_path).await?;
+        let mut client = client_arc.lock().await;
 
         let cmd = EntryCmd { faucet_id };
         cmd.call(&mut client, network_str)
@@ -173,7 +209,8 @@ fn py_publish_batch(
     rt().block_on(async {
         let store_config = get_store_config(storage_path);
         let network_str = network.as_deref().unwrap_or("testnet");
-        let mut client = setup_client(network_str, store_config, keystore_path).await?;
+        let client_arc = cached_client(network_str, store_config, keystore_path).await?;
+        let mut client = client_arc.lock().await;
 
         do_publish_batch(&mut client, network_str, &entries, None)
             .await
@@ -199,7 +236,8 @@ fn py_import_account(
     rt().block_on(async {
         let store_config = get_store_config(storage_path);
         let network_str = network.as_deref().unwrap_or("testnet");
-        let mut client = setup_client(network_str, store_config, keystore_path).await?;
+        let client_arc = cached_client(network_str, store_config, keystore_path).await?;
+        let mut client = client_arc.lock().await;
 
         let id = AccountId::from_hex(&account_id).map_err(|e| {
             PyValueError::new_err(format!("Invalid account_id '{}': {}", account_id, e))
@@ -228,7 +266,8 @@ fn py_sync(
         let network_str = network.as_deref().unwrap_or("testnet");
 
         // Use appropriate client setup based on network parameter
-        let mut client = setup_client(network_str, store_config, keystore_path).await?;
+        let client_arc = cached_client(network_str, store_config, keystore_path).await?;
+        let mut client = client_arc.lock().await;
 
         let cmd = SyncCmd {};
         cmd.call(&mut client)
