@@ -24,6 +24,17 @@ use std::{fs, path::PathBuf, sync::Arc};
 // SDK-side 180s publish_batch timeout.
 const RPC_TIMEOUT_MS: u64 = 60_000;
 
+/// Debug mode is off by default (it makes the assembler try to load MASM
+/// sources for richer traces — which logs `failed to load MASM sources` in
+/// the deployed wheel and adds execution overhead). Set `PM_MIDEN_DEBUG=1`
+/// to re-enable it for development (e.g. to get `debug.stack` output).
+fn debug_mode() -> miden_client::DebugMode {
+    match std::env::var("PM_MIDEN_DEBUG").as_deref() {
+        Ok("1") | Ok("true") | Ok("TRUE") => miden_client::DebugMode::Enabled,
+        _ => miden_client::DebugMode::Disabled,
+    }
+}
+
 /// Build a Miden client for the given network endpoint.
 ///
 /// When `prover_endpoint` is `Some`, transaction proving is delegated to
@@ -60,7 +71,7 @@ async fn setup_client(
         .rpc(rpc_api)
         .rng(rng)
         .store(Arc::new(store))
-        .in_debug_mode(miden_client::DebugMode::Enabled);
+        .in_debug_mode(debug_mode());
 
     if let Some(prover_url) = prover_endpoint {
         builder = builder.prover(Arc::new(RemoteTransactionProver::new(
