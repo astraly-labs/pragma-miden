@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use rand::Rng;
 
@@ -54,19 +54,32 @@ pub fn get_entry_procedure_hash() -> String {
         .join(".")
 }
 
-pub fn get_publisher_component_library() -> Arc<Library> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let publisher_component_module = Module::parser(ModuleKind::Library)
-        .parse_str(
-            LibraryPath::new("publisher_component::publisher_module"),
-            PUBLISHER_ACCOUNT_MASM,
-            source_manager.clone(),
-        )
-        .unwrap();
+/// Process-wide cache for the assembled publisher library.
+///
+/// The MASM parse + assemble step is expensive (allocates the full AST,
+/// then assembles into MAST). Doing it on every call was causing
+/// multi-hundred-Mb transient RSS spikes that OOM-killed long-running
+/// embedders like the pragma-sdk price-pusher in K8s. The library never
+/// changes for the lifetime of the process, so we assemble once.
+static PUBLISHER_LIB: OnceLock<Arc<Library>> = OnceLock::new();
 
-    TransactionKernel::assembler_with_source_manager(source_manager)
-        .assemble_library([publisher_component_module])
-        .expect("assembly should succeed")
+pub fn get_publisher_component_library() -> Arc<Library> {
+    PUBLISHER_LIB
+        .get_or_init(|| {
+            let source_manager = Arc::new(DefaultSourceManager::default());
+            let publisher_component_module = Module::parser(ModuleKind::Library)
+                .parse_str(
+                    LibraryPath::new("publisher_component::publisher_module"),
+                    PUBLISHER_ACCOUNT_MASM,
+                    source_manager.clone(),
+                )
+                .unwrap();
+
+            TransactionKernel::assembler_with_source_manager(source_manager)
+                .assemble_library([publisher_component_module])
+                .expect("assembly should succeed")
+        })
+        .clone()
 }
 
 pub fn get_publisher_component() -> AccountComponent {

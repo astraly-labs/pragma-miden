@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use rand::Rng;
 
@@ -43,19 +43,27 @@ pub fn oracle_storage_slots() -> Vec<StorageSlot> {
     ]
 }
 
+/// Process-wide cache for the assembled oracle library. See the publisher
+/// version for rationale.
+static ORACLE_LIB: OnceLock<Arc<Library>> = OnceLock::new();
+
 pub fn get_oracle_component_library() -> Arc<Library> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let oracle_masm = get_oracle_masm();
-    let oracle_component_module = Module::parser(ModuleKind::Library)
-        .parse_str(
-            LibraryPath::new("oracle_component::oracle_module"),
-            &oracle_masm,
-            source_manager.clone(),
-        )
-        .unwrap();
-    TransactionKernel::assembler_with_source_manager(source_manager)
-        .assemble_library([oracle_component_module])
-        .expect("assembly should succeed")
+    ORACLE_LIB
+        .get_or_init(|| {
+            let source_manager = Arc::new(DefaultSourceManager::default());
+            let oracle_masm = get_oracle_masm();
+            let oracle_component_module = Module::parser(ModuleKind::Library)
+                .parse_str(
+                    LibraryPath::new("oracle_component::oracle_module"),
+                    &oracle_masm,
+                    source_manager.clone(),
+                )
+                .unwrap();
+            TransactionKernel::assembler_with_source_manager(source_manager)
+                .assemble_library([oracle_component_module])
+                .expect("assembly should succeed")
+        })
+        .clone()
 }
 
 pub fn get_median_procedure_hash() -> String {
