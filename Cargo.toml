@@ -20,7 +20,7 @@ default-members = [
 unsafe_code = "forbid"
 
 [workspace.package]
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 authors = ["Pragma <https://github.com/astraly-labs>"]
 homepage = "https://www.pragma.build/"
 edition = "2021"
