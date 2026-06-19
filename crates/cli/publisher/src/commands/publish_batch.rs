@@ -160,16 +160,26 @@ pub async fn publish_batch(
         ));
     }
 
+    // Expire the tx after a bounded number of blocks if it isn't committed in
+    // time, so a stalled publish dies cleanly node-side instead of lingering
+    // and diverging the local account state (a custom-script tx must set this
+    // inside the script — the request builder rejects it otherwise). Must be
+    // 1..=65535; kept under the client's tx_discard_delta (20) so node and
+    // client agree on when a tx is dead.
+    const EXPIRATION_BLOCK_DELTA: u16 = 16;
+
     let tx_script_code = format!(
         "
             use publisher_component::publisher_module
             use miden::core::sys
 
             begin
+                push.{expiration} exec.::miden::protocol::tx::update_expiration_block_delta
                 {publish_calls}
                 exec.sys::truncate_stack
             end
         ",
+        expiration = EXPIRATION_BLOCK_DELTA,
         publish_calls = publish_calls
     );
 
