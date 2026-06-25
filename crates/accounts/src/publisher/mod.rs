@@ -5,7 +5,7 @@ use rand::Rng;
 use miden_client::{
     account::{
         component::{AuthScheme, AuthSingleSig},
-        Account, AccountStorageMode, AccountType as ClientAccountType,
+        Account,
     },
     auth::AuthSecretKey,
     keystore::{FilesystemKeyStore, Keystore},
@@ -74,7 +74,7 @@ pub fn get_publisher_component() -> AccountComponent {
     let library = Arc::try_unwrap(library).unwrap_or_else(|arc| (*arc).clone());
     let storage_slot =
         StorageSlot::with_empty_map(StorageSlotName::new("pragma::publisher::entries").unwrap());
-    let metadata = AccountComponentMetadata::new("pragma::publisher", AccountType::all());
+    let metadata = AccountComponentMetadata::new("pragma::publisher");
     AccountComponent::new(library, vec![storage_slot], metadata).expect("assembly should succeed")
 }
 
@@ -92,7 +92,9 @@ impl<'a> PublisherAccountBuilder<'a> {
         )];
         Self {
             client: None,
-            account_type: AccountType::RegularAccountImmutableCode,
+            // 0.15: AccountType only encodes visibility (Public/Private); code
+            // mutability is no longer carried here (was RegularAccountImmutableCode).
+            account_type: AccountType::Public,
             storage_slots: default_storage_slots,
             keystore_path: "./keystore".to_string(),
         }
@@ -130,11 +132,8 @@ impl<'a> PublisherAccountBuilder<'a> {
 
         let publisher_component: AccountComponent = get_publisher_component();
         let from_seed = client.rng().random();
-        let account_type: String = self.account_type.to_string();
-        let client_account_type: ClientAccountType = account_type.parse().unwrap();
         let account = AccountBuilder::new(from_seed)
-            .account_type(client_account_type)
-            .storage_mode(AccountStorageMode::Public)
+            .account_type(self.account_type)
             .with_auth_component(auth_component)
             .with_component(publisher_component)
             .build()

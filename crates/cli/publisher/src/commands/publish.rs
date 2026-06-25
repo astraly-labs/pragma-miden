@@ -75,10 +75,10 @@ impl PublishCmd {
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
 
         let entry_as_word: Word = [
-            Felt::new(0),
-            Felt::new(self.price),
-            Felt::new(self.decimals as u64),
-            Felt::new(self.timestamp),
+            Felt::new(0)?,
+            Felt::new(self.price)?,
+            Felt::new(self.decimals as u64)?,
+            Felt::new(self.timestamp)?,
         ]
         .into();
 

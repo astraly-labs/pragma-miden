@@ -5,7 +5,7 @@ use rand::Rng;
 use miden_client::{
     account::{
         component::{AuthScheme, AuthSingleSig},
-        Account, AccountStorageMode, AccountType as ClientAccountType,
+        Account, AccountType as ClientAccountType,
     },
     auth::AuthSecretKey,
     crypto::rpo_falcon512::SecretKey,
@@ -14,8 +14,7 @@ use miden_client::{
 };
 use miden_protocol::{
     account::{
-        AccountBuilder, AccountComponent, AccountComponentMetadata, AccountType, StorageSlot,
-        StorageSlotName,
+        AccountBuilder, AccountComponent, AccountComponentMetadata, StorageSlot, StorageSlotName,
     },
     assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
     transaction::TransactionKernel,
@@ -37,7 +36,7 @@ pub fn oracle_storage_slots() -> Vec<StorageSlot> {
     vec![
         StorageSlot::with_value(
             StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap(),
-            [Felt::new(2), ZERO, ZERO, ZERO].into(),
+            [Felt::from(2u32), ZERO, ZERO, ZERO].into(),
         ),
         StorageSlot::with_empty_map(StorageSlotName::new("pragma::oracle::publishers").unwrap()),
     ]
@@ -87,14 +86,14 @@ pub fn get_median_procedure_hash() -> String {
 pub fn get_oracle_component() -> AccountComponent {
     let library = get_oracle_component_library();
     let library = Arc::try_unwrap(library).unwrap_or_else(|arc| (*arc).clone());
-    let metadata = AccountComponentMetadata::new("pragma::oracle", AccountType::all());
+    let metadata = AccountComponentMetadata::new("pragma::oracle");
     AccountComponent::new(library, oracle_storage_slots(), metadata)
         .expect("assembly should succeed")
 }
 
 pub struct OracleAccountBuilder<'a> {
     client: Option<&'a mut Client<FilesystemKeyStore>>,
-    account_type: String,
+    account_type: ClientAccountType,
     storage_slots: Vec<StorageSlot>,
     keystore_path: String,
 }
@@ -105,14 +104,16 @@ impl<'a> OracleAccountBuilder<'a> {
 
         Self {
             client: None,
-            account_type: ClientAccountType::RegularAccountUpdatableCode.to_string(),
+            // 0.15: AccountType only encodes visibility (Public/Private); code
+            // mutability is no longer carried here (was RegularAccountUpdatableCode).
+            account_type: ClientAccountType::Public,
             storage_slots: default_storage_slots,
             keystore_path: "./keystore".to_string(),
         }
     }
 
     pub fn with_account_type(mut self, account_type: ClientAccountType) -> Self {
-        self.account_type = account_type.to_string();
+        self.account_type = account_type;
         self
     }
 
@@ -132,7 +133,7 @@ impl<'a> OracleAccountBuilder<'a> {
     }
 
     pub async fn build(self) -> (Account, Word) {
-        let client_account_type: ClientAccountType = self.account_type.parse().unwrap();
+        let account_type = self.account_type;
         let oracle_component = get_oracle_component();
         let client = self.client.expect("build must have a Miden Client!");
         let client_rng = client.rng();
@@ -146,8 +147,7 @@ impl<'a> OracleAccountBuilder<'a> {
         let from_seed = client_rng.random();
 
         let account = AccountBuilder::new(from_seed)
-            .account_type(client_account_type)
-            .storage_mode(AccountStorageMode::Public)
+            .account_type(account_type)
             .with_auth_component(auth_component)
             .with_component(oracle_component)
             .build()

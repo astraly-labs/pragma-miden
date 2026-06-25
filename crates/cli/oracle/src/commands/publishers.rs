@@ -79,7 +79,7 @@ impl PublishersCmd {
         for i in 2..next_index {
             // KEY raw = [idx, 0, 0, 0] — get_stack_word_be maps stack bottom -> word[0]
             // MASM stack has idx at bottom of KEY word, so word[0]=idx
-            let key: [Felt; 4] = [Felt::new(i), ZERO, ZERO, ZERO];
+            let key: [Felt; 4] = [Felt::new(i)?, ZERO, ZERO, ZERO];
             let publisher_word = storage
                 .get_map_item(&publishers_slot, key.into())
                 .with_context(|| format!("Failed to retrieve publisher at index {i}"))?;

@@ -20,7 +20,7 @@ default-members = [
 unsafe_code = "forbid"
 
 [workspace.package]
-version = "0.1.0-alpha.6"
+version = "0.1.0-alpha.7"
 authors = ["Pragma <https://github.com/astraly-labs>"]
 homepage = "https://www.pragma.build/"
 edition = "2021"
@@ -49,17 +49,17 @@ tokio = { version = "1.40.0", features = ["rt-multi-thread", "net", "macros"] }
 chrono = "0.4"
 prettytable-rs = "0.10"
 futures = "0.3.31"
-# Miden 0.14 dependencies
-miden-protocol = { version = "0.14" }
-miden-standards = { version = "0.14" }
-miden-assembly = "0.22"
-miden-core = "0.22"
-miden-core-lib = "0.22"
-miden-crypto = "0.23"
-miden-tx = { version = "0.14", features = ["concurrent"] }
-miden-testing = { version = "0.14" }
-miden-client = { version = "0.14", features = ["tonic", "testing"] }
-miden-client-sqlite-store = "0.14"
+# Miden 0.15 dependencies
+miden-protocol = { version = "0.15" }
+miden-standards = { version = "0.15" }
+miden-assembly = "0.23"
+miden-core = "0.23"
+miden-core-lib = "0.23"
+miden-crypto = "0.25"
+miden-tx = { version = "0.15", features = ["concurrent"] }
+miden-testing = { version = "0.15" }
+miden-client = { version = "0.15", features = ["tonic", "testing"] }
+miden-client-sqlite-store = "0.15"
 
 pyo3 = { version = "0.20.0", features = ["extension-module",  "abi3-py37"] }
 uuid = { version = "1.10", features = ["serde", "v4"] }

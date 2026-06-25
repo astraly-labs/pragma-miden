@@ -3,7 +3,7 @@ use miden_client::grpc_support::{DEVNET_PROVER_ENDPOINT, TESTNET_PROVER_ENDPOINT
 use miden_client::{
     account::{
         component::{AuthScheme, AuthSingleSig, BasicWallet},
-        Account, AccountBuilder, AccountStorageMode, AccountType,
+        Account, AccountBuilder, AccountType,
     },
     builder::ClientBuilder,
     crypto::{rpo_falcon512::SecretKey, RandomCoin},
@@ -51,7 +51,11 @@ async fn setup_client(
     let rpc_api = Arc::new(GrpcClient::new(&endpoint, RPC_TIMEOUT_MS));
 
     let coin_seed: [u64; 4] = rand::random();
-    let rng = Box::new(RandomCoin::new(coin_seed.map(Felt::new).into()));
+    // 0.15: Felt::new is fallible (rejects value >= field modulus). Shift right by
+    // one so each limb is < 2^63 < p — always a canonical field element, no panic.
+    let rng = Box::new(RandomCoin::new(
+        coin_seed.map(|x| Felt::new_unchecked(x >> 1)).into(),
+    ));
 
     let path = path.unwrap_or_else(|| PathBuf::new().join(STORE_FILENAME));
     let keystore_path_str = keystore_path.unwrap_or_else(default_keystore_path);
@@ -132,7 +136,7 @@ pub async fn setup_testnet_client(
 
 pub async fn create_wallet<K>(
     client: &mut Client<K>,
-    storage_mode: AccountStorageMode,
+    account_type: AccountType,
 ) -> Result<(Account, Word), ClientError>
 where
     K: Keystore + Sync,
@@ -141,8 +145,7 @@ where
     client.rng().fill_bytes(&mut init_seed);
     let key_pair = SecretKey::with_rng(client.rng());
     let account = AccountBuilder::new(init_seed)
-        .account_type(AccountType::RegularAccountImmutableCode)
-        .storage_mode(storage_mode)
+        .account_type(account_type)
         .with_component(AuthSingleSig::new(
             key_pair.public_key().to_commitment().into(),
             AuthScheme::Falcon512Poseidon2,

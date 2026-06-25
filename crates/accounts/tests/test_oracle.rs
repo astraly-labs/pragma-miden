@@ -11,8 +11,8 @@ use anyhow::{Context, Result};
 use miden_client::account::AccountId;
 use miden_client::transaction::TransactionScript;
 use miden_protocol::account::{
-    auth::AuthScheme, AccountComponent, AccountComponentMetadata, AccountType, StorageMap,
-    StorageMapKey, StorageSlot, StorageSlotName,
+    auth::AuthScheme, AccountComponent, AccountComponentMetadata, StorageMap, StorageMapKey,
+    StorageSlot, StorageSlotName,
 };
 use miden_protocol::errors::MasmError;
 use miden_protocol::{Felt, Word, ZERO};
@@ -21,7 +21,7 @@ use miden_testing::{assert_transaction_executor_error, Auth, MockChain, MockChai
 
 use pm_accounts::{
     oracle::{get_oracle_component, get_oracle_component_library},
-    publisher::get_publisher_component_library,
+    publisher::{get_publisher_component, get_publisher_component_library},
     utils::word_to_masm,
 };
 use pm_types::{Currency, Entry, Pair};
@@ -50,7 +50,7 @@ fn publisher_component_with_entry(pair: Word, entry: Word) -> AccountComponent {
         StorageSlotName::new("pragma::publisher::entries").unwrap(),
         StorageMap::with_entries(vec![(StorageMapKey::new(pair), entry)]).unwrap(),
     );
-    let metadata = AccountComponentMetadata::new("pragma::publisher", AccountType::all());
+    let metadata = AccountComponentMetadata::new("pragma::publisher");
     AccountComponent::new(library, vec![storage_slot], metadata)
         .expect("publisher component should assemble")
 }
@@ -130,16 +130,22 @@ fn btc_usd_pair() -> Result<Pair> {
 // reconstruct and match against. (See the word-convention note in the repo.)
 fn onchain_entry(price: u64, decimals: u64, timestamp: u64) -> Word {
     [
-        Felt::new(timestamp),
-        Felt::new(decimals),
-        Felt::new(price),
+        Felt::new(timestamp).unwrap(),
+        Felt::new(decimals).unwrap(),
+        Felt::new(price).unwrap(),
         ZERO,
     ]
     .into()
 }
 
 fn onchain_faucet_key(prefix: u64, suffix: u64) -> Word {
-    [Felt::new(prefix), Felt::new(suffix), ZERO, ZERO].into()
+    [
+        Felt::new(prefix).unwrap(),
+        Felt::new(suffix).unwrap(),
+        ZERO,
+        ZERO,
+    ]
+    .into()
 }
 
 /// Resolves an oracle-component procedure to its MAST root so it can be invoked
@@ -208,9 +214,11 @@ async fn test_oracle_register_publisher() -> Result<()> {
     let mut builder = MockChainBuilder::new();
     let oracle =
         builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+    let publisher =
+        builder.add_existing_account_from_components(falcon_auth(), [get_publisher_component()])?;
     let mock_chain = builder.build()?;
 
-    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")?;
+    let publisher_id = publisher.id();
 
     let tx_context = mock_chain
         .build_tx_context(oracle.id(), &[], &[])?
@@ -224,12 +232,12 @@ async fn test_oracle_register_publisher() -> Result<()> {
     let next_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap();
     assert_eq!(
         oracle.storage().get_item(&next_index_slot).unwrap(),
-        [Felt::new(3), ZERO, ZERO, ZERO].into(),
+        [Felt::new(3).unwrap(), ZERO, ZERO, ZERO].into(),
         "next_publisher_index must advance from 2 to 3"
     );
 
     let publishers_slot = StorageSlotName::new("pragma::oracle::publishers").unwrap();
-    let slot_key: Word = [Felt::new(2), ZERO, ZERO, ZERO].into();
+    let slot_key: Word = [Felt::new(2).unwrap(), ZERO, ZERO, ZERO].into();
     let stored = oracle
         .storage()
         .get_map_item(&publishers_slot, slot_key)
@@ -254,9 +262,11 @@ async fn test_oracle_register_publisher_fails_if_already_registered() -> Result<
     let mut builder = MockChainBuilder::new();
     let oracle =
         builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+    let publisher =
+        builder.add_existing_account_from_components(falcon_auth(), [get_publisher_component()])?;
     let mut mock_chain = builder.build()?;
 
-    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")?;
+    let publisher_id = publisher.id();
 
     // First registration: succeed and commit so the next tx sees the new state.
     let first_tx = mock_chain
@@ -288,9 +298,11 @@ async fn test_oracle_remove_publisher() -> Result<()> {
     let mut builder = MockChainBuilder::new();
     let oracle =
         builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+    let publisher =
+        builder.add_existing_account_from_components(falcon_auth(), [get_publisher_component()])?;
     let mut mock_chain = builder.build()?;
 
-    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")?;
+    let publisher_id = publisher.id();
 
     // Register first.
     let register_tx = mock_chain
@@ -314,12 +326,12 @@ async fn test_oracle_remove_publisher() -> Result<()> {
     let next_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap();
     assert_eq!(
         oracle.storage().get_item(&next_index_slot).unwrap(),
-        [Felt::new(3), ZERO, ZERO, ZERO].into(),
+        [Felt::new(3).unwrap(), ZERO, ZERO, ZERO].into(),
         "next_publisher_index must NOT move when a publisher is soft-deleted"
     );
 
     let publishers_slot = StorageSlotName::new("pragma::oracle::publishers").unwrap();
-    let slot_key: Word = [Felt::new(2), ZERO, ZERO, ZERO].into();
+    let slot_key: Word = [Felt::new(2).unwrap(), ZERO, ZERO, ZERO].into();
     let stored = oracle
         .storage()
         .get_map_item(&publishers_slot, slot_key)
@@ -338,9 +350,11 @@ async fn test_oracle_remove_publisher_fails_if_not_registered() -> Result<()> {
     let mut builder = MockChainBuilder::new();
     let oracle =
         builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+    let publisher =
+        builder.add_existing_account_from_components(falcon_auth(), [get_publisher_component()])?;
     let mock_chain = builder.build()?;
 
-    let publisher_id = AccountId::from_hex("0xe154a9727a830d8000049e58b44acc")?;
+    let publisher_id = publisher.id();
 
     let tx_context = mock_chain
         .build_tx_context(oracle.id(), &[], &[])?

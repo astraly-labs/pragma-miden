@@ -27,10 +27,10 @@ impl TryFrom<Entry> for Word {
 
     fn try_from(entry: Entry) -> Result<Self, Self::Error> {
         Ok([
-            Felt::new(0),
-            Felt::new(entry.price),
-            Felt::new(entry.decimals as u64),
-            Felt::new(entry.timestamp),
+            Felt::new(0)?,
+            Felt::new(entry.price)?,
+            Felt::new(entry.decimals as u64)?,
+            Felt::new(entry.timestamp)?,
         ]
         .into())
     }
