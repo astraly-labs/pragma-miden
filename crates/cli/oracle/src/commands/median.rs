@@ -53,10 +53,10 @@ impl MedianCmd {
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
 
         let faucet_id_word: Word = [
-            Felt::new(0),
-            Felt::new(0),
-            Felt::new(suffix),
-            Felt::new(prefix),
+            Felt::new(0)?,
+            Felt::new(0)?,
+            Felt::new(suffix)?,
+            Felt::new(prefix)?,
         ]
         .into();
 
@@ -82,7 +82,7 @@ impl MedianCmd {
         // the network — skip those slots before importing.
         let publisher_array: Vec<AccountId> = (2..publisher_count)
             .map(|i: u64| -> anyhow::Result<Word> {
-                let key: [Felt; 4] = [Felt::new(i), ZERO, ZERO, ZERO];
+                let key: [Felt; 4] = [Felt::new(i)?, ZERO, ZERO, ZERO];
                 storage
                     .get_map_item(&publishers_slot, key.into())
                     .with_context(|| format!("Failed to retrieve publisher at index {i}"))

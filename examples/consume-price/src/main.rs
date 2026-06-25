@@ -25,7 +25,7 @@ const SLOT_ENTRIES: &str = "pragma::publisher::entries";
 #[tokio::main]
 async fn main() -> Result<()> {
     let oracle_id = AccountId::from_hex(ORACLE_ID)?;
-    let faucet_word: Word = [ZERO, ZERO, Felt::new(PAIR_SUFFIX), Felt::new(PAIR_PREFIX)].into();
+    let faucet_word: Word = [ZERO, ZERO, Felt::new(PAIR_SUFFIX)?, Felt::new(PAIR_PREFIX)?].into();
 
     // Store is created in ./miden_storage/store.sqlite3 relative to CWD.
     let mut client = setup_testnet_client(None, None).await?;
@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
     let publishers_slot = StorageSlotName::new(SLOT_PUBLISHERS)?;
     let publisher_ids: Vec<AccountId> = (2..publisher_count)
         .map(|i| -> Result<AccountId> {
-            let key: Word = [Felt::new(i), ZERO, ZERO, ZERO].into();
+            let key: Word = [Felt::new(i)?, ZERO, ZERO, ZERO].into();
             let w = storage
                 .get_map_item(&publishers_slot, key)
                 .with_context(|| format!("publisher at index {i} not found"))?;

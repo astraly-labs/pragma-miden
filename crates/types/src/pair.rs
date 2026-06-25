@@ -45,7 +45,9 @@ impl Pair {
 
             // When we have 8 characters or hit the end, add to result
             if shift == 8 {
-                result.push(Felt::new(current_value));
+                result.push(
+                    Felt::new(current_value).expect("packed ASCII bytes always fit in the field"),
+                );
                 current_value = 0;
                 shift = 0;
             }
@@ -53,7 +55,9 @@ impl Pair {
 
         // Add any remaining chars
         if shift > 0 {
-            result.push(Felt::new(current_value));
+            result.push(
+                Felt::new(current_value).expect("packed ASCII bytes always fit in the field"),
+            );
         }
 
         result
@@ -168,7 +172,7 @@ impl TryFrom<Pair> for Felt {
             .ok_or_else(|| anyhow::anyhow!("Invalid asset pair format"))?;
 
         let value = u64::from(encoded);
-        Ok(Felt::new(value))
+        Ok(Felt::new(value)?)
     }
 }
 
@@ -181,7 +185,7 @@ impl TryFrom<&Pair> for Felt {
             .ok_or_else(|| anyhow::anyhow!("Invalid asset pair format"))?;
 
         let value = u64::from(encoded);
-        Ok(Felt::new(value))
+        Ok(Felt::new(value)?)
     }
 }
 
@@ -279,7 +283,7 @@ mod tests {
         assert_ne!(encoded_btc_usd, encoded_eth_usdt);
 
         // Make sure it's reversible
-        let pair_from_felt = Pair::from(Felt::new(encoded_btc_usd as u64));
+        let pair_from_felt = Pair::from(Felt::new(encoded_btc_usd as u64).unwrap());
         assert_eq!(pair_from_felt.base.0, "BTC");
         assert_eq!(pair_from_felt.quote.0, "USD");
     }
@@ -296,7 +300,7 @@ mod tests {
 
         // Last element should be the encoded pair
         let encoded = pair.encode().unwrap();
-        assert_eq!(word[3], Felt::new(encoded as u64));
+        assert_eq!(word[3], Felt::new(encoded as u64).unwrap());
     }
 
     #[test]
@@ -346,7 +350,7 @@ mod tests {
             | (('S' as u64) << 40)
             | (('D' as u64) << 48);
 
-        assert_eq!(felts[0], Felt::new(expected));
+        assert_eq!(felts[0], Felt::new(expected).unwrap());
     }
 
     #[test]
@@ -365,7 +369,7 @@ mod tests {
             | (('S' as u64) << 40)
             | (('D' as u64) << 48);
 
-        assert_eq!(array[0], Felt::new(expected));
+        assert_eq!(array[0], Felt::new(expected).unwrap());
         assert_eq!(array[1], ZERO); // Padding
 
         // Test with exact size
@@ -408,7 +412,7 @@ mod tests {
             | (('S' as u64) << 40)
             | (('D' as u64) << 48);
 
-        assert_eq!(array[0], Felt::new(expected));
+        assert_eq!(array[0], Felt::new(expected).unwrap());
 
         let very_long_pair = Pair::new(
             Currency::new("BITCOINBTC").unwrap(),
@@ -439,7 +443,7 @@ mod tests {
             | (('S' as u64) << 40)
             | (('D' as u64) << 48);
 
-        let word = [Felt::new(packed), ZERO, ZERO, ZERO];
+        let word = [Felt::new(packed).unwrap(), ZERO, ZERO, ZERO];
 
         // This should now succeed since we have the complete pair in one Felt
         let result = Pair::from_felts(word.into());
@@ -452,7 +456,7 @@ mod tests {
         // Test with an incomplete pair
         let incomplete: u64 = ('B' as u64) | (('T' as u64) << 8) | (('C' as u64) << 16);
 
-        let word = [Felt::new(incomplete), ZERO, ZERO, ZERO];
+        let word = [Felt::new(incomplete).unwrap(), ZERO, ZERO, ZERO];
         let result = Pair::from_felts(word.into());
         assert!(result.is_err());
     }
@@ -524,7 +528,7 @@ mod tests {
             | (('S' as u64) << 40)
             | (('D' as u64) << 48);
 
-        assert_eq!(felts[0], Felt::new(expected));
+        assert_eq!(felts[0], Felt::new(expected).unwrap());
 
         // Test round trip conversion
         let round_trip = Pair::from_felts([felts[0], ZERO, ZERO, ZERO].into()).unwrap();
@@ -542,7 +546,7 @@ mod tests {
             | (('S' as u64) << 40)
             | (('D' as u64) << 48);
 
-        let word = [Felt::new(packed), ZERO, ZERO, ZERO];
+        let word = [Felt::new(packed).unwrap(), ZERO, ZERO, ZERO];
 
         let pair = Pair::from_felts(word.into()).unwrap();
         assert_eq!(pair.base.0, "BTC");

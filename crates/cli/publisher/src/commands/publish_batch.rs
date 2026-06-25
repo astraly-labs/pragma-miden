@@ -130,17 +130,17 @@ pub async fn publish_batch(
             .map_err(|e| anyhow::anyhow!("Invalid faucet_id suffix '{}': {}", parts[1], e))?;
 
         let faucet_id_word: Word = [
-            Felt::new(0),
-            Felt::new(0),
-            Felt::new(suffix),
-            Felt::new(prefix),
+            Felt::new(0)?,
+            Felt::new(0)?,
+            Felt::new(suffix)?,
+            Felt::new(prefix)?,
         ]
         .into();
         let entry_word: Word = [
-            Felt::new(0),
-            Felt::new(*price),
-            Felt::new(*decimals as u64),
-            Felt::new(*timestamp),
+            Felt::new(0)?,
+            Felt::new(*price)?,
+            Felt::new(*decimals as u64)?,
+            Felt::new(*timestamp)?,
         ]
         .into();
         entries_data.push((faucet_id_word, entry_word));
