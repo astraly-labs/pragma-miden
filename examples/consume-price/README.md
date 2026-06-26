@@ -16,7 +16,7 @@ Expected output:
 Syncing with testnet...
 Latest block: 651945
 Registered publishers: 1
-Imported publisher: 0xb82114f2a59810006d0410a6c44e46
+Imported publisher: 0x6d37b2d4aedd697140338bb31c67e3
 BTC/USD: $76316.00  (raw: 76316000000, 6 decimals)
 ```
 

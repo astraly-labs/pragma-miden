@@ -22,12 +22,12 @@
 
 ## Deployments
 
-### Testnet (Miden 0.14)
+### Testnet (Miden 0.15)
 
 | Role       | Account ID                           | Explorer |
 |------------|--------------------------------------|----------|
-| Oracle     | `0xcaf3856aedfa4b106d59998789348f`  | [view](https://testnet.midenscan.com/account/mtst1ar908pt2ahaykyrdtxvc0zf53uujtu0c) |
-| Publisher  | `0xb82114f2a59810006d0410a6c44e46`  | [view](https://testnet.midenscan.com/account/mtst1azuzz98j5kvpqqrdqsg2d3zwgcx394vh) |
+| Oracle     | `0x7ad4aa02b1816c117e32853e210c28`  | [view](https://testnet.midenscan.com/account/0x7ad4aa02b1816c117e32853e210c28) |
+| Publisher  | `0x6d37b2d4aedd697140338bb31c67e3`  | [view](https://testnet.midenscan.com/account/0x6d37b2d4aedd697140338bb31c67e3) |
 
 > Addresses change between testnet iterations. This table is the source of truth.
 
