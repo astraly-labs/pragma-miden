@@ -48,7 +48,11 @@ spec:
             - name: workspace-data
               mountPath: /data/oracle-workspace
             {{- range .Values.keystoreSecrets }}
-            - name: keystore-{{ .fileName }}
+            # Volume name is derived from secretName (short, RFC-1123 valid),
+            # NOT fileName: Miden 0.15 keystore filenames are 0x-hex (>63 chars)
+            # or key_index.json (has '_'/'.') which are invalid k8s names. The
+            # on-disk filename still uses fileName via mountPath.
+            - name: keystore-{{ .secretName }}
               mountPath: /secrets/keystore/{{ .fileName }}
               subPath: keystore
               readOnly: true
@@ -118,7 +122,7 @@ spec:
         - name: workspace-data
           emptyDir: {}
         {{- range .Values.keystoreSecrets }}
-        - name: keystore-{{ .fileName }}
+        - name: keystore-{{ .secretName }}
           secret:
             secretName: {{ .secretName }}
         {{- end }}
