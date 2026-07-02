@@ -49,7 +49,9 @@ impl InitCmd {
         client
             .sync_state()
             .await
-            .map_err(|e| anyhow::anyhow!("Could not sync state during init: {}", e))?;
+            // See sync.rs: {:?} keeps the gRPC status detail that ClientError's
+            // Display (#[error("RPC error")]) would otherwise drop.
+            .map_err(|e| anyhow::anyhow!("Could not sync state during init: {e:?}"))?;
 
         let (publisher_account, _) = PublisherAccountBuilder::new()
             .with_client(client)
