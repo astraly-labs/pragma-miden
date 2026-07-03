@@ -24,6 +24,14 @@ use std::{fs, path::PathBuf, sync::Arc};
 // SDK-side 180s publish_batch timeout.
 const RPC_TIMEOUT_MS: u64 = 60_000;
 
+// Max size of a decoded gRPC response the client will accept. miden-client's
+// default is only ~4.6 MiB (4 MiB + 15%), but the node's `SyncTransactions`
+// response when a store catches up a gap exceeds that (we observed ~5.9 MiB and
+// it grows with the gap / a cold-sync from genesis) → sync fails with
+// `OutOfRange: decoded message length too large` and the store can never
+// advance. 128 MiB gives ample headroom for any single sync page.
+const MAX_DECODING_MESSAGE_SIZE: usize = 128 * 1024 * 1024;
+
 /// Debug mode is off by default (it makes the assembler try to load MASM
 /// sources for richer traces — which logs `failed to load MASM sources` in
 /// the deployed wheel and adds execution overhead). Set `PM_MIDEN_DEBUG=1`
@@ -48,7 +56,10 @@ async fn setup_client(
     path: Option<PathBuf>,
     keystore_path: Option<String>,
 ) -> Result<Client<FilesystemKeyStore>, ClientError> {
-    let rpc_api = Arc::new(GrpcClient::new(&endpoint, RPC_TIMEOUT_MS));
+    let rpc_api = Arc::new(
+        GrpcClient::new(&endpoint, RPC_TIMEOUT_MS)
+            .with_max_decoding_message_size(MAX_DECODING_MESSAGE_SIZE),
+    );
 
     let coin_seed: [u64; 4] = rand::random();
     // 0.15: Felt::new is fallible (rejects value >= field modulus). Shift right by

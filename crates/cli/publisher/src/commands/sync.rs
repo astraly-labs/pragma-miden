@@ -11,7 +11,11 @@ impl SyncCmd {
         let new_details = client
             .sync_state()
             .await
-            .map_err(|e| anyhow::anyhow!("Could not sync state: {}", e))?;
+            // Debug-format the client error: miden_client's ClientError uses
+            // #[error("RPC error")], so its Display drops the underlying gRPC
+            // status. {:?} surfaces the real cause (e.g. the SyncTransactions
+            // "decoded message length too large" OutOfRange) in the logs.
+            .map_err(|e| anyhow::anyhow!("Could not sync state: {e:?}"))?;
         println!("🔁 Sync successful!\n");
 
         println!("State synced to block {}", new_details.block_num);
