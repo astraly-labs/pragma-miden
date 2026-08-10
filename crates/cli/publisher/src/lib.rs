@@ -3,7 +3,7 @@ use miden_client::{keystore::FilesystemKeyStore, Client};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use tokio::runtime::{Builder, Runtime};
 use tokio::sync::Mutex as AsyncMutex;
@@ -47,11 +47,7 @@ async fn cached_client(
     store_config: PathBuf,
     keystore_path: Option<String>,
 ) -> PyResult<CachedClient> {
-    let key = format!(
-        "{network}|{}|{}",
-        store_config.to_string_lossy(),
-        keystore_path.as_deref().unwrap_or("")
-    );
+    let key = client_key(network, &store_config, keystore_path.as_deref());
     let cache = CLIENTS.get_or_init(|| StdMutex::new(HashMap::new()));
     if let Some(client) = cache.lock().unwrap().get(&key) {
         return Ok(client.clone());
@@ -62,6 +58,58 @@ async fn cached_client(
         setup_client(network, store_config, keystore_path).await?,
     ));
     Ok(cache.lock().unwrap().entry(key).or_insert(client).clone())
+}
+
+/// Cache key for a client — one unique (network, store path, keystore path)
+/// combination. Kept in a single place so `cached_client` and the eviction
+/// path can never drift on how the key is formed.
+fn client_key(network: &str, store_config: &Path, keystore_path: Option<&str>) -> String {
+    format!(
+        "{network}|{}|{}",
+        store_config.to_string_lossy(),
+        keystore_path.unwrap_or("")
+    )
+}
+
+/// Drop the cached client for `key` so the next pyo3 call rebuilds a fresh one.
+fn evict_client(key: &str) {
+    if let Some(cache) = CLIENTS.get() {
+        cache.lock().unwrap().remove(key);
+    }
+}
+
+/// Detect the "wedged store" failure. The Miden client's SQLite pool (deadpool)
+/// poisons its connection `Mutex` the first time a store operation panics.
+/// Because we cache the client for the whole process lifetime, EVERY later call
+/// then fails forever with the same poisoned-pool error — a silent, permanent
+/// Miden outage (the embedding price-pusher only logs + retries each tick, and
+/// its liveness stays green off the Starknet feed). We match on the error's
+/// Debug form (the underlying `StoreError` is surfaced via `{e:?}`, e.g. in
+/// sync.rs) so the caller can evict + rebuild instead of staying wedged.
+fn store_is_wedged<E: std::fmt::Debug>(err: &E) -> bool {
+    let s = format!("{err:?}");
+    s.contains("PoisonError")
+        || s.contains(r#"DatabaseError("Panic")"#)
+        || (s.contains("StoreError") && s.contains("Panic"))
+}
+
+/// Map a command result to a `PyResult`, evicting the cached client first when
+/// the failure is a wedged (poisoned) store pool. This turns a permanent,
+/// process-lifetime Miden outage into a self-healing blip: the very next call
+/// rebuilds a fresh client (new SQLite pool + `Mutex`) over the same store file.
+fn map_cmd_err<T, E>(res: Result<T, E>, key: &str, label: &str) -> PyResult<T>
+where
+    E: std::fmt::Display + std::fmt::Debug,
+{
+    res.map_err(|e| {
+        if store_is_wedged(&e) {
+            evict_client(key);
+            eprintln!(
+                "pm-publisher: Miden store pool wedged during {label}; evicted the cached client, it will be rebuilt on the next call"
+            );
+        }
+        PyValueError::new_err(format!("{label} failed: {e}"))
+    })
 }
 
 /// Initialize publisher and return a client handle
@@ -79,6 +127,7 @@ fn py_init(
 
         // Use appropriate client setup based on network parameter
         let network_str = network.as_deref().unwrap_or("testnet");
+        let key = client_key(network_str, &store_config, keystore_path.as_deref());
         let client_arc = cached_client(network_str, store_config, keystore_path).await?;
         let mut client = client_arc.lock().await;
 
@@ -86,9 +135,7 @@ fn py_init(
             oracle_id: Some(oracle_id),
         };
 
-        cmd.call(&mut client, network_str)
-            .await
-            .map_err(|e| PyValueError::new_err(format!("Init failed: {}", e)))?;
+        map_cmd_err(cmd.call(&mut client, network_str).await, &key, "Init")?;
 
         Ok(())
     })
@@ -112,6 +159,7 @@ fn py_publish(
 
         let network_str = network.as_deref().unwrap_or("testnet");
 
+        let key = client_key(network_str, &store_config, keystore_path.as_deref());
         let client_arc = cached_client(network_str, store_config, keystore_path).await?;
         let mut client = client_arc.lock().await;
 
@@ -123,9 +171,7 @@ fn py_publish(
             publisher_id: None,
         };
 
-        cmd.call(&mut client, network_str)
-            .await
-            .map_err(|e| PyValueError::new_err(format!("Publish failed: {}", e)))?;
+        map_cmd_err(cmd.call(&mut client, network_str).await, &key, "Publish")?;
 
         Ok(())
     })
@@ -146,14 +192,12 @@ fn py_get_entry(
 
         let network_str = network.as_deref().unwrap_or("testnet");
 
+        let key = client_key(network_str, &store_config, keystore_path.as_deref());
         let client_arc = cached_client(network_str, store_config, keystore_path).await?;
         let mut client = client_arc.lock().await;
 
         let cmd = GetEntryCmd { faucet_id };
-        let entry = cmd
-            .call(&mut client, network_str)
-            .await
-            .map_err(|e| PyValueError::new_err(format!("Get entry failed: {}", e)))?;
+        let entry = map_cmd_err(cmd.call(&mut client, network_str).await, &key, "Get entry")?;
 
         Ok(serde_json::json!({
             "faucet_id": entry.faucet_id,
@@ -179,13 +223,12 @@ fn py_entry(
 
         let network_str = network.as_deref().unwrap_or("testnet");
 
+        let key = client_key(network_str, &store_config, keystore_path.as_deref());
         let client_arc = cached_client(network_str, store_config, keystore_path).await?;
         let mut client = client_arc.lock().await;
 
         let cmd = EntryCmd { faucet_id };
-        cmd.call(&mut client, network_str)
-            .await
-            .map_err(|e| PyValueError::new_err(format!("Entry failed: {}", e)))?;
+        map_cmd_err(cmd.call(&mut client, network_str).await, &key, "Entry")?;
 
         Ok("Entry details retrieved successfully!".to_string())
     })
@@ -209,12 +252,15 @@ fn py_publish_batch(
     rt().block_on(async {
         let store_config = get_store_config(storage_path);
         let network_str = network.as_deref().unwrap_or("testnet");
+        let key = client_key(network_str, &store_config, keystore_path.as_deref());
         let client_arc = cached_client(network_str, store_config, keystore_path).await?;
         let mut client = client_arc.lock().await;
 
-        do_publish_batch(&mut client, network_str, &entries, None)
-            .await
-            .map_err(|e| PyValueError::new_err(format!("Publish batch failed: {}", e)))?;
+        map_cmd_err(
+            do_publish_batch(&mut client, network_str, &entries, None).await,
+            &key,
+            "Publish batch",
+        )?;
 
         Ok(())
     })
@@ -236,6 +282,7 @@ fn py_import_account(
     rt().block_on(async {
         let store_config = get_store_config(storage_path);
         let network_str = network.as_deref().unwrap_or("testnet");
+        let key = client_key(network_str, &store_config, keystore_path.as_deref());
         let client_arc = cached_client(network_str, store_config, keystore_path).await?;
         let mut client = client_arc.lock().await;
 
@@ -243,10 +290,11 @@ fn py_import_account(
             PyValueError::new_err(format!("Invalid account_id '{}': {}", account_id, e))
         })?;
 
-        client
-            .import_account_by_id(id)
-            .await
-            .map_err(|e| PyValueError::new_err(format!("Import account failed: {}", e)))?;
+        map_cmd_err(
+            client.import_account_by_id(id).await,
+            &key,
+            "Import account",
+        )?;
 
         Ok(())
     })
@@ -266,13 +314,12 @@ fn py_sync(
         let network_str = network.as_deref().unwrap_or("testnet");
 
         // Use appropriate client setup based on network parameter
+        let key = client_key(network_str, &store_config, keystore_path.as_deref());
         let client_arc = cached_client(network_str, store_config, keystore_path).await?;
         let mut client = client_arc.lock().await;
 
         let cmd = SyncCmd {};
-        cmd.call(&mut client)
-            .await
-            .map_err(|e| PyValueError::new_err(format!("Sync failed: {}", e)))?;
+        map_cmd_err(cmd.call(&mut client).await, &key, "Sync")?;
 
         Ok("Sync successful!".to_string())
     })
@@ -333,4 +380,31 @@ fn get_store_config(storage_path: Option<String>) -> PathBuf {
         None => PathBuf::new(),
     };
     exec_dir.join(STORE_FILENAME)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::store_is_wedged;
+
+    #[test]
+    fn detects_poisoned_pool_error() {
+        // The exact shape surfaced in prod logs (sync.rs Debug-formats the error).
+        let e = anyhow::anyhow!(r#"Could not sync state: StoreError(DatabaseError("Panic"))"#);
+        assert!(store_is_wedged(&e));
+    }
+
+    #[test]
+    fn detects_raw_deadpool_poison() {
+        let e = anyhow::anyhow!("{}", "unwrap() on an `Err` value: PoisonError { .. }");
+        assert!(store_is_wedged(&e));
+    }
+
+    #[test]
+    fn ignores_ordinary_errors() {
+        // A flaky RPC or an expired tx must NOT evict the cached client.
+        let rpc = anyhow::anyhow!("Could not sync state: RPC error");
+        let expired = anyhow::anyhow!("transaction expired at block height 16");
+        assert!(!store_is_wedged(&rpc));
+        assert!(!store_is_wedged(&expired));
+    }
 }

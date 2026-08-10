@@ -3428,7 +3428,7 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
 name = "pm-accounts"
-version = "0.1.0-alpha.8"
+version = "0.1.0-alpha.9"
 dependencies = [
  "anyhow",
  "miden-client",
@@ -3449,7 +3449,7 @@ dependencies = [
 
 [[package]]
 name = "pm-oracle-cli"
-version = "0.1.0-alpha.8"
+version = "0.1.0-alpha.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3476,7 +3476,7 @@ dependencies = [
 
 [[package]]
 name = "pm-publisher-cli"
-version = "0.1.0-alpha.8"
+version = "0.1.0-alpha.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3503,7 +3503,7 @@ dependencies = [
 
 [[package]]
 name = "pm-types"
-version = "0.1.0-alpha.8"
+version = "0.1.0-alpha.9"
 dependencies = [
  "anyhow",
  "miden-client",
@@ -3511,7 +3511,7 @@ dependencies = [
 
 [[package]]
 name = "pm-utils-cli"
-version = "0.1.0-alpha.8"
+version = "0.1.0-alpha.9"
 dependencies = [
  "anyhow",
  "async-trait",
