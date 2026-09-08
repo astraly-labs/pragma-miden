@@ -17,7 +17,7 @@ Syncing with testnet...
 Latest block: 651945
 Registered publishers: 1
 Imported publisher: 0x6d37b2d4aedd697140338bb31c67e3
-BTC/USD: $76316.00  (raw: 76316000000, 6 decimals)
+BTC/USD: $78457.20  (raw: 7845720000000, 8 decimals)
 ```
 
 ## How it works
@@ -34,19 +34,21 @@ Local state is stored in `./miden_storage/store.sqlite3` (created automatically)
 
 Edit `PAIR_PREFIX` / `PAIR_SUFFIX` in `src/main.rs`:
 
-| faucet_id | PREFIX | SUFFIX | Asset    |
-|-----------|--------|--------|----------|
-| `1:0`     | `1`    | `0`    | BTC/USD  |
-| `2:0`     | `2`    | `0`    | ETH/USD  |
-| `3:0`     | `3`    | `0`    | WBTC/USD |
-| `4:0`     | `4`    | `0`    | USDT/USD |
-| `5:0`     | `5`    | `0`    | DAI/USD  |
-| `6:0`     | `6`    | `0`    | ZEC/USD  |
-| `7:0`     | `7`    | `0`    | XMR/USD  |
-| `8:0`     | `8`    | `0`    | DASH/USD |
-| `9:0`     | `9`    | `0`    | XAUT/USD |
-| `10:0`    | `10`   | `0`    | PAXG/USD |
-| `11:0`    | `11`   | `0`    | LINK/USD |
-| `12:0`    | `12`   | `0`    | UNI/USD  |
-| `13:0`    | `13`   | `0`    | AAVE/USD |
-| `14:0`    | `14`   | `0`    | MORPHO/USD |
+| faucet_id | PREFIX | SUFFIX | Asset      | decimals |
+|-----------|--------|--------|------------|----------|
+| `1:0`     | `1`    | `0`    | BTC/USD    | 8        |
+| `2:0`     | `2`    | `0`    | ETH/USD    | 8        |
+| `3:0`     | `3`    | `0`    | WBTC/USD   | 8        |
+| `4:0`     | `4`    | `0`    | USDT/USD   | 6        |
+| `5:0`     | `5`    | `0`    | DAI/USD    | 8        |
+| `6:0`     | `6`    | `0`    | ZEC/USD    | 8        |
+| `7:0`     | `7`    | `0`    | XMR/USD    | 8        |
+| `8:0`     | `8`    | `0`    | DASH/USD   | 8        |
+| `9:0`     | `9`    | `0`    | XAUT/USD   | 6        |
+| `10:0`    | `10`   | `0`    | PAXG/USD   | 8        |
+| `11:0`    | `11`   | `0`    | LINK/USD   | 8        |
+| `12:0`    | `12`   | `0`    | UNI/USD    | 8        |
+| `13:0`    | `13`   | `0`    | AAVE/USD   | 8        |
+| `14:0`    | `14`   | `0`    | MORPHO/USD | 8        |
+
+`get_median` returns the raw integer only: scale it by the pair's decimals (`min(base.decimals, quote.decimals)` in pragma-sdk, 8 for most pairs, 6 for USDT/USD and XAUT/USD).
