@@ -17,7 +17,7 @@ Syncing with testnet...
 Latest block: 651945
 Registered publishers: 1
 Imported publisher: 0x6d37b2d4aedd697140338bb31c67e3
-BTC/USD: $78457.20  (raw: 7845720000000, 8 decimals)
+BTC/USD: $78600.70  (raw: 7860070031031, 8 decimals)
 ```
 
 ## How it works
