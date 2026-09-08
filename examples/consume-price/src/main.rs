@@ -131,9 +131,11 @@ async fn main() -> Result<()> {
     if is_tracked == 0 {
         println!("BTC/USD: not tracked by the oracle.");
     } else {
+        // get_median returns the raw integer; decimals are a property of the
+        // pair (8 for BTC/USD, see README), not returned on the stack.
         println!(
-            "BTC/USD: ${:.2}  (raw: {}, 6 decimals)",
-            median as f64 / 1_000_000.0,
+            "BTC/USD: ${:.2}  (raw: {}, 8 decimals)",
+            median as f64 / 100_000_000.0,
             median
         );
     }
