@@ -1,7 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { getCached, setCache } from '@/lib/cache';
-import { fetchMultiple24hStats } from '@/lib/binance-api';
+import { fetchMultiple24hStats } from '@/lib/market-data';
 import { insertPriceHistory } from '@/lib/db';
 import type { Asset } from '@/types/asset';
 import { FAUCET_CONFIGS, FAUCET_ID_TO_PAIR, FAUCET_ID_TO_DECIMALS, PAIR_TO_FAUCET_ID } from '@/lib/faucet-config';

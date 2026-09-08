@@ -148,8 +148,9 @@ impl InitCmd {
                 • TIMESTAMP: Current Unix timestamp
                 
                 📋 Faucet ID Mapping:
-                • 1:0 = BTC/USD  • 2:0 = ETH/USD  • 3:0 = SOL/USD
-                • 4:0 = BNB/USD  • 5:0 = XRP/USD  • 6:0 = HYPE/USD
+                • 1:0 = BTC/USD   • 2:0 = ETH/USD   • 3:0 = WBTC/USD  • 4:0 = USDT/USD  • 5:0 = DAI/USD
+                • 6:0 = ZEC/USD   • 7:0 = XMR/USD   • 8:0 = DASH/USD  • 9:0 = XAUT/USD  • 10:0 = PAXG/USD
+                • 11:0 = LINK/USD • 12:0 = UNI/USD  • 13:0 = AAVE/USD • 14:0 = MORPHO/USD
                 "#
             .bright_yellow()
         );

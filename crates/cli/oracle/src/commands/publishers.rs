@@ -108,7 +108,7 @@ impl PublishersCmd {
         💡 Tips:
         • Calculate median: pm-oracle-cli median [FAUCET_ID]
         • Register new publisher: pm-oracle-cli register-publisher [PUBLISHER_ID]
-        • Faucet IDs: 1:0=BTC/USD, 2:0=ETH/USD, 3:0=SOL/USD
+        • Faucet IDs: 1:0=BTC/USD ... 14:0=MORPHO/USD (full table: oracle-explorer/lib/faucet-config.ts)
         "#
             .bright_blue()
         );
