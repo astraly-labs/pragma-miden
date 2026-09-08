@@ -60,7 +60,8 @@ async fn main() -> Result<()> {
             let w = storage
                 .get_map_item(&publishers_slot, key)
                 .with_context(|| format!("publisher at index {i} not found"))?;
-            Ok(AccountId::new_unchecked([w[3], w[2]]))
+            // Same layout as pm-oracle-cli: [prefix, suffix, 0, 0]
+            Ok(AccountId::new_unchecked([w[0], w[1]]))
         })
         .collect::<Result<_>>()?;
 
