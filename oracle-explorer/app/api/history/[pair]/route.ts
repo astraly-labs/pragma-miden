@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPriceHistory, type PriceHistoryRow } from '@/lib/db';
+import { fetchMarketHistory } from '@/lib/market-data';
 
 interface RouteParams {
   params: {
@@ -9,52 +10,6 @@ interface RouteParams {
 
 const TIME_RANGE_SECONDS = 24 * 60 * 60;
 const DOWNSAMPLE_INTERVAL_SECONDS = 30 * 60;
-
-const BYBIT_SYMBOL_MAP: Record<string, string> = {
-  'BTC/USD': 'BTCUSDT',
-  'ETH/USD': 'ETHUSDT',
-  'WBTC/USD': 'WBTCUSDT',
-  'USDT/USD': 'USDCUSDT', // no direct USDT/USD on Bybit; USDC/USDT is the closest 1:1 reference
-  'DAI/USD': 'DAIUSDT',
-};
-
-async function fetchBybitHistory(pair: string): Promise<PriceHistoryRow[]> {
-  const symbol = BYBIT_SYMBOL_MAP[pair];
-  if (!symbol) {
-    return [];
-  }
-
-  try {
-    const endTime = Date.now();
-    const startTime = endTime - (TIME_RANGE_SECONDS * 1000);
-    
-    const response = await fetch(
-      `https://api.bybit.com/v5/market/kline?category=spot&symbol=${symbol}&interval=30&start=${startTime}&end=${endTime}`,
-      { next: { revalidate: 300 } }
-    );
-
-    if (!response.ok) {
-      console.error(`Bybit API error: ${response.status}`);
-      return [];
-    }
-
-    const data = await response.json();
-    
-    if (!data.result?.list) {
-      return [];
-    }
-
-    return data.result.list.map((candle: string[]) => ({
-      pair,
-      price: parseFloat(candle[4]),
-      decimals: 6,
-      timestamp: Math.floor(parseInt(candle[0]) / 1000),
-    })).reverse();
-  } catch (error) {
-    console.error(`Error fetching Bybit history for ${pair}:`, error);
-    return [];
-  }
-}
 
 function downsampleData(data: PriceHistoryRow[], intervalSeconds: number): PriceHistoryRow[] {
   if (intervalSeconds === 0 || data.length === 0) return data;
@@ -99,10 +54,10 @@ export async function GET(
     let source = 'oracle';
     
     if (!PAIRS_WITH_FULL_HISTORY.includes(pair) || history.length < MIN_REQUIRED_POINTS) {
-      const bybitHistory = await fetchBybitHistory(pair);
-      if (bybitHistory.length > history.length) {
-        history = bybitHistory;
-        source = 'bybit';
+      const market = await fetchMarketHistory(pair);
+      if (market.data.length > history.length) {
+        history = market.data;
+        source = market.source;
       }
     }
     

@@ -7,16 +7,11 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import type { Asset } from "@/types/asset";
 import { fetchPrices } from "@/lib/api";
+import { FAUCET_CONFIGS } from "@/lib/faucet-config";
 
 const REFRESH_INTERVAL = 10000;
 
-const FAUCET_IDS = [
-  { id: "1:0", pair: "BTC/USD" },
-  { id: "2:0", pair: "ETH/USD" },
-  { id: "3:0", pair: "WBTC/USD" },
-  { id: "4:0", pair: "USDT/USD" },
-  { id: "5:0", pair: "DAI/USD" },
-];
+const FAUCET_IDS = FAUCET_CONFIGS.map(({ faucetId, pair }) => ({ id: faucetId, pair }));
 
 const CONTRACTS = [
   { name: "Oracle", address: "mtst1apadf2szkxqkcyt7x2znuggv9qkhccam", url: "https://testnet.midenscan.com/account/mtst1apadf2szkxqkcyt7x2znuggv9qkhccam" },
