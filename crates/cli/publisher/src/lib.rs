@@ -3,6 +3,7 @@ use miden_client::{keystore::FilesystemKeyStore, Client};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use tokio::runtime::{Builder, Runtime};
@@ -32,6 +33,20 @@ fn rt() -> &'static Runtime {
             .build()
             .expect("failed to build pm-publisher Tokio runtime")
     })
+}
+
+/// Run a binding's work on the shared runtime with the GIL released.
+///
+/// Each call blocks the calling thread for a full RPC round-trip, up to the
+/// client's timeout. Holding the GIL for that long freezes the embedding
+/// interpreter: in the price-pusher it stalled the asyncio loop and every
+/// HTTP fetcher timed out while the Miden RPC hung (2026-09-09).
+fn block_on<T, Fut>(py: Python<'_>, task: impl FnOnce() -> Fut + Send) -> T
+where
+    Fut: Future<Output = T>,
+    T: Send,
+{
+    py.allow_threads(|| rt().block_on(task()))
 }
 
 /// Cache of Miden clients keyed by (network, store path, keystore path), so we
@@ -116,12 +131,13 @@ where
 #[pyfunction]
 #[pyo3(name = "init")]
 fn py_init(
+    py: Python<'_>,
     oracle_id: String,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<()> {
-    rt().block_on(async {
+    block_on(py, || async move {
         // Convert storage_path to PathBuf, default to current dir if None
         let store_config = get_store_config(storage_path);
 
@@ -144,7 +160,9 @@ fn py_init(
 /// Publish price using existing client
 #[pyfunction]
 #[pyo3(name = "publish")]
+#[allow(clippy::too_many_arguments)]
 fn py_publish(
+    py: Python<'_>,
     faucet_id: String,
     price: u64,
     decimals: u32,
@@ -153,7 +171,7 @@ fn py_publish(
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<()> {
-    rt().block_on(async {
+    block_on(py, || async move {
         // Create client inside the function like the other functions
         let store_config = get_store_config(storage_path);
 
@@ -182,12 +200,13 @@ fn py_publish(
 #[pyfunction]
 #[pyo3(name = "get_entry")]
 fn py_get_entry(
+    py: Python<'_>,
     faucet_id: String,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
-    rt().block_on(async {
+    block_on(py, || async move {
         let store_config = get_store_config(storage_path);
 
         let network_str = network.as_deref().unwrap_or("testnet");
@@ -213,12 +232,13 @@ fn py_get_entry(
 #[pyfunction]
 #[pyo3(name = "entry")]
 fn py_entry(
+    py: Python<'_>,
     faucet_id: String,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
-    rt().block_on(async {
+    block_on(py, || async move {
         let store_config = get_store_config(storage_path);
 
         let network_str = network.as_deref().unwrap_or("testnet");
@@ -241,6 +261,7 @@ fn py_entry(
 #[pyfunction]
 #[pyo3(name = "publish_batch")]
 fn py_publish_batch(
+    py: Python<'_>,
     entries: Vec<(String, u64, u32, u64)>,
     storage_path: Option<String>,
     keystore_path: Option<String>,
@@ -249,7 +270,7 @@ fn py_publish_batch(
     if entries.is_empty() {
         return Ok(());
     }
-    rt().block_on(async {
+    block_on(py, || async move {
         let store_config = get_store_config(storage_path);
         let network_str = network.as_deref().unwrap_or("testnet");
         let key = client_key(network_str, &store_config, keystore_path.as_deref());
@@ -274,12 +295,13 @@ fn py_publish_batch(
 #[pyfunction]
 #[pyo3(name = "import_account")]
 fn py_import_account(
+    py: Python<'_>,
     account_id: String,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<()> {
-    rt().block_on(async {
+    block_on(py, || async move {
         let store_config = get_store_config(storage_path);
         let network_str = network.as_deref().unwrap_or("testnet");
         let key = client_key(network_str, &store_config, keystore_path.as_deref());
@@ -304,11 +326,12 @@ fn py_import_account(
 #[pyfunction]
 #[pyo3(name = "sync")]
 fn py_sync(
+    py: Python<'_>,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
 ) -> PyResult<String> {
-    rt().block_on(async {
+    block_on(py, || async move {
         let store_config = get_store_config(storage_path);
 
         let network_str = network.as_deref().unwrap_or("testnet");
