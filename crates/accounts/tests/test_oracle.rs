@@ -21,7 +21,7 @@ use miden_testing::{assert_transaction_executor_error, Auth, MockChain, MockChai
 
 use pm_accounts::{
     oracle::{get_oracle_component, get_oracle_component_library},
-    publisher::{get_publisher_component, get_publisher_component_library},
+    publisher::{get_publisher_component, get_publisher_component_code},
     utils::word_to_masm,
 };
 use pm_types::{Currency, Entry, Pair};
@@ -45,13 +45,12 @@ fn falcon_auth() -> Auth {
 /// `(pair, entry)` pair, so FPI from the oracle sees the price without
 /// needing the publisher to run a separate publish_entry tx.
 fn publisher_component_with_entry(pair: Word, entry: Word) -> AccountComponent {
-    let library = (*get_publisher_component_library()).clone();
     let storage_slot = StorageSlot::with_map(
         StorageSlotName::new("pragma::publisher::entries").unwrap(),
         StorageMap::with_entries(vec![(StorageMapKey::new(pair), entry)]).unwrap(),
     );
     let metadata = AccountComponentMetadata::new("pragma::publisher");
-    AccountComponent::new(library, vec![storage_slot], metadata)
+    AccountComponent::new(get_publisher_component_code(), vec![storage_slot], metadata)
         .expect("publisher component should assemble")
 }
 
@@ -61,7 +60,8 @@ fn register_publisher_script(publisher_id: AccountId) -> Result<TransactionScrip
         use oracle_component::oracle_module
         use miden::core::sys
 
-        begin
+        @transaction_script
+        pub proc main
             push.0.0
             push.{suffix} push.{prefix}
             call.oracle_module::register_publisher
@@ -72,7 +72,7 @@ fn register_publisher_script(publisher_id: AccountId) -> Result<TransactionScrip
         suffix = publisher_id.suffix(),
     );
     Ok(CodeBuilder::default()
-        .with_statically_linked_library(&get_oracle_component_library())?
+        .with_statically_linked_package(&get_oracle_component_library())?
         .compile_tx_script(tx_script_code)?)
 }
 
@@ -82,7 +82,8 @@ fn remove_publisher_script(publisher_id: AccountId) -> Result<TransactionScript>
         use oracle_component::oracle_module
         use miden::core::sys
 
-        begin
+        @transaction_script
+        pub proc main
             push.0.0
             push.{suffix} push.{prefix}
             call.oracle_module::remove_publisher
@@ -93,7 +94,7 @@ fn remove_publisher_script(publisher_id: AccountId) -> Result<TransactionScript>
         suffix = publisher_id.suffix(),
     );
     Ok(CodeBuilder::default()
-        .with_statically_linked_library(&get_oracle_component_library())?
+        .with_statically_linked_package(&get_oracle_component_library())?
         .compile_tx_script(tx_script_code)?)
 }
 
@@ -103,7 +104,8 @@ fn get_median_script(pair_word: Word) -> Result<TransactionScript> {
         use oracle_component::oracle_module
         use miden::core::sys
 
-        begin
+        @transaction_script
+        pub proc main
             push.{pair}
             call.oracle_module::get_median
             exec.sys::truncate_stack
@@ -112,7 +114,7 @@ fn get_median_script(pair_word: Word) -> Result<TransactionScript> {
         pair = word_to_masm(pair_word),
     );
     Ok(CodeBuilder::default()
-        .with_statically_linked_library(&get_oracle_component_library())?
+        .with_statically_linked_package(&get_oracle_component_library())?
         .compile_tx_script(tx_script_code)?)
 }
 
@@ -148,61 +150,54 @@ fn onchain_faucet_key(prefix: u64, suffix: u64) -> Word {
     .into()
 }
 
-/// Resolves an oracle-component procedure to its MAST root so it can be invoked
-/// by digest under `execute_code` — which assembles with mock libraries only
-/// and therefore can't resolve `use oracle_component::oracle_module`.
-fn oracle_proc_root(name: &str) -> Word {
-    let lib = get_oracle_component_library();
-    let short = format!("oracle_module::{name}");
-    let full = format!("oracle_component::oracle_module::{name}");
-    lib.get_procedure_root_by_path(short.as_str())
-        .or_else(|| lib.get_procedure_root_by_path(full.as_str()))
-        .expect("oracle procedure root must resolve")
-}
-
-/// Runs `get_median` for a faucet via `execute_code` (call-by-MAST-root) and
-/// returns the readable output stack `(is_tracked, median_price, amount)`.
-/// Unlike `execute()`, `execute_code` exposes the final operand stack.
-async fn run_get_median(
+/// Runs `get_median` for a faucet inside a real mock transaction and asserts
+/// the returned `(is_tracked, median_price)` in-script: 0.16 no longer exposes
+/// the operand stack of an executed transaction, so the expected values are
+/// baked into the tx script and a mismatch fails the execution.
+async fn assert_get_median(
     mock_chain: &MockChain,
     oracle_id: AccountId,
     publisher_ids: &[AccountId],
     faucet_prefix: u64,
     faucet_suffix: u64,
-) -> Result<(u64, u64, u64)> {
+    expected_is_tracked: u64,
+    expected_median: u64,
+) -> Result<()> {
     let foreign_inputs = publisher_ids
         .iter()
         .map(|id| mock_chain.get_foreign_account_inputs(*id))
         .collect::<anyhow::Result<Vec<_>>>()?;
-    let ctx = mock_chain
-        .build_tx_context(oracle_id, &[], &[])?
-        .foreign_accounts(foreign_inputs)
-        .build()?;
-    let code = format!(
+    let tx_script_code = format!(
         "
-        use $kernel::prologue
+        use oracle_component::oracle_module
         use miden::core::sys
 
-        begin
-            exec.prologue::prepare_transaction
+        @transaction_script
+        pub proc main
             push.0.0.{suffix}.{prefix}
-            call.{root}
+            call.oracle_module::get_median
+            # => [is_tracked, median_price, amount, ...]
+            push.{expected_is_tracked} assert_eq.err=\"unexpected is_tracked\"
+            push.{expected_median} assert_eq.err=\"unexpected median\"
+            drop
             exec.sys::truncate_stack
         end
         ",
         prefix = faucet_prefix,
         suffix = faucet_suffix,
-        root = oracle_proc_root("get_median").to_hex(),
     );
-    let out = ctx
-        .execute_code(&code)
+    let script = CodeBuilder::default()
+        .with_statically_linked_package(&get_oracle_component_library())?
+        .compile_tx_script(tx_script_code)?;
+    mock_chain
+        .build_transaction(oracle_id)
+        .foreign_accounts(foreign_inputs)
+        .tx_script(script)
+        .build()?
+        .execute()
         .await
-        .map_err(|e| anyhow::anyhow!("get_median execute_code failed: {e:?}"))?;
-    Ok((
-        out.stack[0].as_canonical_u64(),
-        out.stack[1].as_canonical_u64(),
-        out.stack[2].as_canonical_u64(),
-    ))
+        .map_err(|e| anyhow::anyhow!("get_median failed: {e:?}"))?;
+    Ok(())
 }
 
 // ============================================================================
@@ -221,13 +216,13 @@ async fn test_oracle_register_publisher() -> Result<()> {
     let publisher_id = publisher.id();
 
     let tx_context = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .tx_script(register_publisher_script(publisher_id)?)
         .build()?;
     let executed_tx = tx_context.execute().await?;
 
     let mut oracle = oracle.clone();
-    oracle.apply_delta(executed_tx.account_delta())?;
+    oracle.apply_patch(executed_tx.account_patch())?;
 
     let next_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap();
     assert_eq!(
@@ -240,7 +235,7 @@ async fn test_oracle_register_publisher() -> Result<()> {
     let slot_key: Word = [Felt::new(2).unwrap(), ZERO, ZERO, ZERO].into();
     let stored = oracle
         .storage()
-        .get_map_item(&publishers_slot, slot_key)
+        .get_map_item(&publishers_slot, StorageMapKey::new(slot_key))
         .unwrap();
     assert_eq!(
         stored,
@@ -270,7 +265,7 @@ async fn test_oracle_register_publisher_fails_if_already_registered() -> Result<
 
     // First registration: succeed and commit so the next tx sees the new state.
     let first_tx = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .tx_script(register_publisher_script(publisher_id)?)
         .build()?;
     let first_executed = first_tx.execute().await?;
@@ -279,7 +274,7 @@ async fn test_oracle_register_publisher_fails_if_already_registered() -> Result<
 
     // Second registration: must fail with ERR_PUBLISHER_ALREADY_REGISTERED.
     let second_tx = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .tx_script(register_publisher_script(publisher_id)?)
         .build()?;
     let result = second_tx.execute().await;
@@ -306,7 +301,7 @@ async fn test_oracle_remove_publisher() -> Result<()> {
 
     // Register first.
     let register_tx = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .tx_script(register_publisher_script(publisher_id)?)
         .build()?;
     let register_executed = register_tx.execute().await?;
@@ -315,13 +310,13 @@ async fn test_oracle_remove_publisher() -> Result<()> {
 
     // Now remove.
     let remove_tx = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .tx_script(remove_publisher_script(publisher_id)?)
         .build()?;
     let remove_executed = remove_tx.execute().await?;
 
     let mut oracle = mock_chain.committed_account(oracle.id())?.clone();
-    oracle.apply_delta(remove_executed.account_delta())?;
+    oracle.apply_patch(remove_executed.account_patch())?;
 
     let next_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap();
     assert_eq!(
@@ -334,7 +329,7 @@ async fn test_oracle_remove_publisher() -> Result<()> {
     let slot_key: Word = [Felt::new(2).unwrap(), ZERO, ZERO, ZERO].into();
     let stored = oracle
         .storage()
-        .get_map_item(&publishers_slot, slot_key)
+        .get_map_item(&publishers_slot, StorageMapKey::new(slot_key))
         .unwrap();
     assert_eq!(
         stored,
@@ -357,7 +352,7 @@ async fn test_oracle_remove_publisher_fails_if_not_registered() -> Result<()> {
     let publisher_id = publisher.id();
 
     let tx_context = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .tx_script(remove_publisher_script(publisher_id)?)
         .build()?;
     let result = tx_context.execute().await;
@@ -411,7 +406,7 @@ async fn test_oracle_get_median_skips_soft_deleted_publishers() -> Result<()> {
     // Register both publishers.
     for publisher_id in [publisher1.id(), publisher2.id()] {
         let tx = mock_chain
-            .build_tx_context(oracle.id(), &[], &[])?
+            .build_transaction(oracle.id())
             .tx_script(register_publisher_script(publisher_id)?)
             .build()?;
         let executed = tx.execute().await?;
@@ -421,7 +416,7 @@ async fn test_oracle_get_median_skips_soft_deleted_publishers() -> Result<()> {
 
     // Soft-delete publisher1.
     let remove_tx = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .tx_script(remove_publisher_script(publisher1.id())?)
         .build()?;
     let remove_executed = remove_tx.execute().await?;
@@ -433,7 +428,7 @@ async fn test_oracle_get_median_skips_soft_deleted_publishers() -> Result<()> {
     // (the zeroed publisher1 slot) and fail.
     let foreign_inputs = vec![mock_chain.get_foreign_account_inputs(publisher2.id())?];
     let tx_context = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .foreign_accounts(foreign_inputs)
         .tx_script(get_median_script(pair_word)?)
         .build()?;
@@ -480,7 +475,7 @@ async fn test_oracle_get_median_value() -> Result<()> {
     // Register both publishers, then advance the chain so the get_median block
     // timestamp matches the entries (age 0 < MAX_ENTRY_AGE_SECONDS).
     let tx = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .tx_script(register_publisher_script(pub_a.id())?)
         .build()?;
     let ex = tx.execute().await?;
@@ -488,7 +483,7 @@ async fn test_oracle_get_median_value() -> Result<()> {
     mock_chain.prove_next_block()?;
 
     let tx = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .tx_script(register_publisher_script(pub_b.id())?)
         .build()?;
     let ex = tx.execute().await?;
@@ -496,27 +491,38 @@ async fn test_oracle_get_median_value() -> Result<()> {
     mock_chain.prove_next_block_at(FRESH_TS)?;
 
     // Median over both publishers = average of 50_000 and 52_000.
-    let (is_tracked, median, _amount) =
-        run_get_median(&mock_chain, oracle.id(), &[pub_a.id(), pub_b.id()], 1, 0).await?;
-    assert_eq!(is_tracked, 1, "pair must be tracked");
-    assert_eq!(median, 51_000_000_000, "median = avg(50_000, 52_000)");
+    assert_get_median(
+        &mock_chain,
+        oracle.id(),
+        &[pub_a.id(), pub_b.id()],
+        1,
+        0,
+        1,
+        51_000_000_000,
+    )
+    .await
+    .context("median = avg(50_000, 52_000)")?;
 
     // Soft-delete pub_a; the median must drop to pub_b's price alone.
     let rm = mock_chain
-        .build_tx_context(oracle.id(), &[], &[])?
+        .build_transaction(oracle.id())
         .tx_script(remove_publisher_script(pub_a.id())?)
         .build()?;
     let rm_ex = rm.execute().await?;
     mock_chain.add_pending_executed_transaction(&rm_ex)?;
     mock_chain.prove_next_block_at(FRESH_TS + 100)?;
 
-    let (is_tracked, median, _amount) =
-        run_get_median(&mock_chain, oracle.id(), &[pub_b.id()], 1, 0).await?;
-    assert_eq!(is_tracked, 1);
-    assert_eq!(
-        median, 52_000_000_000,
-        "after soft-delete, median = pub_b price only"
-    );
+    assert_get_median(
+        &mock_chain,
+        oracle.id(),
+        &[pub_b.id()],
+        1,
+        0,
+        1,
+        52_000_000_000,
+    )
+    .await
+    .context("after soft-delete, median = pub_b price only")?;
 
     Ok(())
 }
@@ -551,7 +557,7 @@ async fn test_oracle_get_median_skips_stale_entry() -> Result<()> {
 
     for id in [stale_pub.id(), fresh_pub.id()] {
         let tx = mock_chain
-            .build_tx_context(oracle.id(), &[], &[])?
+            .build_transaction(oracle.id())
             .tx_script(register_publisher_script(id)?)
             .build()?;
         let ex = tx.execute().await?;
@@ -561,19 +567,17 @@ async fn test_oracle_get_median_skips_stale_entry() -> Result<()> {
     mock_chain.prove_next_block_at(NOW_TS)?;
 
     // The stale entry is dropped → median = fresh price only, not the average.
-    let (is_tracked, median, _amount) = run_get_median(
+    assert_get_median(
         &mock_chain,
         oracle.id(),
         &[stale_pub.id(), fresh_pub.id()],
         1,
         0,
+        1,
+        52_000_000_000,
     )
-    .await?;
-    assert_eq!(is_tracked, 1);
-    assert_eq!(
-        median, 52_000_000_000,
-        "stale entry skipped; median = fresh price only"
-    );
+    .await
+    .context("stale entry skipped; median = fresh price only")?;
 
     Ok(())
 }

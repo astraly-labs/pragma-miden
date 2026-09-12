@@ -1,12 +1,9 @@
 use std::sync::Arc;
 
-use rand::Rng;
+use rand::RngExt;
 
 use miden_client::{
-    account::{
-        component::{AuthScheme, AuthSingleSig},
-        Account,
-    },
+    account::{component::AuthSingleSig, Account},
     auth::AuthSecretKey,
     keystore::{FilesystemKeyStore, Keystore},
     Client, Word,
@@ -14,14 +11,12 @@ use miden_client::{
 
 use miden_protocol::{
     account::{
-        AccountBuilder, AccountComponent, AccountComponentMetadata, AccountType, StorageSlot,
-        StorageSlotName,
+        AccountBuilder, AccountComponent, AccountComponentCode, AccountComponentMetadata,
+        AccountType, StorageSlot, StorageSlotName,
     },
-    assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
-    transaction::TransactionKernel,
+    assembly::Package,
 };
-
-use miden_protocol::assembly::mast::MastNodeExt;
+use miden_standards::code_builder::CodeBuilder;
 
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 
@@ -29,21 +24,9 @@ pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 /// This is used by the oracle to call the publisher's get_entry procedure.
 pub fn get_entry_procedure_hash() -> String {
     let lib = get_publisher_component_library();
-    let export = lib
-        .exports()
-        .find(|e| {
-            let path = e.path();
-            let path_str = path.as_ref().as_str();
-            path_str.ends_with("::get_entry") || path_str == "get_entry"
-        })
-        .expect("get_entry procedure not found in publisher library");
-
-    let node_id = lib.get_export_node_id(export.path());
     let digest = lib
-        .mast_forest()
-        .get_node_by_id(node_id)
-        .expect("node not found")
-        .digest();
+        .get_procedure_root_by_path(format!("{PUBLISHER_MODULE_PATH}::get_entry").as_str())
+        .expect("get_entry procedure not found in publisher library");
 
     digest
         .as_elements()
@@ -54,28 +37,26 @@ pub fn get_entry_procedure_hash() -> String {
         .join(".")
 }
 
-pub fn get_publisher_component_library() -> Arc<Library> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let publisher_component_module = Module::parser(ModuleKind::Library)
-        .parse_str(
-            LibraryPath::new("publisher_component::publisher_module"),
-            PUBLISHER_ACCOUNT_MASM,
-            source_manager.clone(),
-        )
-        .unwrap();
+pub const PUBLISHER_MODULE_PATH: &str = "publisher_component::publisher_module";
 
-    TransactionKernel::assembler_with_source_manager(source_manager)
-        .assemble_library([publisher_component_module])
+/// Compiles the publisher MASM into an account component code (0.16: components
+/// are MAST packages assembled against the transaction kernel).
+pub fn get_publisher_component_code() -> AccountComponentCode {
+    CodeBuilder::new()
+        .compile_component_code(PUBLISHER_MODULE_PATH, PUBLISHER_ACCOUNT_MASM)
         .expect("assembly should succeed")
 }
 
+pub fn get_publisher_component_library() -> Arc<Package> {
+    Arc::new(get_publisher_component_code().into_package())
+}
+
 pub fn get_publisher_component() -> AccountComponent {
-    let library = get_publisher_component_library();
-    let library = Arc::try_unwrap(library).unwrap_or_else(|arc| (*arc).clone());
     let storage_slot =
         StorageSlot::with_empty_map(StorageSlotName::new("pragma::publisher::entries").unwrap());
     let metadata = AccountComponentMetadata::new("pragma::publisher");
-    AccountComponent::new(library, vec![storage_slot], metadata).expect("assembly should succeed")
+    AccountComponent::new(get_publisher_component_code(), vec![storage_slot], metadata)
+        .expect("assembly should succeed")
 }
 
 pub struct PublisherAccountBuilder<'a> {
@@ -125,16 +106,13 @@ impl<'a> PublisherAccountBuilder<'a> {
         // ECDSA (secp256k1/keccak) auth: far fewer VM cycles than Falcon512 to
         // verify in-circuit, which directly shrinks the publish tx proof.
         let auth_key = AuthSecretKey::new_ecdsa_k256_keccak();
-        let auth_component = AuthSingleSig::new(
-            auth_key.public_key().to_commitment(),
-            AuthScheme::EcdsaK256Keccak,
-        );
+        let auth_component = AuthSingleSig::from_public_key(auth_key.public_key());
 
         let publisher_component: AccountComponent = get_publisher_component();
         let from_seed = client.rng().random();
         let account = AccountBuilder::new(from_seed)
             .account_type(self.account_type)
-            .with_auth_component(auth_component)
+            .with_component(auth_component)
             .with_component(publisher_component)
             .build()
             .unwrap();

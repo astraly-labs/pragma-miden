@@ -103,7 +103,7 @@ impl MedianBatchCmd {
             .map(|i| -> anyhow::Result<Word> {
                 let key: [Felt; 4] = [Felt::new(i)?, ZERO, ZERO, ZERO];
                 storage
-                    .get_map_item(&publishers_slot, key.into())
+                    .get_map_item(&publishers_slot, StorageMapKey::new(key.into()))
                     .with_context(|| format!("Failed to retrieve publisher at index {i}"))
             })
             .collect::<Result<Vec<_>, _>>()
@@ -159,7 +159,8 @@ impl MedianBatchCmd {
                 use oracle_component::oracle_module
                 use miden::core::sys
         
-                begin
+                @transaction_script
+                pub proc main
                     push.0.0.{suffix}.{prefix}
                     call.oracle_module::get_median
                     exec.sys::truncate_stack
@@ -171,7 +172,7 @@ impl MedianBatchCmd {
 
             let oracle_lib = get_oracle_component_library();
             let median_script = CodeBuilder::default()
-                .with_dynamically_linked_library(&oracle_lib)
+                .with_dynamically_linked_package(&*oracle_lib)
                 .map_err(|e| {
                     anyhow::anyhow!("Error while setting up the component library: {e:?}")
                 })?

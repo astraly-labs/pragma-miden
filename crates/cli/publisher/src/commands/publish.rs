@@ -87,7 +87,8 @@ impl PublishCmd {
                 use publisher_component::publisher_module
                 use miden::core::sys
         
-                begin
+                @transaction_script
+                pub proc main
                     push.{entry}
                     push.0.0.{suffix}.{prefix}
 
@@ -103,7 +104,7 @@ impl PublishCmd {
         );
         let publisher_lib = get_publisher_component_library();
         let publish_script = CodeBuilder::default()
-            .with_statically_linked_library(&publisher_lib)
+            .with_statically_linked_package(&publisher_lib)
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code)
             .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;

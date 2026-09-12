@@ -1,3 +1,4 @@
+use miden_protocol::account::StorageMapKey;
 use std::path::Path;
 
 use anyhow::Context;
@@ -81,7 +82,7 @@ impl PublishersCmd {
             // MASM stack has idx at bottom of KEY word, so word[0]=idx
             let key: [Felt; 4] = [Felt::new(i)?, ZERO, ZERO, ZERO];
             let publisher_word = storage
-                .get_map_item(&publishers_slot, key.into())
+                .get_map_item(&publishers_slot, StorageMapKey::new(key.into()))
                 .with_context(|| format!("Failed to retrieve publisher at index {i}"))?;
             // In 0.14 LE, publisher ID word is [prefix, suffix, 0, 0]
             // (matches median.rs and the on-chain storage layout).

@@ -20,7 +20,7 @@ default-members = [
 unsafe_code = "forbid"
 
 [workspace.package]
-version = "0.1.0-alpha.10"
+version = "0.1.0-alpha.11"
 authors = ["Pragma <https://github.com/astraly-labs>"]
 homepage = "https://www.pragma.build/"
 edition = "2021"
@@ -36,8 +36,8 @@ pm-utils-cli = { path = "crates/cli/utils", default-features = false }
 
 anyhow = "1.0.93"
 async-trait = "0.1.83"
-rand = { version = "0.9", default-features = false }
-rand_chacha = { version = "0.3", default-features = false }
+rand = { version = "0.10", default-features = false }
+rand_chacha = { version = "0.10", default-features = false }
 lazy_static = "1.5.0"
 clap = { version = "4.5.22", features = ["derive"] }
 colored = "2.1.0"
@@ -50,16 +50,16 @@ chrono = "0.4"
 prettytable-rs = "0.10"
 futures = "0.3.31"
 # Miden 0.15 dependencies
-miden-protocol = { version = "0.15" }
-miden-standards = { version = "0.15" }
-miden-assembly = "0.23"
-miden-core = "0.23"
-miden-core-lib = "0.23"
-miden-crypto = "0.25"
-miden-tx = { version = "0.15", features = ["concurrent"] }
-miden-testing = { version = "0.15" }
-miden-client = { version = "0.15", features = ["tonic", "testing"] }
-miden-client-sqlite-store = "0.15"
+miden-protocol = { version = "0.16" }
+miden-standards = { version = "0.16" }
+miden-assembly = "0.29"
+miden-core = "0.29"
+miden-core-lib = "0.29"
+miden-crypto = "0.29"
+miden-tx = { version = "0.16", features = ["concurrent"] }
+miden-testing = { version = "0.16" }
+miden-client = { version = "0.16", features = ["tonic", "testing"] }
+miden-client-sqlite-store = "0.16"
 
 pyo3 = { version = "0.20.0", features = ["extension-module",  "abi3-py37"] }
 uuid = { version = "1.10", features = ["serde", "v4"] }

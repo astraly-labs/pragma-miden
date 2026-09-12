@@ -173,7 +173,8 @@ pub async fn publish_batch(
             use publisher_component::publisher_module
             use miden::core::sys
 
-            begin
+            @transaction_script
+            pub proc main
                 push.{expiration} exec.::miden::protocol::tx::update_expiration_block_delta
                 {publish_calls}
                 exec.sys::truncate_stack
@@ -185,7 +186,7 @@ pub async fn publish_batch(
 
     let publisher_lib = get_publisher_component_library();
     let publish_script = CodeBuilder::default()
-        .with_statically_linked_library(&publisher_lib)
+        .with_statically_linked_package(&publisher_lib)
         .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
         .compile_tx_script(tx_script_code)
         .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;

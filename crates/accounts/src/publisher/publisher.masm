@@ -16,6 +16,7 @@ const ENTRIES_MAP_SLOT=word("pragma::publisher::entries")
 #! Inputs:  [faucet_id_word, ENTRY]
 #! Outputs: []
 #!
+@account_procedure
 pub proc publish_entry
     push.ENTRIES_MAP_SLOT[0..2] exec.native_account::set_map_item
     # Truncate just in case
@@ -27,6 +28,7 @@ end
 #! Inputs:  [faucet_id_word]
 #! Outputs: [ENTRY] ; Word being [faucet_id_prefix, price, decimals, timestamp]
 #!
+@account_procedure
 pub proc get_entry
     push.ENTRIES_MAP_SLOT[0..2]
 

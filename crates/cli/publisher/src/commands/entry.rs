@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use miden_client::{keystore::FilesystemKeyStore, Client};
+use miden_protocol::account::StorageMapKey;
 use pm_types::Entry;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use prettytable::{Cell, Row, Table};
@@ -55,7 +56,7 @@ impl EntryCmd {
                 .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let entry_word = publisher
             .storage()
-            .get_map_item(&publisher_entries_slot, faucet_id_word)
+            .get_map_item(&publisher_entries_slot, StorageMapKey::new(faucet_id_word))
             .unwrap();
         let mut entry = Entry::from(entry_word);
         entry.faucet_id = self.faucet_id.clone();

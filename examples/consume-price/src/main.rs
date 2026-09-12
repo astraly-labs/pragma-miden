@@ -58,7 +58,7 @@ async fn main() -> Result<()> {
         .map(|i| -> Result<AccountId> {
             let key: Word = [Felt::new(i)?, ZERO, ZERO, ZERO].into();
             let w = storage
-                .get_map_item(&publishers_slot, key)
+                .get_map_item(&publishers_slot, StorageMapKey::new(key))
                 .with_context(|| format!("publisher at index {i} not found"))?;
             // Same layout as pm-oracle-cli: [prefix, suffix, 0, 0]
             Ok(AccountId::new_unchecked([w[0], w[1]]))
@@ -95,7 +95,8 @@ async fn main() -> Result<()> {
         use oracle_component::oracle_module
         use miden::core::sys
 
-        begin
+        @transaction_script
+        pub proc main
             push.0.0.{suffix}.{prefix}
             call.oracle_module::get_median
             exec.sys::truncate_stack
@@ -107,7 +108,7 @@ async fn main() -> Result<()> {
 
     let oracle_lib = get_oracle_component_library();
     let script = CodeBuilder::default()
-        .with_dynamically_linked_library(&oracle_lib)
+        .with_dynamically_linked_package(&*oracle_lib)
         .map_err(|e| anyhow::anyhow!("library error: {e:?}"))?
         .compile_tx_script(script_code)
         .map_err(|e| anyhow::anyhow!("compile error: {e:?}"))?;

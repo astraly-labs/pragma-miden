@@ -1,12 +1,9 @@
 use std::sync::Arc;
 
-use rand::Rng;
+use rand::RngExt;
 
 use miden_client::{
-    account::{
-        component::{AuthScheme, AuthSingleSig},
-        Account, AccountType as ClientAccountType,
-    },
+    account::{component::AuthSingleSig, Account, AccountType as ClientAccountType},
     auth::AuthSecretKey,
     crypto::rpo_falcon512::SecretKey,
     keystore::{FilesystemKeyStore, Keystore},
@@ -14,13 +11,12 @@ use miden_client::{
 };
 use miden_protocol::{
     account::{
-        AccountBuilder, AccountComponent, AccountComponentMetadata, StorageSlot, StorageSlotName,
+        AccountBuilder, AccountComponent, AccountComponentCode, AccountComponentMetadata,
+        StorageSlot, StorageSlotName,
     },
-    assembly::{DefaultSourceManager, Library, Module, ModuleKind, Path as LibraryPath},
-    transaction::TransactionKernel,
+    assembly::Package,
 };
-
-use miden_protocol::assembly::mast::MastNodeExt;
+use miden_standards::code_builder::CodeBuilder;
 
 use crate::publisher::get_entry_procedure_hash;
 
@@ -42,38 +38,25 @@ pub fn oracle_storage_slots() -> Vec<StorageSlot> {
     ]
 }
 
-pub fn get_oracle_component_library() -> Arc<Library> {
-    let source_manager = Arc::new(DefaultSourceManager::default());
-    let oracle_masm = get_oracle_masm();
-    let oracle_component_module = Module::parser(ModuleKind::Library)
-        .parse_str(
-            LibraryPath::new("oracle_component::oracle_module"),
-            &oracle_masm,
-            source_manager.clone(),
-        )
-        .unwrap();
-    TransactionKernel::assembler_with_source_manager(source_manager)
-        .assemble_library([oracle_component_module])
+pub const ORACLE_MODULE_PATH: &str = "oracle_component::oracle_module";
+
+/// Compiles the oracle MASM (with the publisher `get_entry` hash injected) into
+/// an account component code.
+pub fn get_oracle_component_code() -> AccountComponentCode {
+    CodeBuilder::new()
+        .compile_component_code(ORACLE_MODULE_PATH, get_oracle_masm())
         .expect("assembly should succeed")
+}
+
+pub fn get_oracle_component_library() -> Arc<Package> {
+    Arc::new(get_oracle_component_code().into_package())
 }
 
 pub fn get_median_procedure_hash() -> String {
     let lib = get_oracle_component_library();
-    let export = lib
-        .exports()
-        .find(|e| {
-            let path = e.path();
-            let path_str = path.as_ref().as_str();
-            path_str.ends_with("::get_median") || path_str == "get_median"
-        })
-        .expect("get_median procedure not found in oracle library");
-
-    let node_id = lib.get_export_node_id(export.path());
     let digest = lib
-        .mast_forest()
-        .get_node_by_id(node_id)
-        .expect("node not found")
-        .digest();
+        .get_procedure_root_by_path(format!("{ORACLE_MODULE_PATH}::get_median").as_str())
+        .expect("get_median procedure not found in oracle library");
 
     digest
         .as_elements()
@@ -84,11 +67,13 @@ pub fn get_median_procedure_hash() -> String {
 }
 
 pub fn get_oracle_component() -> AccountComponent {
-    let library = get_oracle_component_library();
-    let library = Arc::try_unwrap(library).unwrap_or_else(|arc| (*arc).clone());
     let metadata = AccountComponentMetadata::new("pragma::oracle");
-    AccountComponent::new(library, oracle_storage_slots(), metadata)
-        .expect("assembly should succeed")
+    AccountComponent::new(
+        get_oracle_component_code(),
+        oracle_storage_slots(),
+        metadata,
+    )
+    .expect("assembly should succeed")
 }
 
 pub struct OracleAccountBuilder<'a> {
@@ -140,15 +125,12 @@ impl<'a> OracleAccountBuilder<'a> {
         let private_key = SecretKey::with_rng(client_rng);
         let public_key = private_key.public_key();
 
-        let auth_component = AuthSingleSig::new(
-            public_key.to_commitment().into(),
-            AuthScheme::Falcon512Poseidon2,
-        );
+        let auth_component = AuthSingleSig::falcon512_poseidon2(public_key);
         let from_seed = client_rng.random();
 
         let account = AccountBuilder::new(from_seed)
             .account_type(account_type)
-            .with_auth_component(auth_component)
+            .with_component(auth_component)
             .with_component(oracle_component)
             .build()
             .unwrap();
