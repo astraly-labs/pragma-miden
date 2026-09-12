@@ -5,14 +5,17 @@ pub mod publish;
 pub mod publish_batch;
 pub mod sync;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use entry::EntryCmd;
 use get_entry::GetEntryCmd;
 use init::InitCmd;
 use pm_types::Entry;
-use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client, STORE_FILENAME};
+use pm_utils_cli::{
+    get_publisher_id, setup_devnet_client, setup_local_client, setup_testnet_client, BalanceCmd,
+    FundCmd, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
+};
 use publish::PublishCmd;
 use publish_batch::PublishBatchCmd;
 use sync::SyncCmd;
@@ -43,6 +46,10 @@ pub enum SubCommand {
     Sync(SyncCmd),
     #[clap(name = "get-entry", bin_name = "get-entry")]
     Get(GetEntryCmd),
+    #[clap(name = "fund", bin_name = "fund")]
+    Fund(FundCmd),
+    #[clap(name = "balance", bin_name = "balance")]
+    Balance(BalanceCmd),
 }
 
 impl SubCommand {
@@ -94,6 +101,16 @@ impl SubCommand {
             Self::Get(cmd) => {
                 let entry = cmd.call(&mut client, network).await?;
                 Ok(CommandOutput::Entry(entry))
+            }
+            Self::Fund(cmd) => {
+                let id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
+                cmd.call(&mut client, id).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::Balance(cmd) => {
+                let id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
+                cmd.call(&mut client, id).await?;
+                Ok(CommandOutput::None)
             }
         }
     }

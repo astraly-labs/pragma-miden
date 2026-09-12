@@ -4,11 +4,13 @@
 
 pub mod client;
 pub mod constants;
+pub mod faucet;
 pub mod network;
 pub mod storage;
 
 pub use client::*;
 pub use constants::*;
+pub use faucet::*;
 pub use network::*;
 pub use storage::*;
 

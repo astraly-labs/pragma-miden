@@ -7,7 +7,7 @@ pub mod register_publisher;
 pub mod remove_publisher;
 pub mod sync;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use miden_client::Felt;
@@ -22,7 +22,10 @@ use register_publisher::RegisterPublisherCmd;
 use remove_publisher::RemovePublisherCmd;
 use sync::SyncCmd;
 
-use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client, STORE_FILENAME};
+use pm_utils_cli::{
+    get_oracle_id, setup_devnet_client, setup_local_client, setup_testnet_client, BalanceCmd,
+    FundCmd, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
+};
 
 #[derive(Debug)]
 pub enum CommandOutput {
@@ -50,6 +53,10 @@ pub enum SubCommand {
     Publishers(PublishersCmd),
     #[clap(name = "get-entry", bin_name = "get-entry")]
     GetEntry(GetEntryCmd),
+    #[clap(name = "fund", bin_name = "fund")]
+    Fund(FundCmd),
+    #[clap(name = "balance", bin_name = "balance")]
+    Balance(BalanceCmd),
 }
 
 impl SubCommand {
@@ -84,6 +91,16 @@ impl SubCommand {
             }
             Self::Sync(cmd) => {
                 cmd.call(&mut client).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::Fund(cmd) => {
+                let id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
+                cmd.call(&mut client, id).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::Balance(cmd) => {
+                let id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
+                cmd.call(&mut client, id).await?;
                 Ok(CommandOutput::None)
             }
             Self::RegisterPublisher(cmd) => {
