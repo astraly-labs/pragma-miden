@@ -60,7 +60,8 @@ impl RegisterPublisherCmd {
             "
             use oracle_component::oracle_module
             use miden::core::sys
-            begin
+            @transaction_script
+            pub proc main
                 push.0.0
                 push.{account_id_suffix} push.{account_id_prefix}
                 call.oracle_module::register_publisher
@@ -72,7 +73,7 @@ impl RegisterPublisherCmd {
         );
         let oracle_lib = get_oracle_component_library();
         let register_script = CodeBuilder::default()
-            .with_dynamically_linked_library(&oracle_lib)
+            .with_dynamically_linked_package(&*oracle_lib)
             .map_err(|e| anyhow::anyhow!("Error while setting up the component library: {e:?}"))?
             .compile_tx_script(tx_script_code)
             .map_err(|e| anyhow::anyhow!("Error while compiling the script: {e:?}"))?;

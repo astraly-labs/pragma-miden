@@ -123,7 +123,9 @@ where
                 "pm-publisher: Miden store pool wedged during {label}; evicted the cached client, it will be rebuilt on the next call"
             );
         }
-        PyValueError::new_err(format!("{label} failed: {e}"))
+        // `:#` prints the whole anyhow context chain on one line, e.g.
+        // "Import account failed: RPC error: account not found ...".
+        PyValueError::new_err(format!("{label} failed: {e:#}"))
     })
 }
 
@@ -313,7 +315,10 @@ fn py_import_account(
         })?;
 
         map_cmd_err(
-            client.import_account_by_id(id).await,
+            client
+                .import_account_by_id(id)
+                .await
+                .map_err(anyhow::Error::from),
             &key,
             "Import account",
         )?;

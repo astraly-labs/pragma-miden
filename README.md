@@ -22,7 +22,7 @@
 
 ## Deployments
 
-### Testnet (Miden 0.15)
+### Testnet (Miden 0.16)
 
 | Role       | Account ID                           | Explorer |
 |------------|--------------------------------------|----------|

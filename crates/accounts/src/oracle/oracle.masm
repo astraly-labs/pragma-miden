@@ -269,6 +269,7 @@ end
 #!
 #! Inputs:  [PUBLISHER_ID, faucet_id_word]
 #! Outputs: [ENTRY]
+@account_procedure
 pub proc get_entry
     # Verifies if the publisher is registered, panics if not
     # dupw push.PUBLISHER_REGISTRY_MAP_SLOT[0..2] exec.active_account::get_map_item dropw
@@ -288,6 +289,7 @@ end
 #!
 #! Inputs:  [faucet_id_prefix, faucet_id_suffix, amount, 0]
 #! Outputs: [is_tracked, median_price]
+@account_procedure
 pub proc get_median
 
     # => [faucet_id_prefix, faucet_id_suffix, amount, 0]
@@ -403,6 +405,7 @@ end
 #!
 #! Inputs:  [PUBLISHER_ID]
 #! Outputs: []
+@account_procedure
 pub proc register_publisher
 
     # => [prefix, suffix, 0, 0]
@@ -479,6 +482,7 @@ end
 #!
 #! Inputs:  [PUBLISHER_ID]
 #! Outputs: []
+@account_procedure
 pub proc remove_publisher
 
     # => [prefix, suffix, 0, 0]

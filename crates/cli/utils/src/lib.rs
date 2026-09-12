@@ -1,3 +1,7 @@
+// miden-client 0.16's ClientError is large; boxing it would only move the cost
+// to every caller of the setup_* helpers.
+#![allow(clippy::result_large_err)]
+
 pub mod client;
 pub mod constants;
 pub mod network;
