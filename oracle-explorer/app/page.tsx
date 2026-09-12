@@ -14,15 +14,16 @@ const REFRESH_INTERVAL = 10000;
 const FAUCET_IDS = FAUCET_CONFIGS.map(({ faucetId, pair }) => ({ id: faucetId, pair }));
 
 const CONTRACTS = [
-  { name: "Oracle", address: "mtst1apadf2szkxqkcyt7x2znuggv9qkhccam", url: "https://testnet.midenscan.com/account/mtst1apadf2szkxqkcyt7x2znuggv9qkhccam" },
-  { name: "Publisher", address: "mtst1apkn0vk54mwkju2qxw9mx8r8uvhn240g", url: "https://testnet.midenscan.com/account/mtst1apkn0vk54mwkju2qxw9mx8r8uvhn240g" },
+  { name: "Oracle", address: "mtst1aqanqmvpngvmdyfq2jqwzcvmtsvexd5u", url: "https://testnet.midenscan.com/account/mtst1aqanqmvpngvmdyfq2jqwzcvmtsvexd5u" },
+  { name: "Publisher", address: "mtst1aq32gfucapgeey2zznc6vvqfeqh5h4rt", url: "https://testnet.midenscan.com/account/mtst1aq32gfucapgeey2zznc6vvqfeqh5h4rt" },
 ];
 
 const PUBLISHER_STEPS = [
   { title: "Build the CLI tools", code: "cargo build --release" },
-  { title: "Initialize your publisher account", code: "./target/release/pm-publisher-cli init" },
-  { title: "Request registration", description: "Send your publisher ID to the Oracle administrator", code: "./target/release/pm-oracle-cli register-publisher YOUR_PUBLISHER_ID" },
-  { title: "Start publishing prices", code: "./target/release/pm-publisher-cli publish 1:0 98179840000 6 1738593825", note: "Where 1:0 = BTC/USD, price has 6 decimal places" },
+  { title: "Initialize your publisher account", code: "./target/release/pm-publisher-cli -n testnet init 0x3b306d819a19b691205480e1619b5c", note: "The argument is the Pragma oracle id on the Miden 0.16 testnet" },
+  { title: "Fund it with the testnet fee asset", description: "Miden 0.16 charges every transaction a fee; this solves the faucet's proof-of-work, mints 100 tokens and consumes the note (~112 base units per 14-entry batch)", code: "./target/release/pm-publisher-cli -n testnet fund" },
+  { title: "Request registration", description: "Send your publisher ID to the Oracle administrator", code: "./target/release/pm-oracle-cli -n testnet register-publisher YOUR_PUBLISHER_ID" },
+  { title: "Start publishing prices", code: "./target/release/pm-publisher-cli -n testnet publish 1:0 98179840000 6 1738593825", note: "Where 1:0 = BTC/USD, price has 6 decimal places" },
 ];
 
 function CodeBlock({ code }: { code: string }) {
