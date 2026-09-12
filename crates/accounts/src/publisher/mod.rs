@@ -3,7 +3,10 @@ use std::sync::Arc;
 use rand::RngExt;
 
 use miden_client::{
-    account::{component::AuthSingleSig, Account},
+    account::{
+        component::{AuthSingleSig, BasicWallet},
+        Account,
+    },
     auth::AuthSecretKey,
     keystore::{FilesystemKeyStore, Keystore},
     Client, Word,
@@ -114,6 +117,9 @@ impl<'a> PublisherAccountBuilder<'a> {
             .account_type(self.account_type)
             .with_component(auth_component)
             .with_component(publisher_component)
+            // 0.16 testnet charges fees in its native asset: the account needs
+            // BasicWallet (receive_asset) to consume the faucet's P2ID notes.
+            .with_component(BasicWallet)
             .build()
             .unwrap();
         let account_seed = account.seed().expect("New account should have seed");

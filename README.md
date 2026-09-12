@@ -26,12 +26,22 @@
 
 | Role       | Account ID                           | Explorer |
 |------------|--------------------------------------|----------|
-| Oracle     | `0x7ad4aa02b1816c117e32853e210c28`  | [view](https://testnet.midenscan.com/account/mtst1apadf2szkxqkcyt7x2znuggv9qkhccam) |
-| Publisher  | `0x6d37b2d4aedd697140338bb31c67e3`  | [view](https://testnet.midenscan.com/account/mtst1apkn0vk54mwkju2qxw9mx8r8uvhn240g) |
+| Oracle     | `0x3b306d819a19b691205480e1619b5c`  | [view](https://testnet.midenscan.com/account/mtst1aqanqmvpngvmdyfq2jqwzcvmtsvexd5u) |
+| Publisher  | `0x22a42798e8519c914214f1a63009c8`  | [view](https://testnet.midenscan.com/account/mtst1aq32gfucapgeey2zznc6vvqfeqh5h4rt) |
 
 > Addresses change between testnet iterations. This table is the source of truth.
 
 ---
+
+
+### Fees (Miden 0.16)
+
+Every transaction pays a fee in the chain's native asset, taken from the sender's vault
+(a 14-entry `publish-batch` costs ~112 base units, a `register-publisher` ~119; reads are free).
+Both accounts carry `BasicWallet` so they can receive it. On testnet the public faucet is the
+only source: `pm-oracle-cli -n testnet fund` / `pm-publisher-cli -n testnet fund` solve its
+proof-of-work, mint a 100-token P2ID note and consume it; `balance` shows what is left.
+The price-pusher refills itself through `pm_publisher.fund` when the balance drops below its threshold.
 
 ## Quick start
 

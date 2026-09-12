@@ -13,7 +13,11 @@ use crate::commands::{
     entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, publish::PublishCmd,
     publish_batch::publish_batch as do_publish_batch, sync::SyncCmd,
 };
-use pm_utils_cli::{setup_devnet_client, setup_local_client, setup_testnet_client, STORE_FILENAME};
+use pm_utils_cli::{
+    faucet_metadata, fee_asset_balance, fund_account, get_publisher_id, setup_devnet_client,
+    setup_local_client, setup_testnet_client, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
+    TESTNET_FAUCET_API,
+};
 
 /// Single shared Tokio runtime for the lifetime of the Python process.
 /// Creating one runtime per pyo3 call (the previous behaviour) was
@@ -353,6 +357,80 @@ fn py_sync(
     })
 }
 
+/// Fee-asset balance of the publisher account (base units of the chain's
+/// fee faucet asset). Syncs first so the figure is current.
+#[pyfunction]
+#[pyo3(name = "balance")]
+fn py_balance(
+    py: Python<'_>,
+    storage_path: Option<String>,
+    keystore_path: Option<String>,
+    network: Option<String>,
+) -> PyResult<u64> {
+    block_on(py, || async move {
+        let store_config = get_store_config(storage_path);
+        let network_str = network.as_deref().unwrap_or("testnet");
+        let key = client_key(network_str, &store_config, keystore_path.as_deref());
+        let client_arc = cached_client(network_str, store_config, keystore_path).await?;
+        let mut client = client_arc.lock().await;
+
+        let publisher_id = map_cmd_err(
+            get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network_str),
+            &key,
+            "Balance",
+        )?;
+        map_cmd_err(
+            client.sync_state().await.map_err(anyhow::Error::from),
+            &key,
+            "Balance",
+        )?;
+        let (_, balance) = map_cmd_err(
+            fee_asset_balance(&mut client, publisher_id).await,
+            &key,
+            "Balance",
+        )?;
+        Ok(balance)
+    })
+}
+
+/// Tops the publisher account up with the testnet fee asset through the
+/// public faucet (proof-of-work, mint, consume). Returns the balance after.
+/// `amount` is in base units; `None` asks for the faucet's base amount.
+#[pyfunction]
+#[pyo3(name = "fund")]
+fn py_fund(
+    py: Python<'_>,
+    amount: Option<u64>,
+    storage_path: Option<String>,
+    keystore_path: Option<String>,
+    network: Option<String>,
+) -> PyResult<u64> {
+    block_on(py, || async move {
+        let store_config = get_store_config(storage_path);
+        let network_str = network.as_deref().unwrap_or("testnet");
+        let key = client_key(network_str, &store_config, keystore_path.as_deref());
+        let client_arc = cached_client(network_str, store_config, keystore_path).await?;
+        let mut client = client_arc.lock().await;
+
+        let publisher_id = map_cmd_err(
+            get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network_str),
+            &key,
+            "Fund",
+        )?;
+        let amount = match amount {
+            Some(a) => a,
+            None => {
+                map_cmd_err(faucet_metadata(TESTNET_FAUCET_API).await, &key, "Fund")?.base_amount
+            }
+        };
+        map_cmd_err(
+            fund_account(&mut client, publisher_id, TESTNET_FAUCET_API, amount).await,
+            &key,
+            "Fund",
+        )
+    })
+}
+
 /// Python module
 #[pymodule]
 fn pm_publisher(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
@@ -363,6 +441,8 @@ fn pm_publisher(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(py_entry))?;
     m.add_wrapped(wrap_pyfunction!(py_sync))?;
     m.add_wrapped(wrap_pyfunction!(py_import_account))?;
+    m.add_wrapped(wrap_pyfunction!(py_balance))?;
+    m.add_wrapped(wrap_pyfunction!(py_fund))?;
     Ok(())
 }
 
