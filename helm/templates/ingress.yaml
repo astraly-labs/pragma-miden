@@ -1,5 +1,6 @@
 {{- $fullname := include "oracle-explorer.fullname" . }}
 {{- range $val := .Values.ingress }}
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
