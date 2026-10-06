@@ -29,4 +29,4 @@ uuid.workspace = true
 [dev-dependencies]
 miden-testing.workspace = true
 miden-protocol = { workspace = true, features = ["testing"] }
-miden-processor = "0.22"
+miden-processor = "0.35"
