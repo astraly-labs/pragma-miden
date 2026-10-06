@@ -11,7 +11,7 @@ use pm_utils_cli::setup_testnet_client;
 use std::collections::BTreeMap;
 
 // ── Pragma Miden testnet oracle ───────────────────────────────────────────────
-const ORACLE_ID: &str = "0x3b306d819a19b691205480e1619b5c";
+const ORACLE_ID: &str = "0xe0b54acf872a5b115d8b14c1cf0f75";
 
 // ── Asset: BTC/USD (faucet_id "1:0") ─────────────────────────────────────────
 const PAIR_PREFIX: u64 = 1;
