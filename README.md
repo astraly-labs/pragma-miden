@@ -22,7 +22,7 @@
 
 ## Deployments
 
-### Testnet (Miden 0.16)
+### Testnet (Miden 0.17)
 
 | Role       | Account ID                           | Explorer |
 |------------|--------------------------------------|----------|
@@ -34,7 +34,7 @@
 ---
 
 
-### Fees (Miden 0.16)
+### Fees (Miden 0.17)
 
 Every transaction pays a fee in the chain's native asset, taken from the sender's vault
 (a 14-entry `publish-batch` costs ~112 base units, a `register-publisher` ~119; reads are free).

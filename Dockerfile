@@ -1,5 +1,5 @@
 # ── Stage 1: Build Rust binaries ─────────────────────────────────────────────
-FROM rust:1.82-slim AS rust-builder
+FROM rust:1.98.1-slim AS rust-builder
 
 RUN apt-get update && apt-get install -y \
   pkg-config libssl-dev libsqlite3-dev clang \

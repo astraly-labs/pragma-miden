@@ -6,10 +6,10 @@ use miden_client::{
         Account, AccountBuilder, AccountType,
     },
     builder::ClientBuilder,
-    crypto::{rpo_falcon512::SecretKey, RandomCoin},
+    crypto::rpo_falcon512::SecretKey,
     keystore::{FilesystemKeyStore, Keystore},
     rpc::{Endpoint, GrpcClient, VerifyingRpcClient},
-    Client, ClientError, Felt, RemoteTransactionProver, Word,
+    Client, ClientError, RemoteTransactionProver, Word,
 };
 use miden_client_sqlite_store::SqliteStore;
 use rand::Rng;
@@ -53,13 +53,6 @@ async fn setup_client(
             .with_max_decoding_message_size(MAX_DECODING_MESSAGE_SIZE),
     ));
 
-    let coin_seed: [u64; 4] = rand::random();
-    // 0.15: Felt::new is fallible (rejects value >= field modulus). Shift right by
-    // one so each limb is < 2^63 < p — always a canonical field element, no panic.
-    let rng = Box::new(RandomCoin::new(
-        coin_seed.map(|x| Felt::new_unchecked(x >> 1)).into(),
-    ));
-
     let path = path.unwrap_or_else(|| PathBuf::new().join(STORE_FILENAME));
     let keystore_path_str = keystore_path.unwrap_or_else(default_keystore_path);
     let keystore = FilesystemKeyStore::new(keystore_path_str.into())
@@ -76,7 +69,6 @@ async fn setup_client(
     let mut builder = ClientBuilder::new()
         .authenticator(keystore)
         .rpc(rpc_api)
-        .rng(rng)
         .store(Arc::new(store));
 
     if let Some(prover_url) = prover_endpoint {

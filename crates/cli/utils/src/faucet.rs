@@ -165,7 +165,11 @@ pub async fn fee_asset_balance(
     account_id: AccountId,
 ) -> Result<(AccountId, u64)> {
     let header = client.get_latest_block_header().await?;
-    let fee_faucet = header.fee_parameters().fee_faucet_id();
+    let fee_faucet = client
+        .get_protocol_config(header.protocol_config_commitment())
+        .await?
+        .fee_asset_id()
+        .faucet_id();
     let account = client
         .get_account(account_id)
         .await?
