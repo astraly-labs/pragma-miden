@@ -50,5 +50,6 @@ Edit `PAIR_PREFIX` / `PAIR_SUFFIX` in `src/main.rs`:
 | `12:0`    | `12`   | `0`    | UNI/USD    | 8        |
 | `13:0`    | `13`   | `0`    | AAVE/USD   | 8        |
 | `14:0`    | `14`   | `0`    | MORPHO/USD | 8        |
+| `15:0`    | `15`   | `0`    | USDC/USD   | 6        |
 
-`get_median` returns the raw integer only: scale it by the pair's decimals (`min(base.decimals, quote.decimals)` in pragma-sdk, 8 for most pairs, 6 for USDT/USD and XAUT/USD).
+`get_median` returns the raw integer only: scale it by the pair's decimals (`min(base.decimals, quote.decimals)` in pragma-sdk, 8 for most pairs, 6 for USDT/USD, USDC/USD and XAUT/USD).

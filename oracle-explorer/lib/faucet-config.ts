@@ -26,8 +26,8 @@ const kucoin = (symbol: string): MarketRef => ({ venue: 'kucoin', symbol });
 // Must mirror STARKNET_PAIR_TO_MIDEN_FAUCET in pragma-sdk/pragma_sdk/miden/client.py.
 // The Pragma price-pusher only forwards these pairs to Miden; adding a row
 // here without a matching pusher mapping would just display zeros.
-// USDT/USD has no direct counterpart on Binance: USDCUSDT is the closest 1:1
-// reference. XMR is delisted from Binance (its API still serves a phantom
+// USDT/USD and USDC/USD have no direct counterpart on Binance: USDCUSDT is the
+// closest 1:1 reference (also the stand-in feed for USDCx). XMR is delisted from Binance (its API still serves a phantom
 // XMRUSDT ~4x below the market), so it comes from KuCoin.
 export const FAUCET_CONFIGS: FaucetConfig[] = [
   { faucetId: '1:0', pair: 'BTC/USD', name: 'Bitcoin', marketCap: 1_280_000_000_000, decimals: 8, market: binance('BTCUSDT') },
@@ -44,6 +44,7 @@ export const FAUCET_CONFIGS: FaucetConfig[] = [
   { faucetId: '12:0', pair: 'UNI/USD', name: 'Uniswap', marketCap: 4_450_000_000, decimals: 8, market: binance('UNIUSDT') },
   { faucetId: '13:0', pair: 'AAVE/USD', name: 'Aave', marketCap: 2_000_000_000, decimals: 8, market: binance('AAVEUSDT') },
   { faucetId: '14:0', pair: 'MORPHO/USD', name: 'Morpho', marketCap: 1_650_000_000, decimals: 8, market: binance('MORPHOUSDT') },
+  { faucetId: '15:0', pair: 'USDC/USD', name: 'USD Coin', marketCap: 74_000_000_000, decimals: 6, market: binance('USDCUSDT') },
 ];
 
 export const FAUCET_ID_TO_PAIR = new Map(
