@@ -11,16 +11,16 @@ use anyhow::{Context, Result};
 use miden_client::account::AccountId;
 use miden_client::transaction::TransactionScript;
 use miden_protocol::account::{
-    auth::AuthScheme, AccountComponent, AccountComponentMetadata, StorageMap, StorageMapKey,
-    StorageSlot, StorageSlotName,
+    auth::AuthScheme, AccountCode, AccountCodeUpgrade, AccountComponent, AccountComponentMetadata,
+    StorageMap, StorageMapKey, StorageSlot, StorageSlotName,
 };
 use miden_protocol::errors::MasmError;
 use miden_protocol::{Felt, Word, ZERO};
-use miden_standards::code_builder::CodeBuilder;
+use miden_standards::{account::upgrade::UpgradeManager, code_builder::CodeBuilder};
 use miden_testing::{assert_transaction_executor_error, Auth, MockChain, MockChainBuilder};
 
 use pm_accounts::{
-    oracle::{get_oracle_component, get_oracle_component_library},
+    oracle::{get_oracle_component_library, get_oracle_components},
     publisher::{get_publisher_component, get_publisher_component_code},
     utils::word_to_masm,
 };
@@ -208,7 +208,7 @@ async fn assert_get_median(
 async fn test_oracle_register_publisher() -> Result<()> {
     let mut builder = MockChainBuilder::new();
     let oracle =
-        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+        builder.add_existing_account_from_components(falcon_auth(), get_oracle_components())?;
     let publisher =
         builder.add_existing_account_from_components(falcon_auth(), [get_publisher_component()])?;
     let mock_chain = builder.build()?;
@@ -256,7 +256,7 @@ async fn test_oracle_register_publisher() -> Result<()> {
 async fn test_oracle_register_publisher_fails_if_already_registered() -> Result<()> {
     let mut builder = MockChainBuilder::new();
     let oracle =
-        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+        builder.add_existing_account_from_components(falcon_auth(), get_oracle_components())?;
     let publisher =
         builder.add_existing_account_from_components(falcon_auth(), [get_publisher_component()])?;
     let mut mock_chain = builder.build()?;
@@ -292,7 +292,7 @@ async fn test_oracle_register_publisher_fails_if_already_registered() -> Result<
 async fn test_oracle_remove_publisher() -> Result<()> {
     let mut builder = MockChainBuilder::new();
     let oracle =
-        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+        builder.add_existing_account_from_components(falcon_auth(), get_oracle_components())?;
     let publisher =
         builder.add_existing_account_from_components(falcon_auth(), [get_publisher_component()])?;
     let mut mock_chain = builder.build()?;
@@ -344,7 +344,7 @@ async fn test_oracle_remove_publisher() -> Result<()> {
 async fn test_oracle_remove_publisher_fails_if_not_registered() -> Result<()> {
     let mut builder = MockChainBuilder::new();
     let oracle =
-        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+        builder.add_existing_account_from_components(falcon_auth(), get_oracle_components())?;
     let publisher =
         builder.add_existing_account_from_components(falcon_auth(), [get_publisher_component()])?;
     let mock_chain = builder.build()?;
@@ -400,7 +400,7 @@ async fn test_oracle_get_median_skips_soft_deleted_publishers() -> Result<()> {
         [publisher_component_with_entry(pair_word, entry2_word)],
     )?;
     let oracle =
-        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+        builder.add_existing_account_from_components(falcon_auth(), get_oracle_components())?;
     let mut mock_chain = builder.build()?;
 
     // Register both publishers.
@@ -469,7 +469,7 @@ async fn test_oracle_get_median_value() -> Result<()> {
         )],
     )?;
     let oracle =
-        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+        builder.add_existing_account_from_components(falcon_auth(), get_oracle_components())?;
     let mut mock_chain = builder.build()?;
 
     // Register both publishers, then advance the chain so the get_median block
@@ -552,7 +552,7 @@ async fn test_oracle_get_median_skips_stale_entry() -> Result<()> {
         )],
     )?;
     let oracle =
-        builder.add_existing_account_from_components(falcon_auth(), [get_oracle_component()])?;
+        builder.add_existing_account_from_components(falcon_auth(), get_oracle_components())?;
     let mut mock_chain = builder.build()?;
 
     for id in [stale_pub.id(), fresh_pub.id()] {
@@ -578,6 +578,95 @@ async fn test_oracle_get_median_skips_stale_entry() -> Result<()> {
     )
     .await
     .context("stale entry skipped; median = fresh price only")?;
+
+    Ok(())
+}
+
+// ============================================================================
+// Tests: code upgrade (UpgradeManager + Authority::AuthControlled)
+// ============================================================================
+
+/// The oracle code with one extra component: same storage layout, new procedure.
+fn upgraded_oracle_code() -> Result<AccountCode> {
+    let extra_code = CodeBuilder::new().compile_component_code(
+        "extra::module",
+        "@account_procedure\npub proc noop\n    push.1 drop\nend",
+    )?;
+    let extra = AccountComponent::new(
+        extra_code,
+        vec![],
+        AccountComponentMetadata::new("pragma::oracle_extra"),
+    )?;
+
+    let (mut components, _) = falcon_auth().build_components();
+    components.extend(get_oracle_components());
+    components.push(extra);
+    Ok(AccountCode::from_components(&components)?)
+}
+
+fn upgrade_script(new_code: &AccountCode) -> Result<TransactionScript> {
+    let tx_script_code = format!(
+        "
+        use miden::core::sys
+
+        @transaction_script
+        pub proc main
+            push.0.0.0.0
+            push.{new_code_commitment}
+            call.{upgrade_root}
+            exec.sys::truncate_stack
+        end
+        ",
+        new_code_commitment = new_code.commitment(),
+        upgrade_root = UpgradeManager::upgrade_root().mast_root(),
+    );
+    Ok(CodeBuilder::default().compile_tx_script(tx_script_code)?)
+}
+
+#[tokio::test]
+async fn test_oracle_upgrade_replaces_code_and_keeps_state() -> Result<()> {
+    let mut builder = MockChainBuilder::new();
+    let oracle =
+        builder.add_existing_account_from_components(falcon_auth(), get_oracle_components())?;
+    let publisher =
+        builder.add_existing_account_from_components(falcon_auth(), [get_publisher_component()])?;
+    let mut mock_chain = builder.build()?;
+
+    let new_code = upgraded_oracle_code()?;
+    assert_ne!(
+        oracle.code().commitment(),
+        new_code.commitment(),
+        "the upgrade must actually change the code"
+    );
+
+    let tx = mock_chain
+        .build_transaction(oracle.id())
+        .tx_script(upgrade_script(&new_code)?)
+        .account_code_upgrade(AccountCodeUpgrade::new(new_code.clone()))
+        .build()?;
+    let executed = tx.execute().await?;
+    mock_chain.add_pending_executed_transaction(&executed)?;
+    mock_chain.prove_next_block()?;
+
+    let upgraded = mock_chain.committed_account(oracle.id())?;
+    assert_eq!(upgraded.code().commitment(), new_code.commitment());
+    assert_eq!(upgraded.id(), oracle.id(), "the account id is unchanged");
+
+    // State survives and the oracle procedures still work under the new code.
+    let tx = mock_chain
+        .build_transaction(oracle.id())
+        .tx_script(register_publisher_script(publisher.id())?)
+        .build()?;
+    let executed = tx.execute().await?;
+    let mut upgraded = upgraded.clone();
+    upgraded.apply_patch(executed.account_patch())?;
+
+    let next_index_slot = StorageSlotName::new("pragma::oracle::next_publisher_index").unwrap();
+    assert_eq!(
+        upgraded.storage().get_item(&next_index_slot).unwrap(),
+        [Felt::new(3).unwrap(), ZERO, ZERO, ZERO].into(),
+        "register_publisher still works after the upgrade"
+    );
 
     Ok(())
 }

@@ -14,13 +14,13 @@ const REFRESH_INTERVAL = 10000;
 const FAUCET_IDS = FAUCET_CONFIGS.map(({ faucetId, pair }) => ({ id: faucetId, pair }));
 
 const CONTRACTS = [
-  { name: "Oracle", address: "mtst1arst2jk0su49ky2a3v2vrnc0w56ckunx", url: "https://testnet.midenscan.com/account/mtst1arst2jk0su49ky2a3v2vrnc0w56ckunx" },
+  { name: "Oracle", address: "mtst1aqxnneud7y34z5gwc5z8vu95pcsdmcxm", url: "https://testnet.midenscan.com/account/mtst1aqxnneud7y34z5gwc5z8vu95pcsdmcxm" },
   { name: "Publisher", address: "mtst1apk7pswf5s744ygr5v4wxjxt4g0tmmsy", url: "https://testnet.midenscan.com/account/mtst1apk7pswf5s744ygr5v4wxjxt4g0tmmsy" },
 ];
 
 const PUBLISHER_STEPS = [
   { title: "Build the CLI tools", code: "cargo build --release" },
-  { title: "Initialize your publisher account", code: "./target/release/pm-publisher-cli -n testnet init 0xe0b54acf872a5b115d8b14c1cf0f75", note: "The argument is the Pragma oracle id on the Miden 0.17 testnet" },
+  { title: "Initialize your publisher account", code: "./target/release/pm-publisher-cli -n testnet init 0x0d39e78df12351510ec5047670b40e", note: "The argument is the Pragma oracle id on the Miden 0.17 testnet" },
   { title: "Fund it with the testnet fee asset", description: "Miden 0.17 charges every transaction a fee; this solves the faucet's proof-of-work, mints 100 tokens and consumes the note (~112 base units per 14-entry batch)", code: "./target/release/pm-publisher-cli -n testnet fund" },
   { title: "Request registration", description: "Send your publisher ID to the Oracle administrator", code: "./target/release/pm-oracle-cli -n testnet register-publisher YOUR_PUBLISHER_ID" },
   { title: "Start publishing prices", code: "./target/release/pm-publisher-cli -n testnet publish 1:0 98179840000 6 1738593825", note: "Where 1:0 = BTC/USD, price has 6 decimal places" },
