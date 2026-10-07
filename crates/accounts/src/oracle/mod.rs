@@ -19,7 +19,10 @@ use miden_protocol::{
     },
     assembly::Package,
 };
-use miden_standards::code_builder::CodeBuilder;
+use miden_standards::{
+    account::{access::Authority, upgrade::UpgradeManager},
+    code_builder::CodeBuilder,
+};
 
 use crate::publisher::get_entry_procedure_hash;
 
@@ -79,6 +82,18 @@ pub fn get_oracle_component() -> AccountComponent {
     .expect("assembly should succeed")
 }
 
+/// The oracle component plus the standard code-upgrade pair: `UpgradeManager`
+/// exposes `upgrade`, gated by `Authority::AuthControlled`, i.e. the account's
+/// own auth key. Storage can't be upgraded yet, so a new oracle code must keep
+/// the exact same storage layout.
+pub fn get_oracle_components() -> Vec<AccountComponent> {
+    vec![
+        get_oracle_component(),
+        Authority::AuthControlled.into(),
+        UpgradeManager.into(),
+    ]
+}
+
 pub struct OracleAccountBuilder<'a> {
     client: Option<&'a mut Client<FilesystemKeyStore>>,
     account_type: ClientAccountType,
@@ -122,7 +137,6 @@ impl<'a> OracleAccountBuilder<'a> {
 
     pub async fn build(self) -> (Account, Word) {
         let account_type = self.account_type;
-        let oracle_component = get_oracle_component();
         let client = self.client.expect("build must have a Miden Client!");
         let client_rng = client.rng();
         let private_key = SecretKey::with_rng(client_rng);
@@ -134,7 +148,7 @@ impl<'a> OracleAccountBuilder<'a> {
         let account = AccountBuilder::new(from_seed)
             .account_type(account_type)
             .with_component(auth_component)
-            .with_component(oracle_component)
+            .with_components(get_oracle_components())
             // 0.16 testnet charges fees in its native asset: the account needs
             // BasicWallet (receive_asset) to consume the faucet's P2ID notes.
             .with_component(BasicWallet)

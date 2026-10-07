@@ -26,7 +26,7 @@
 
 | Role       | Account ID                           | Explorer |
 |------------|--------------------------------------|----------|
-| Oracle     | `0xe0b54acf872a5b115d8b14c1cf0f75`  | [view](https://testnet.midenscan.com/account/mtst1arst2jk0su49ky2a3v2vrnc0w56ckunx) |
+| Oracle     | `0x0d39e78df12351510ec5047670b40e`  | [view](https://testnet.midenscan.com/account/mtst1aqxnneud7y34z5gwc5z8vu95pcsdmcxm) |
 | Publisher  | `0x6de0c1c9a43d5a9103a32ae348cbaa`  | [view](https://testnet.midenscan.com/account/mtst1apk7pswf5s744ygr5v4wxjxt4g0tmmsy) |
 
 > Addresses change between testnet iterations. This table is the source of truth.
