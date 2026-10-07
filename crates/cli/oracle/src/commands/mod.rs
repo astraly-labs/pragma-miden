@@ -6,6 +6,7 @@ pub mod publishers;
 pub mod register_publisher;
 pub mod remove_publisher;
 pub mod sync;
+pub mod upgrade;
 
 use std::path::{Path, PathBuf};
 
@@ -21,6 +22,7 @@ use publishers::PublishersCmd;
 use register_publisher::RegisterPublisherCmd;
 use remove_publisher::RemovePublisherCmd;
 use sync::SyncCmd;
+use upgrade::UpgradeCmd;
 
 use pm_utils_cli::{
     get_oracle_id, setup_devnet_client, setup_local_client, setup_testnet_client, BalanceCmd,
@@ -53,6 +55,8 @@ pub enum SubCommand {
     Publishers(PublishersCmd),
     #[clap(name = "get-entry", bin_name = "get-entry")]
     GetEntry(GetEntryCmd),
+    #[clap(name = "upgrade", bin_name = "upgrade")]
+    Upgrade(UpgradeCmd),
     #[clap(name = "fund", bin_name = "fund")]
     Fund(FundCmd),
     #[clap(name = "balance", bin_name = "balance")]
@@ -108,6 +112,10 @@ impl SubCommand {
                 Ok(CommandOutput::None)
             }
             Self::RemovePublisher(cmd) => {
+                cmd.call(&mut client, network).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::Upgrade(cmd) => {
                 cmd.call(&mut client, network).await?;
                 Ok(CommandOutput::None)
             }

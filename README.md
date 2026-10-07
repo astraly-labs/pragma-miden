@@ -43,6 +43,17 @@ only source: `pm-oracle-cli -n testnet fund` / `pm-publisher-cli -n testnet fund
 proof-of-work, mint a 100-token P2ID note and consume it; `balance` shows what is left.
 The price-pusher refills itself through `pm_publisher.fund` when the balance drops below its threshold.
 
+### Upgrading the oracle (Miden 0.17)
+
+The oracle account installs the standard `UpgradeManager`, gated by its own auth key, so a MASM change doesn't need a new account id (no re-registering publishers, no new address). From a workspace that holds the oracle admin key:
+
+```bash
+pm-oracle-cli -n testnet upgrade --dry-run   # compare the deployed code with this binary's
+pm-oracle-cli -n testnet upgrade             # submit the upgrade
+```
+
+The target code is the oracle compiled in the binary. Storage can't be upgraded: the command refuses when the storage slots differ from the deployed ones, in which case a new oracle must be deployed.
+
 ## Quick start
 
 **Consume prices (Rust):**

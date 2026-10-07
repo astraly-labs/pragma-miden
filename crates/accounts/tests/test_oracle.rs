@@ -20,7 +20,10 @@ use miden_standards::{account::upgrade::UpgradeManager, code_builder::CodeBuilde
 use miden_testing::{assert_transaction_executor_error, Auth, MockChain, MockChainBuilder};
 
 use pm_accounts::{
-    oracle::{get_oracle_component_library, get_oracle_components},
+    oracle::{
+        get_oracle_component_library, get_oracle_components, oracle_account_code,
+        oracle_storage_slot_names,
+    },
     publisher::{get_publisher_component, get_publisher_component_code},
     utils::word_to_masm,
 };
@@ -669,4 +672,25 @@ async fn test_oracle_upgrade_replaces_code_and_keeps_state() -> Result<()> {
     );
 
     Ok(())
+}
+
+#[test]
+fn test_oracle_account_code_is_stable_and_keeps_the_storage_layout() {
+    assert_eq!(
+        oracle_account_code().commitment(),
+        oracle_account_code().commitment(),
+        "the code an upgrade moves to must not depend on any key"
+    );
+
+    let slots = oracle_storage_slot_names();
+    for expected in [
+        "pragma::oracle::next_publisher_index",
+        "pragma::oracle::publishers",
+        "miden::standards::access::authority::authority_config",
+    ] {
+        assert!(
+            slots.iter().any(|s| s == expected),
+            "missing slot {expected}: {slots:?}"
+        );
+    }
 }
