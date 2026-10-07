@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use rand::RngExt;
+use rand::{RngExt, SeedableRng};
+use rand_chacha::ChaCha20Rng;
 
 use miden_client::{
     account::{
@@ -14,8 +15,8 @@ use miden_client::{
 };
 use miden_protocol::{
     account::{
-        AccountBuilder, AccountComponent, AccountComponentCode, AccountComponentMetadata,
-        StorageSlot, StorageSlotName,
+        AccountBuilder, AccountCode, AccountComponent, AccountComponentCode,
+        AccountComponentMetadata, StorageSlot, StorageSlotName,
     },
     assembly::Package,
 };
@@ -94,6 +95,51 @@ pub fn get_oracle_components() -> Vec<AccountComponent> {
     ]
 }
 
+/// The oracle account layout: auth + oracle + code-upgrade pair + `BasicWallet`
+/// (the 0.16+ testnet charges fees in its native asset, so the account must be
+/// able to receive it). Single source of truth for both account creation and
+/// the code an upgrade moves to.
+fn oracle_account_builder(
+    seed: [u8; 32],
+    account_type: ClientAccountType,
+    auth_component: AuthSingleSig,
+) -> AccountBuilder {
+    AccountBuilder::new(seed)
+        .account_type(account_type)
+        .with_component(auth_component)
+        .with_components(get_oracle_components())
+        .with_component(BasicWallet)
+}
+
+/// The account code of an oracle built by this binary. It doesn't depend on the
+/// auth key, so a throwaway key is enough; this is what `upgrade` moves a
+/// deployed oracle to.
+pub fn oracle_account_code() -> AccountCode {
+    oracle_reference_account().code().clone()
+}
+
+/// The names of the storage slots of an oracle built by this binary.
+pub fn oracle_storage_slot_names() -> Vec<String> {
+    oracle_reference_account()
+        .storage()
+        .slots()
+        .iter()
+        .map(|slot| slot.name().to_string())
+        .collect()
+}
+
+fn oracle_reference_account() -> Account {
+    let mut rng = ChaCha20Rng::from_seed([7u8; 32]);
+    let public_key = SecretKey::with_rng(&mut rng).public_key();
+    oracle_account_builder(
+        [0u8; 32],
+        ClientAccountType::Public,
+        AuthSingleSig::falcon512_poseidon2(public_key),
+    )
+    .build()
+    .expect("the oracle account layout should be valid")
+}
+
 pub struct OracleAccountBuilder<'a> {
     client: Option<&'a mut Client<FilesystemKeyStore>>,
     account_type: ClientAccountType,
@@ -145,13 +191,7 @@ impl<'a> OracleAccountBuilder<'a> {
         let auth_component = AuthSingleSig::falcon512_poseidon2(public_key);
         let from_seed = client_rng.random();
 
-        let account = AccountBuilder::new(from_seed)
-            .account_type(account_type)
-            .with_component(auth_component)
-            .with_components(get_oracle_components())
-            // 0.16 testnet charges fees in its native asset: the account needs
-            // BasicWallet (receive_asset) to consume the faucet's P2ID notes.
-            .with_component(BasicWallet)
+        let account = oracle_account_builder(from_seed, account_type, auth_component)
             .build()
             .unwrap();
         let account_seed = account.seed().expect("New account should have seed");
