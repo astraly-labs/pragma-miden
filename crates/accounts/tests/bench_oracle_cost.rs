@@ -15,6 +15,7 @@ use miden_protocol::utils::serde::Serializable;
 use miden_protocol::{Felt, Word, MAX_TX_EXECUTION_CYCLES, ZERO};
 use miden_standards::code_builder::CodeBuilder;
 use miden_testing::{Auth, MockChain, MockChainBuilder};
+use miden_tx::LocalTransactionProver;
 use pm_accounts::{
     oracle::{get_oracle_component_code, get_oracle_components},
     publisher::{
@@ -27,6 +28,7 @@ const ENTRIES: &str = "pragma::publisher::entries";
 const PUBLISHERS: &str = "pragma::oracle::publishers";
 const NEXT_INDEX: &str = "pragma::oracle::next_publisher_index";
 const ORACLE_PATH: &str = "oracle_component::oracle_module";
+const CSV_HEADER: &str = "experiment,publishers,sources,pairs,total_cycles,prologue,notes_processing,tx_script_processing,epilogue,fee_log_verification_cycles,wall_ms,partial_foreign_account_and_witness_bytes,tx_inputs_bytes,max_tx_cycles";
 
 fn felt(value: u64) -> Felt {
     Felt::new(value).expect("benchmark values fit in a field")
@@ -192,30 +194,69 @@ fn poke_script(
     script(&body, package)
 }
 
+fn nested_median_script(
+    pairs: usize,
+    sources: usize,
+    oracle_id: AccountId,
+    checked: bool,
+    package: &Package,
+) -> Result<TransactionScript> {
+    let body = (1..=pairs)
+        .map(|pair| {
+            let check = if checked {
+                format!(
+                    "push.1 assert_eq.err=\"nested tracked mismatch\" push.{} assert_eq.err=\"nested median mismatch\" drop",
+                    50_000 + (sources - 1) / 2
+                )
+            } else {
+                "drop drop drop".to_string()
+            };
+            format!(
+                "padw padw padw push.0.0.{pair}.1 procref.::{ORACLE_PATH}::get_median push.{} push.{} exec.tx::execute_foreign_procedure {check}",
+                oracle_id.prefix().as_u64(),
+                oracle_id.suffix(),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    Ok(CodeBuilder::default()
+        .with_dynamically_linked_package(package)?
+        .compile_tx_script(format!(
+            "use miden::core::sys\nuse miden::protocol::tx\n@transaction_script\npub proc main\n{body}\nexec.sys::truncate_stack\nend"
+        ))?)
+}
+
+fn partial_map_account_bytes(
+    account: &Account,
+    slot_name: StorageSlotName,
+    keys: &[StorageMapKey],
+) -> Result<usize> {
+    let requirements = AccountStorageRequirements::new([(slot_name.clone(), keys)]);
+    let slot = account
+        .storage()
+        .get(&slot_name)
+        .context("requested map slot")?;
+    let StorageSlotContent::Map(map) = slot.content() else {
+        anyhow::bail!("requested slot must be a map")
+    };
+    let partial_map = PartialStorageMap::with_witnesses(
+        requirements
+            .keys_for_slot(&slot_name)
+            .iter()
+            .map(|key| map.open(key)),
+    )?;
+    let storage = PartialStorage::new(account.storage().to_header(), [partial_map])?;
+    let (id, vault, _, code, nonce, seed) = PartialAccount::from(account).into_parts();
+    let partial = PartialAccount::new(id, nonce, code, storage, vault, seed)?;
+    Ok(partial.to_bytes().len())
+}
+
 fn partial_foreign_bytes(accounts: &[Account], pairs: usize, sources: usize) -> Result<usize> {
-    let slot_name = StorageSlotName::new(ENTRIES)?;
     let keys = (1..=pairs)
         .flat_map(|pair| (0..sources).map(move |source| StorageMapKey::new(pair_key(pair, source))))
         .collect::<Vec<_>>();
-    let requirements = AccountStorageRequirements::new([(slot_name.clone(), keys.as_slice())]);
     accounts.iter().try_fold(0usize, |size, account| {
-        let slot = account
-            .storage()
-            .get(&slot_name)
-            .context("publisher entries slot")?;
-        let StorageSlotContent::Map(map) = slot.content() else {
-            anyhow::bail!("publisher entries must be a map")
-        };
-        let partial_map = PartialStorageMap::with_witnesses(
-            requirements
-                .keys_for_slot(&slot_name)
-                .iter()
-                .map(|key| map.open(key)),
-        )?;
-        let storage = PartialStorage::new(account.storage().to_header(), [partial_map])?;
-        let (id, vault, _, code, nonce, seed) = PartialAccount::from(account).into_parts();
-        let partial = PartialAccount::new(id, nonce, code, storage, vault, seed)?;
-        Ok(size + partial.to_bytes().len())
+        Ok(size + partial_map_account_bytes(account, StorageSlotName::new(ENTRIES)?, &keys)?)
     })
 }
 
@@ -250,6 +291,8 @@ async fn read_case(
     sources: usize,
     pairs: usize,
     checked: bool,
+    nested: bool,
+    prove: bool,
 ) -> Result<()> {
     let source_mode = kind == "source";
     let mut builder = MockChainBuilder::new();
@@ -263,22 +306,32 @@ async fn read_case(
     let ids = accounts.iter().map(Account::id).collect::<Vec<_>>();
     let (components, package) = oracle_components(&ids, sources, source_mode)?;
     let oracle = builder.add_existing_account_from_components(oracle_auth(), components)?;
+    let consumer = if nested {
+        Some(builder.add_existing_mock_account(Auth::IncrNonce)?)
+    } else {
+        None
+    };
     let chain = builder.build()?;
-    let foreign = ids
+    let mut foreign = ids
         .iter()
         .map(|id| chain.get_foreign_account_inputs(*id))
         .collect::<Result<Vec<_>>>()?;
+    if nested {
+        foreign.push(chain.get_foreign_account_inputs(oracle.id())?);
+    }
     let witness_bytes = foreign
         .iter()
         .map(|(_, witness)| witness.to_bytes().len())
         .sum::<usize>();
-    let tx_script = if kind == "poke" {
+    let tx_script = if nested {
+        nested_median_script(pairs, sources, oracle.id(), checked, &package)?
+    } else if kind == "poke" {
         poke_script(ids[0], pairs, &package)?
     } else {
         median_script(pairs, sources, checked, &package)?
     };
     let tx = chain
-        .build_transaction(oracle.id())
+        .build_transaction(consumer.as_ref().map_or(oracle.id(), Account::id))
         .foreign_accounts(foreign)
         .tx_script(tx_script)
         .build()?;
@@ -287,15 +340,32 @@ async fn read_case(
     if checked {
         return Ok(());
     }
+    let oracle_bytes = if nested {
+        let keys = (2..(publishers * sources + 2))
+            .map(|index| StorageMapKey::new([felt(index as u64), ZERO, ZERO, ZERO].into()))
+            .collect::<Vec<_>>();
+        partial_map_account_bytes(&oracle, StorageSlotName::new(PUBLISHERS)?, &keys)?
+    } else {
+        0
+    };
     print_row(
-        kind,
+        if nested { "nested" } else { kind },
         publishers,
         sources,
         pairs,
         started.elapsed().as_millis(),
-        partial_foreign_bytes(&accounts, pairs, sources)? + witness_bytes,
+        partial_foreign_bytes(&accounts, pairs, sources)? + oracle_bytes + witness_bytes,
         &executed,
-    )
+    )?;
+    if prove {
+        let started = Instant::now();
+        let _proven = LocalTransactionProver::default().prove(executed)?;
+        println!(
+            "proof,{kind},{publishers},{sources},{pairs},{}",
+            started.elapsed().as_millis()
+        );
+    }
+    Ok(())
 }
 
 async fn publish_case(entries: usize) -> Result<()> {
@@ -339,22 +409,36 @@ async fn publish_case(entries: usize) -> Result<()> {
 #[tokio::test]
 #[ignore = "release benchmark; run explicitly with --ignored --nocapture"]
 async fn bench_oracle_cost() -> Result<()> {
-    read_case("source", 3, 5, 1, true).await?;
-    println!("experiment,publishers,sources,pairs,total_cycles,prologue,notes_processing,tx_script_processing,epilogue,fee_log_verification_cycles,wall_ms,partial_foreign_account_and_witness_bytes,tx_inputs_bytes,max_tx_cycles");
+    if let Ok(case) = std::env::var("ORACLE_COST_CASE") {
+        if case == "nested_check" {
+            return read_case("current", 5, 1, 1, true, true, false).await;
+        }
+        println!("{CSV_HEADER}");
+        return match case.as_str() {
+            "prove_current" => read_case("current", 5, 1, 10, false, false, true).await,
+            "prove_source" => read_case("source", 5, 10, 10, false, false, true).await,
+            "prove_poke" => read_case("poke", 1, 1, 10, false, false, true).await,
+            "nested_current" => read_case("current", 5, 1, 10, false, true, false).await,
+            "nested_source" => read_case("source", 5, 10, 10, false, true, false).await,
+            _ => anyhow::bail!("unknown ORACLE_COST_CASE: {case}"),
+        };
+    }
+    read_case("source", 3, 5, 1, true, false, false).await?;
+    println!("{CSV_HEADER}");
     for publishers in [1, 2, 3, 5, 8, 10, 15] {
         for pairs in [1, 10, 15] {
-            read_case("current", publishers, 1, pairs, false).await?;
+            read_case("current", publishers, 1, pairs, false, false, false).await?;
         }
     }
     for publishers in [1, 3, 5] {
         for sources in [1, 3, 5, 10] {
             for pairs in [1, 10] {
-                read_case("source", publishers, sources, pairs, false).await?;
+                read_case("source", publishers, sources, pairs, false, false, false).await?;
             }
         }
     }
     for pairs in [1, 10, 15] {
-        read_case("poke", 1, 1, pairs, false).await?;
+        read_case("poke", 1, 1, pairs, false, false, false).await?;
     }
     for entries in [15, 150] {
         publish_case(entries).await?;
