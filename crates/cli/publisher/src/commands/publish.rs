@@ -6,8 +6,8 @@ use miden_client::{
 use miden_standards::code_builder::CodeBuilder;
 
 use miden_client::account::AccountId;
-use miden_client::Felt;
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
+use pm_types::Entry;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -17,6 +17,9 @@ pub struct PublishCmd {
     pub price: u64,
     pub decimals: u32,
     pub timestamp: u64,
+    /// Exchanges aggregated into the price (0 when unknown)
+    #[clap(long, default_value_t = 0)]
+    pub num_sources: u64,
     /// Optional publisher ID. If not provided, uses the first publisher from config
     #[clap(long)]
     pub publisher_id: Option<String>,
@@ -74,13 +77,13 @@ impl PublishCmd {
             .parse::<u64>()
             .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
 
-        let entry_as_word: Word = [
-            Felt::new(0)?,
-            Felt::new(self.price)?,
-            Felt::new(self.decimals as u64)?,
-            Felt::new(self.timestamp)?,
-        ]
-        .into();
+        let entry_as_word = Word::try_from(Entry {
+            faucet_id: String::new(),
+            price: self.price,
+            decimals: self.decimals,
+            timestamp: self.timestamp,
+            num_sources: self.num_sources,
+        })?;
 
         let tx_script_code = format!(
             "
