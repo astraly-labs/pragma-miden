@@ -14,12 +14,15 @@ use miden_client::{
 
 use miden_protocol::{
     account::{
-        AccountBuilder, AccountComponent, AccountComponentCode, AccountComponentMetadata,
-        AccountType, StorageSlot, StorageSlotName,
+        AccountBuilder, AccountCode, AccountComponent, AccountComponentCode,
+        AccountComponentMetadata, AccountType, StorageSlot, StorageSlotName,
     },
     assembly::Package,
 };
-use miden_standards::code_builder::CodeBuilder;
+use miden_standards::{
+    account::{access::Authority, upgrade::UpgradeManager},
+    code_builder::CodeBuilder,
+};
 
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 
@@ -60,6 +63,63 @@ pub fn get_publisher_component() -> AccountComponent {
     let metadata = AccountComponentMetadata::new("pragma::publisher");
     AccountComponent::new(get_publisher_component_code(), vec![storage_slot], metadata)
         .expect("assembly should succeed")
+}
+
+/// The publisher component plus the standard code-upgrade pair: `UpgradeManager` exposes
+/// `upgrade`, gated by `Authority::AuthControlled`, i.e. the publisher's own key.
+///
+/// The oracle calls the publisher's `get_entry` by its MAST root: an upgrade must never change
+/// that root (a test pins it), only add to the publisher. Storage can't be upgraded, so a new
+/// code must keep the same storage slots.
+pub fn get_publisher_components() -> Vec<AccountComponent> {
+    vec![
+        get_publisher_component(),
+        Authority::AuthControlled.into(),
+        UpgradeManager.into(),
+    ]
+}
+
+/// The publisher account layout: auth + publisher + code-upgrade pair + `BasicWallet` (the
+/// fee-charging testnet needs it to receive the fee asset). Single source of truth for account
+/// creation and for the code an upgrade moves to.
+fn publisher_account_builder(
+    seed: [u8; 32],
+    account_type: AccountType,
+    auth_component: AuthSingleSig,
+) -> AccountBuilder {
+    AccountBuilder::new(seed)
+        .account_type(account_type)
+        .with_component(auth_component)
+        .with_components(get_publisher_components())
+        .with_component(BasicWallet)
+}
+
+fn publisher_reference_account() -> Account {
+    // The code doesn't depend on the key: a throwaway one is enough.
+    let public_key = AuthSecretKey::new_ecdsa_k256_keccak().public_key();
+    publisher_account_builder(
+        [0u8; 32],
+        AccountType::Public,
+        AuthSingleSig::from_public_key(public_key),
+    )
+    .build()
+    .expect("the publisher account layout should be valid")
+}
+
+/// The account code of a publisher built by this binary: what `upgrade` moves a deployed
+/// publisher to.
+pub fn publisher_account_code() -> AccountCode {
+    publisher_reference_account().code().clone()
+}
+
+/// The names of the storage slots of a publisher built by this binary.
+pub fn publisher_storage_slot_names() -> Vec<String> {
+    publisher_reference_account()
+        .storage()
+        .slots()
+        .iter()
+        .map(|slot| slot.name().to_string())
+        .collect()
 }
 
 pub struct PublisherAccountBuilder<'a> {
@@ -111,15 +171,8 @@ impl<'a> PublisherAccountBuilder<'a> {
         let auth_key = AuthSecretKey::new_ecdsa_k256_keccak();
         let auth_component = AuthSingleSig::from_public_key(auth_key.public_key());
 
-        let publisher_component: AccountComponent = get_publisher_component();
         let from_seed = client.rng().random();
-        let account = AccountBuilder::new(from_seed)
-            .account_type(self.account_type)
-            .with_component(auth_component)
-            .with_component(publisher_component)
-            // 0.16 testnet charges fees in its native asset: the account needs
-            // BasicWallet (receive_asset) to consume the faucet's P2ID notes.
-            .with_component(BasicWallet)
+        let account = publisher_account_builder(from_seed, self.account_type, auth_component)
             .build()
             .unwrap();
         let account_seed = account.seed().expect("New account should have seed");
