@@ -31,3 +31,7 @@ hex.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+miden-protocol = { workspace = true, features = ["testing"] }
+miden-standards.workspace = true

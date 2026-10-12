@@ -3918,6 +3918,7 @@ dependencies = [
  "miden-client",
  "miden-client-sqlite-store",
  "miden-protocol",
+ "miden-standards",
  "miden-tx",
  "pm-types",
  "rand 0.10.1",
