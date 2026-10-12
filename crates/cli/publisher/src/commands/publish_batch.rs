@@ -8,6 +8,7 @@ use miden_standards::code_builder::CodeBuilder;
 use miden_client::account::AccountId;
 use miden_client::Felt;
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
+use pm_types::Entry;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -57,32 +58,11 @@ impl PublishBatchCmd {
         client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<()> {
-        let mut typed_entries = Vec::with_capacity(self.entries.len());
-        for entry_str in &self.entries {
-            let parts: Vec<&str> = entry_str.split(':').collect();
-            if parts.len() != 5 {
-                return Err(anyhow::anyhow!(
-                    "Invalid entry format: {}. Expected FAUCET_PREFIX:FAUCET_SUFFIX:PRICE:DECIMALS:TIMESTAMP",
-                    entry_str
-                ));
-            }
-            let prefix = parts[0]
-                .parse::<u64>()
-                .map_err(|e| anyhow::anyhow!("Invalid faucet_id prefix '{}': {}", parts[0], e))?;
-            let suffix = parts[1]
-                .parse::<u64>()
-                .map_err(|e| anyhow::anyhow!("Invalid faucet_id suffix '{}': {}", parts[1], e))?;
-            let price = parts[2]
-                .parse::<u64>()
-                .map_err(|e| anyhow::anyhow!("Invalid price '{}': {}", parts[2], e))?;
-            let decimals = parts[3]
-                .parse::<u32>()
-                .map_err(|e| anyhow::anyhow!("Invalid decimals '{}': {}", parts[3], e))?;
-            let timestamp = parts[4]
-                .parse::<u64>()
-                .map_err(|e| anyhow::anyhow!("Invalid timestamp '{}': {}", parts[4], e))?;
-            typed_entries.push((format!("{}:{}", prefix, suffix), price, decimals, timestamp));
-        }
+        let typed_entries = self
+            .entries
+            .iter()
+            .map(|entry_str| parse_entry(entry_str))
+            .collect::<anyhow::Result<Vec<_>>>()?;
         publish_batch(
             client,
             network,
@@ -93,10 +73,50 @@ impl PublishBatchCmd {
     }
 }
 
+/// Parses `FAUCET_PREFIX:FAUCET_SUFFIX:PRICE:DECIMALS:TIMESTAMP[:NUM_SOURCES]`.
+pub fn parse_entry(entry_str: &str) -> anyhow::Result<(String, u64, u32, u64, u64)> {
+    let parts: Vec<&str> = entry_str.split(':').collect();
+    if parts.len() != 5 && parts.len() != 6 {
+        return Err(anyhow::anyhow!(
+            "Invalid entry format: {}. Expected FAUCET_PREFIX:FAUCET_SUFFIX:PRICE:DECIMALS:TIMESTAMP[:NUM_SOURCES]",
+            entry_str
+        ));
+    }
+    let prefix = parts[0]
+        .parse::<u64>()
+        .map_err(|e| anyhow::anyhow!("Invalid faucet_id prefix '{}': {}", parts[0], e))?;
+    let suffix = parts[1]
+        .parse::<u64>()
+        .map_err(|e| anyhow::anyhow!("Invalid faucet_id suffix '{}': {}", parts[1], e))?;
+    let price = parts[2]
+        .parse::<u64>()
+        .map_err(|e| anyhow::anyhow!("Invalid price '{}': {}", parts[2], e))?;
+    let decimals = parts[3]
+        .parse::<u32>()
+        .map_err(|e| anyhow::anyhow!("Invalid decimals '{}': {}", parts[3], e))?;
+    let timestamp = parts[4]
+        .parse::<u64>()
+        .map_err(|e| anyhow::anyhow!("Invalid timestamp '{}': {}", parts[4], e))?;
+    let num_sources = match parts.get(5) {
+        Some(raw) => raw
+            .parse::<u64>()
+            .map_err(|e| anyhow::anyhow!("Invalid num_sources '{}': {}", raw, e))?,
+        None => 0,
+    };
+    Ok((
+        format!("{prefix}:{suffix}"),
+        price,
+        decimals,
+        timestamp,
+        num_sources,
+    ))
+}
+
 /// Publish a batch of price entries in a single Miden transaction.
 ///
-/// Each entry is `(faucet_id, price, decimals, timestamp)` where `faucet_id`
-/// is `"PREFIX:SUFFIX"` (e.g. `"1:0"` for BTC/USD).
+/// Each entry is `(faucet_id, price, decimals, timestamp, num_sources)` where `faucet_id`
+/// is `"PREFIX:SUFFIX"` (e.g. `"1:0"` for BTC/USD) and `num_sources` is the number of
+/// exchanges aggregated into the price (0 when unknown).
 ///
 /// Exposed as a free function so it can be called directly by other crates
 /// (notably the pyo3 binding) without having to round-trip through the
@@ -104,7 +124,7 @@ impl PublishBatchCmd {
 pub async fn publish_batch(
     client: &mut Client<FilesystemKeyStore>,
     network: &str,
-    entries: &[(String, u64, u32, u64)],
+    entries: &[(String, u64, u32, u64, u64)],
     publisher_id_override: Option<&str>,
 ) -> anyhow::Result<()> {
     let publisher_id = if let Some(id) = publisher_id_override {
@@ -114,7 +134,7 @@ pub async fn publish_batch(
     };
 
     let mut entries_data = Vec::with_capacity(entries.len());
-    for (faucet_id, price, decimals, timestamp) in entries {
+    for (faucet_id, price, decimals, timestamp, num_sources) in entries {
         let parts: Vec<&str> = faucet_id.split(':').collect();
         if parts.len() != 2 {
             return Err(anyhow::anyhow!(
@@ -136,13 +156,13 @@ pub async fn publish_batch(
             Felt::new(prefix)?,
         ]
         .into();
-        let entry_word: Word = [
-            Felt::new(0)?,
-            Felt::new(*price)?,
-            Felt::new(*decimals as u64)?,
-            Felt::new(*timestamp)?,
-        ]
-        .into();
+        let entry_word = Word::try_from(Entry {
+            faucet_id: String::new(),
+            price: *price,
+            decimals: *decimals,
+            timestamp: *timestamp,
+            num_sources: *num_sources,
+        })?;
         entries_data.push((faucet_id_word, entry_word));
     }
 
@@ -206,4 +226,33 @@ pub async fn publish_batch(
         entries_data.len()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_entry;
+
+    #[test]
+    fn num_sources_is_optional_and_defaults_to_unknown() {
+        assert_eq!(
+            parse_entry("15:0:999800:6:1791439525").unwrap(),
+            ("15:0".to_string(), 999_800, 6, 1_791_439_525, 0)
+        );
+        assert_eq!(
+            parse_entry("15:0:999800:6:1791439525:10").unwrap(),
+            ("15:0".to_string(), 999_800, 6, 1_791_439_525, 10)
+        );
+    }
+
+    #[test]
+    fn malformed_entries_are_rejected() {
+        for bad in [
+            "15:0:999800:6",
+            "15:0:999800:6:1791439525:10:1",
+            "15:0:abc:6:1791439525",
+            "15:0:999800:6:1791439525:x",
+        ] {
+            assert!(parse_entry(bad).is_err(), "{bad:?} must be rejected");
+        }
+    }
 }

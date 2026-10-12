@@ -111,6 +111,7 @@ impl GetEntryCmd {
             price: output_stack[2].as_canonical_u64(),
             decimals: output_stack[1].as_canonical_u64() as u32,
             timestamp: output_stack[0].as_canonical_u64(),
+            num_sources: output_stack[3].as_canonical_u64(),
         })
     }
 }

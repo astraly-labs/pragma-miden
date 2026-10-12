@@ -176,6 +176,7 @@ fn py_publish(
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
+    num_sources: Option<u64>,
 ) -> PyResult<()> {
     block_on(py, || async move {
         // Create client inside the function like the other functions
@@ -192,6 +193,7 @@ fn py_publish(
             price,
             decimals,
             timestamp,
+            num_sources: num_sources.unwrap_or(0),
             publisher_id: None,
         };
 
@@ -229,6 +231,7 @@ fn py_get_entry(
             "price": entry.price,
             "decimals": entry.decimals,
             "timestamp": entry.timestamp,
+            "num_sources": entry.num_sources,
         })
         .to_string())
     })
@@ -263,7 +266,8 @@ fn py_entry(
 /// Publish a batch of price entries in a single Miden transaction.
 ///
 /// `entries` is a list of `(faucet_id, price, decimals, timestamp)` tuples,
-/// where `faucet_id` is the `"PREFIX:SUFFIX"` string (e.g. `"1:0"`).
+/// where `faucet_id` is the `"PREFIX:SUFFIX"` string (e.g. `"1:0"`). `num_sources`, when given,
+/// has one value per entry: the number of exchanges aggregated into that price (0 = unknown).
 #[pyfunction]
 #[pyo3(name = "publish_batch")]
 fn py_publish_batch(
@@ -272,10 +276,26 @@ fn py_publish_batch(
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
+    num_sources: Option<Vec<u64>>,
 ) -> PyResult<()> {
     if entries.is_empty() {
         return Ok(());
     }
+    let num_sources = num_sources.unwrap_or_else(|| vec![0; entries.len()]);
+    if num_sources.len() != entries.len() {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "num_sources has {} values for {} entries",
+            num_sources.len(),
+            entries.len()
+        )));
+    }
+    let entries: Vec<(String, u64, u32, u64, u64)> = entries
+        .into_iter()
+        .zip(num_sources)
+        .map(|((faucet_id, price, decimals, timestamp), n)| {
+            (faucet_id, price, decimals, timestamp, n)
+        })
+        .collect();
     block_on(py, || async move {
         let store_config = get_store_config(storage_path);
         let network_str = network.as_deref().unwrap_or("testnet");

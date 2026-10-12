@@ -383,12 +383,14 @@ async fn test_oracle_get_median_skips_soft_deleted_publishers() -> Result<()> {
         price: 50_000_000_000,
         decimals: 8,
         timestamp: 1_739_722_449,
+        num_sources: 0,
     };
     let entry2 = Entry {
         faucet_id: "1:0".to_string(),
         price: 52_000_000_000,
         decimals: 8,
         timestamp: 1_739_722_450,
+        num_sources: 0,
     };
     let entry1_word: Word = entry1.try_into().unwrap();
     let entry2_word: Word = entry2.try_into().unwrap();
