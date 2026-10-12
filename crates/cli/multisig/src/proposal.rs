@@ -1,8 +1,9 @@
+use std::num::NonZeroU32;
+
 use anyhow::{bail, ensure, Context, Result};
 use miden_client::{
     account::AccountId,
     keystore::FilesystemKeyStore,
-    rpc::{Endpoint, GrpcClient, NodeRpcClient},
     transaction::{ChainAnchor, TransactionRequest, TransactionRequestBuilder},
     Client, ClientError,
 };
@@ -12,7 +13,7 @@ use miden_protocol::crypto::SequentialCommit;
 use miden_protocol::{Felt, Hasher, Word};
 use miden_standards::account::auth::{FeeConversionInfo, MultisigAuthArgs};
 use miden_tx::auth::{SigningInputs, TransactionAuthenticator};
-use miden_tx::utils::serde::{Deserializable, Serializable};
+use miden_tx::utils::serde::Serializable;
 use miden_tx::TransactionExecutorError;
 use serde::{Deserialize, Serialize};
 
@@ -20,8 +21,6 @@ use crate::action::Action;
 use crate::keys;
 
 pub type MidenClient = Client<FilesystemKeyStore>;
-
-const NODE_TIMEOUT_MS: u64 = 30_000;
 
 /// A multisig transaction ready to be checked and signed. The summary commitment is what the
 /// signers approve; the rest lets anyone rebuild it independently.
@@ -35,7 +34,8 @@ pub struct Proposal {
     pub account_nonce: u64,
     pub salt: u32,
     pub bound_block: u32,
-    pub anchor: String,
+    /// First block at which the signatures stop being valid.
+    pub expires_at_block: u32,
     pub summary_commitment: String,
 }
 
@@ -51,16 +51,7 @@ pub struct SignatureFile {
 pub struct Reproduced {
     pub commitment: Word,
     pub signing: SigningInputs,
-    pub last_block: u32,
     pub anchor: ChainAnchor,
-}
-
-fn endpoint(network: &str) -> Result<Endpoint> {
-    match network {
-        "testnet" => Ok(Endpoint::testnet()),
-        "devnet" => Ok(Endpoint::devnet()),
-        other => bail!("unsupported network {other}"),
-    }
 }
 
 fn word_hex(word: &Word) -> String {
@@ -119,19 +110,27 @@ async fn load_account_at_nonce(
 struct Spec<'a> {
     action: &'a Action,
     bound: BlockNumber,
+    expires_at: u32,
     salt: u32,
     fee_faucet: AccountId,
     signatures: &'a [(Word, Vec<Felt>)],
 }
 
 fn build_request(spec: &Spec<'_>) -> Result<TransactionRequest> {
+    let lifetime = spec
+        .expires_at
+        .checked_sub(spec.bound.as_u32())
+        .and_then(NonZeroU32::new)
+        .context("the proposal expires before the block it is bound to")?;
     let args = MultisigAuthArgs::new(
         spec.bound,
         Word::from([Felt::new_unchecked(u64::from(spec.salt)); 4]),
     )
+    .with_approval_expiration_delta(lifetime)?
     .with_conversion_info(FeeConversionInfo::one_to_one(spec.fee_faucet));
     let commitment = args.to_commitment();
     let builder = TransactionRequestBuilder::new()
+        .block_numbers([spec.bound])
         .auth_arg(commitment)
         .extend_advice_map([(commitment, args.to_elements())]);
     spec.action
@@ -155,21 +154,17 @@ async fn unsigned_summary(
     account_id: AccountId,
     request: TransactionRequest,
     anchor: ChainAnchor,
-) -> Result<(Word, SigningInputs, u32)> {
+) -> Result<(Word, SigningInputs)> {
     match client
         .execute_transaction_at(account_id, request, anchor.clone())
         .await
     {
         Err(ClientError::TransactionExecutorError(TransactionExecutorError::Unauthorized(
             summary,
-        ))) => {
-            let last_block = anchor.block_num().as_u32() + u32::from(summary.expiration_delta());
-            Ok((
-                summary.as_ref().to_commitment(),
-                SigningInputs::TransactionSummary(summary),
-                last_block,
-            ))
-        }
+        ))) => Ok((
+            summary.as_ref().to_commitment(),
+            SigningInputs::TransactionSummary(summary),
+        )),
         Ok(_) => bail!("the account executed the transaction without any signature"),
         Err(e) => bail!("cannot build the transaction: {e:?}"),
     }
@@ -180,6 +175,7 @@ pub async fn propose(
     network: &str,
     account_id: AccountId,
     action: Action,
+    valid_for_blocks: u32,
 ) -> Result<Proposal> {
     load_account(client, account_id).await?;
     let nonce = account_nonce(client, account_id).await?;
@@ -187,9 +183,11 @@ pub async fn propose(
     let bound = client.get_sync_height().await?;
     let header = client.get_latest_block_header().await?;
     let faucet = fee_faucet(client, &header).await?;
+    let expires_at = bound.as_u32() + valid_for_blocks;
     let request = build_request(&Spec {
         action: &action,
         bound,
+        expires_at,
         salt,
         fee_faucet: faucet,
         signatures: &[],
@@ -199,7 +197,7 @@ pub async fn propose(
         anchor.block_num() == bound,
         "anchor is not at the bound block"
     );
-    let (commitment, _, _) = unsigned_summary(client, account_id, request, anchor.clone()).await?;
+    let (commitment, _) = unsigned_summary(client, account_id, request, anchor.clone()).await?;
     Ok(Proposal {
         network: network.to_owned(),
         account_id: account_id.to_hex(),
@@ -207,47 +205,37 @@ pub async fn propose(
         account_nonce: nonce,
         salt,
         bound_block: bound.as_u32(),
-        anchor: hex::encode(anchor.to_bytes()),
+        expires_at_block: expires_at,
         summary_commitment: word_hex(&commitment),
     })
 }
 
-/// Rebuilds the transaction from the action alone and checks it against the proposal and the node.
+/// Rebuilds the transaction from the action alone, on a fresh anchor of this client's own chain
+/// view, and checks it against the proposal. The summary commits to the bound block's commitment,
+/// so a proposal built on another chain cannot be reproduced.
 pub async fn verify(client: &mut MidenClient, proposal: &Proposal) -> Result<Reproduced> {
     let account_id = AccountId::from_hex(&proposal.account_id)
         .map_err(|e| anyhow::anyhow!("bad account id: {e}"))?;
     load_account_at_nonce(client, account_id, proposal.account_nonce).await?;
 
-    let anchor = ChainAnchor::read_from_bytes(&hex::decode(&proposal.anchor)?)
-        .map_err(|e| anyhow::anyhow!("bad anchor: {e:?}"))?;
+    let header = client.get_latest_block_header().await?;
     ensure!(
-        anchor.block_num().as_u32() == proposal.bound_block,
-        "the anchor is at block {}, the proposal binds block {}",
-        anchor.block_num().as_u32(),
-        proposal.bound_block
+        header.block_num().as_u32() < proposal.expires_at_block,
+        "the proposal expired at block {} (chain is at {}): ask for a new one",
+        proposal.expires_at_block,
+        header.block_num().as_u32()
     );
-
-    let rpc = GrpcClient::new(&endpoint(&proposal.network)?, NODE_TIMEOUT_MS);
-    let (node_header, _) = rpc
-        .get_block_header_by_number(Some(anchor.block_num()), false)
-        .await
-        .context("fetching the anchor block from the node")?;
-    ensure!(
-        node_header.commitment() == anchor.block_commitment(),
-        "the anchor is not block {} of the {} chain",
-        proposal.bound_block,
-        proposal.network
-    );
-
-    let faucet = fee_faucet(client, anchor.header()).await?;
+    let faucet = fee_faucet(client, &header).await?;
     let request = build_request(&Spec {
         action: &proposal.action,
-        bound: anchor.block_num(),
+        bound: BlockNumber::from(proposal.bound_block),
+        expires_at: proposal.expires_at_block,
         salt: proposal.salt,
         fee_faucet: faucet,
         signatures: &[],
     })?;
-    let (commitment, signing, last_block) =
+    let anchor = client.chain_anchor_for_request(&request).await?;
+    let (commitment, signing) =
         unsigned_summary(client, account_id, request, anchor.clone()).await?;
     ensure!(
         word_hex(&commitment) == proposal.summary_commitment,
@@ -258,7 +246,6 @@ pub async fn verify(client: &mut MidenClient, proposal: &Proposal) -> Result<Rep
     Ok(Reproduced {
         commitment,
         signing,
-        last_block,
         anchor,
     })
 }
@@ -317,7 +304,8 @@ pub async fn execute(
     let faucet = fee_faucet(client, &header).await?;
     let request = build_request(&Spec {
         action: &proposal.action,
-        bound: reproduced.anchor.block_num(),
+        bound: BlockNumber::from(proposal.bound_block),
+        expires_at: proposal.expires_at_block,
         salt: proposal.salt,
         fee_faucet: faucet,
         signatures: &entries,

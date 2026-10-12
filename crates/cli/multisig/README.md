@@ -3,17 +3,21 @@
 Administers the Pragma oracle v1 through its multisig. Every change (registering a publisher, pausing,
 upgrading, rotating the signers) is a proposal that signers check on their own machine before signing.
 
-## Why a signing session
+## How signatures are collected
 
-The account pays its fees itself, and a fee-paying transaction expires 20 blocks (about a minute) after
-the block it was built on. The signatures bind that block, so a proposal cannot be collected over hours:
-the signers sign in the same minute, the proposer executes right away. The machine work takes a few
-seconds; if the minute is missed, ask for a new proposal, nothing is lost.
+Signatures can be collected over hours or days. A proposal is bound to a block and carries the account
+nonce it was built on; signers sign on their own time, and the transaction is executed later, on a fresh
+reference block, with the signatures collected. Two limits apply:
+
+- the signatures expire (`--valid-for-hours`, 72 by default, or `--valid-for-blocks`; a block is about 3
+  seconds). Past that, ask for a new proposal;
+- once executed, a transaction must be included within 20 blocks (about a minute): the proposer runs
+  `execute` and it is done within seconds.
 
 ## What a signer trusts
 
 Nothing in the proposal file. `verify` and `sign` rebuild the transaction from the action in clear on the
-signer's own client, check that the anchor block is the node's block, and refuse unless the rebuilt
+signer's own client, whose view of the chain supplies the bound block, and refuse unless the rebuilt
 summary equals the proposal's. A proposal that cannot be reproduced is never signed. For `upgrade`, the
 binary must be built from the release being deployed: it refuses a code commitment it does not produce.
 
@@ -28,21 +32,22 @@ pm-multisig fund --account <ACCOUNT>         # testnet faucet; on mainnet send f
 
 The account is deployed by the first proposal, `consume-notes`, which also funds it.
 
-## A session
+## A proposal
 
-Everyone is online. The proposer:
+The proposer:
 
 ```bash
 pm-multisig propose --account <ACCOUNT> --out proposal.json register-publisher <PUBLISHER_ID>
 ```
 
-Each signer, after receiving `proposal.json`:
+Each signer, whenever they receive `proposal.json`:
 
 ```bash
 pm-multisig sign proposal.json --key signer.key --out my-signature.json
 ```
 
-`sign` prints the action and how many blocks are left, and asks for confirmation. The proposer then runs:
+`sign` prints the action and the expiry of the signatures, and asks for confirmation. Once enough signatures
+are in, anyone can run:
 
 ```bash
 pm-multisig execute proposal.json signature-1.json signature-2.json
@@ -59,6 +64,7 @@ proposal was built on.
 
 ## Limits
 
-- One proposal at a time: any transaction on the account makes the pending proposals obsolete.
+- One proposal at a time: any transaction on the account changes its nonce and makes the pending
+  proposals obsolete.
 - The account needs fee tokens: every transaction pays its fee from the account's vault.
 - Networks: testnet and devnet. Mainnet needs its endpoint and prover wired in `client()`.

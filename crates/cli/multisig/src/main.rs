@@ -13,6 +13,9 @@ use pm_multisig::proposal::{self, MidenClient, Proposal, SignatureFile};
 use pm_utils_cli::{request_tokens, setup_devnet_client, setup_testnet_client, TESTNET_FAUCET_API};
 use serde::{de::DeserializeOwned, Serialize};
 
+/// A block is about 3 seconds.
+const BLOCKS_PER_HOUR: u32 = 1_200;
+
 #[derive(Parser, Debug)]
 #[command(
     name = "pm-multisig",
@@ -64,6 +67,12 @@ enum Command {
         account: String,
         #[clap(long)]
         out: PathBuf,
+        /// How long the signatures stay valid, in hours (a block is about 3 seconds)
+        #[clap(long, default_value_t = 72)]
+        valid_for_hours: u32,
+        /// Same, in blocks (overrides --valid-for-hours)
+        #[clap(long)]
+        valid_for_blocks: Option<u32>,
         #[command(subcommand)]
         action: ActionCmd,
     },
@@ -149,14 +158,15 @@ fn confirm(question: &str) -> Result<bool> {
     Ok(matches!(line.trim(), "y" | "Y" | "yes"))
 }
 
-fn show(proposal: &Proposal, last_block: u32, sync_height: u32) -> Result<()> {
+fn show(proposal: &Proposal) -> Result<()> {
     println!("account:  {}", proposal.account_id);
     println!("action:   {}", proposal.action.describe()?);
     println!("summary:  {}", proposal.summary_commitment);
     println!(
-        "bound at block {}, executable up to block {last_block} (chain is at {sync_height}, {} left)",
+        "bound at block {}, signatures valid until block {} (about {} h after it)",
         proposal.bound_block,
-        i64::from(last_block) - i64::from(sync_height)
+        proposal.expires_at_block,
+        (proposal.expires_at_block - proposal.bound_block) / BLOCKS_PER_HOUR
     );
     Ok(())
 }
@@ -215,6 +225,8 @@ async fn main() -> Result<()> {
         Command::Propose {
             account,
             out,
+            valid_for_hours,
+            valid_for_blocks,
             action,
         } => {
             let id = account_id(&account)?;
@@ -248,7 +260,14 @@ async fn main() -> Result<()> {
                     Action::consume_notes(&notes)
                 }
             };
-            let proposal = proposal::propose(&mut client, &cli.network, id, action).await?;
+            let proposal = proposal::propose(
+                &mut client,
+                &cli.network,
+                id,
+                action,
+                valid_for_blocks.unwrap_or(valid_for_hours * BLOCKS_PER_HOUR),
+            )
+            .await?;
             write_json(&out, &proposal)?;
             println!(
                 "proposal written to {}\n{}",
@@ -259,9 +278,8 @@ async fn main() -> Result<()> {
         Command::Verify { proposal: path } => {
             let proposal: Proposal = read_json(&path)?;
             let mut client = client(&proposal.network, &cli.data_dir).await?;
-            let reproduced = proposal::verify(&mut client, &proposal).await?;
-            let sync = client.get_sync_height().await?.as_u32();
-            show(&proposal, reproduced.last_block, sync)?;
+            proposal::verify(&mut client, &proposal).await?;
+            show(&proposal)?;
             println!("rebuilt independently: summary matches");
         }
         Command::Sign {
@@ -274,13 +292,8 @@ async fn main() -> Result<()> {
             let secret = keys::load(&key)?;
             let mut client = client(&proposal.network, &cli.data_dir).await?;
             let reproduced = proposal::verify(&mut client, &proposal).await?;
-            let sync = client.get_sync_height().await?.as_u32();
-            show(&proposal, reproduced.last_block, sync)?;
+            show(&proposal)?;
             println!("rebuilt independently: summary matches");
-            ensure!(
-                sync < reproduced.last_block,
-                "the proposal has expired, ask for a new one"
-            );
             if !yes && !confirm("Sign this?")? {
                 bail!("not signed");
             }
