@@ -82,11 +82,13 @@ pub fn oracle_v1_proc_root(name: &str) -> anyhow::Result<AccountProcedureRoot> {
 /// Per-procedure approval thresholds for an oracle administered by a multisig whose signers are
 /// all needed for the sensitive operations (`full_quorum` = number of signers):
 ///
-/// - `pause` and `remove_publisher`: 1 signer (fast reaction to an incident or a rogue publisher;
-///   a lone signer can only stop the oracle, never move a price);
+/// - `pause`: 1 signer (fast reaction to an incident; a lone signer can only stop reads, never
+///   move a price);
 /// - `unpause`, the code `upgrade`, `set_procedure_threshold` (the multisig rejects a stricter
 ///   override that a smaller quorum could lower) and `update_signers_and_threshold`: `full_quorum`;
-/// - everything else, `register_publisher` included, uses the multisig's default threshold.
+/// - everything else uses the multisig's default threshold, `register_publisher` and
+///   `remove_publisher` included: removing publishers changes which prices make the median, so a
+///   lone signer must not be able to do it.
 pub fn oracle_v1_proc_thresholds(
     full_quorum: u32,
 ) -> anyhow::Result<Vec<(AccountProcedureRoot, u32)>> {
@@ -97,7 +99,6 @@ pub fn oracle_v1_proc_thresholds(
         .context("update_signers_and_threshold not found in the multisig component")?;
     Ok(vec![
         (oracle_v1_proc_root("pause")?, 1),
-        (oracle_v1_proc_root("remove_publisher")?, 1),
         (oracle_v1_proc_root("unpause")?, full_quorum),
         (UpgradeManager::upgrade_root(), full_quorum),
         (AuthMultisig::set_procedure_threshold_root(), full_quorum),

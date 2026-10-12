@@ -210,7 +210,7 @@ async fn unknown_pair_has_no_data_and_no_timestamp() -> Result<()> {
 async fn late_pair_reports_when_it_was_last_published() -> Result<()> {
     let old = NOW - 7_200;
     let w = world(vec![vec![(key(), entry(50_000_000_000, 8, old))]]).await?;
-    // Data exists but is older than the 300 s default: late, not unknown.
+    // Data exists but is older than the 120 s default: late, not unknown.
     w.read(
         None,
         Expected {
@@ -267,7 +267,7 @@ async fn max_age_is_chosen_by_the_caller() -> Result<()> {
         vec![(key(), entry(200, 8, NOW - 10))],
     ])
     .await?;
-    // Default window (300 s): both count, even count -> average of the two middle prices.
+    // Default window (120 s): both count, even count -> average of the two middle prices.
     w.read(
         None,
         Expected {

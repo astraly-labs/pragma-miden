@@ -1,5 +1,6 @@
 //! Oracle v1 administered by a 2-of-3 multisig with the thresholds of
-//! `oracle_v1_proc_thresholds`: pause by one signer, unpause / upgrade / signer rotation by all.
+//! `oracle_v1_proc_thresholds`: pause by one signer, publisher changes by the default quorum,
+//! unpause / upgrade / signer rotation by all.
 
 use anyhow::Result;
 use miden_client::account::AccountId;
@@ -305,6 +306,43 @@ async fn rotating_the_signers_needs_every_signer() -> Result<()> {
     assert_unauthorized(two, "rotation must not pass with 2 of 3");
     execute_signed(&mock_chain, oracle_id, &signers, &[0, 1, 2], 2, |b| {
         with_rotation(b, &rotate, config_hash, &config)
+    })
+    .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn removing_a_publisher_needs_the_default_quorum() -> Result<()> {
+    let Setup {
+        mut mock_chain,
+        oracle_id,
+        signers,
+    } = setup()?;
+    let publisher = AccountId::from_hex("0x6de0c1c9a43d5a9103a32ae348cbaa")?;
+    let call = |name: &str| {
+        oracle_script(&format!(
+            "push.0.0 push.{suffix} push.{prefix} call.oracle_module::{name}",
+            prefix = publisher.prefix().as_u64(),
+            suffix = publisher.suffix(),
+        ))
+    };
+
+    let register = call("register_publisher")?;
+    let tx = execute_signed(&mock_chain, oracle_id, &signers, &[0, 1], 1, |b| {
+        b.tx_script(register.clone())
+    })
+    .await?;
+    commit(&mut mock_chain, &tx).await?;
+
+    let remove = call("remove_publisher")?;
+    let alone = execute_signed(&mock_chain, oracle_id, &signers, &[2], 2, |b| {
+        b.tx_script(remove.clone())
+    })
+    .await;
+    assert_unauthorized(alone, "remove_publisher must not pass with 1 of 3");
+
+    execute_signed(&mock_chain, oracle_id, &signers, &[0, 2], 3, |b| {
+        b.tx_script(remove.clone())
     })
     .await?;
     Ok(())

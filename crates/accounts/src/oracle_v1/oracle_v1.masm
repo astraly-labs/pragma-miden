@@ -19,7 +19,7 @@ const ERR_PUBLISHER_NOT_REGISTERED = "publisher not registered"
 
 # Freshness window applied by `get_median` when the caller does not pass its own `max_age`
 # (`get_median_with_max_age`). Policy value, to be confirmed before mainnet.
-const DEFAULT_MAX_AGE_SECONDS=300
+const DEFAULT_MAX_AGE_SECONDS=120
 
 # Error if a read is attempted while the oracle is paused.
 const ERR_ORACLE_PAUSED = "oracle is paused"
