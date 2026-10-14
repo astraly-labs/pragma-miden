@@ -49,13 +49,27 @@ fn slot(name: &str) -> Result<StorageSlotName> {
     StorageSlotName::new(name).map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))
 }
 
-/// Re-imports the oracle from the chain (a fresh store knows nothing) and its publishers, then syncs.
+/// Imports an account from the chain into a store that may not know it. A store that already
+/// tracks it with a newer state (e.g. a publisher driven from the same directory) refuses the
+/// import: its copy is kept, a read only needs the account to be known.
+async fn import_if_needed(client: &mut Client<FilesystemKeyStore>, id: AccountId) -> Result<()> {
+    match client.import_account_by_id(id).await {
+        Ok(()) => Ok(()),
+        Err(e) if client.get_account(id).await?.is_some() => {
+            eprintln!("keeping the local copy of {}: {e}", id.to_hex());
+            Ok(())
+        }
+        Err(e) => Err(e).with_context(|| format!("importing {}", id.to_hex())),
+    }
+}
+
+/// Imports the oracle from the chain (a fresh store knows nothing) and its publishers, then syncs.
 pub async fn load_oracle(
     client: &mut Client<FilesystemKeyStore>,
     network: &str,
 ) -> Result<OracleView> {
     let oracle_id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
-    client.import_account_by_id(oracle_id).await?;
+    import_if_needed(client, oracle_id).await?;
     client.sync_state().await?;
     let account = client
         .get_account(oracle_id)
@@ -84,7 +98,7 @@ pub async fn load_oracle(
         .collect();
 
     for publisher in &publishers {
-        client.import_account_by_id(*publisher).await?;
+        import_if_needed(client, *publisher).await?;
     }
     client.sync_state().await?;
     Ok(OracleView {
