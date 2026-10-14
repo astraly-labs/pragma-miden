@@ -60,6 +60,11 @@ impl PublishCmd {
         client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<()> {
+        // A store left behind anchors the transaction to an old block and it expires.
+        client
+            .sync_state()
+            .await
+            .map_err(|e| anyhow::anyhow!("Could not sync before publishing: {e:?}"))?;
         let publisher_id = if let Some(id) = &self.publisher_id {
             AccountId::from_hex(id)?
         } else {

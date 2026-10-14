@@ -59,6 +59,11 @@ impl PublishBatchCmd {
         client: &mut Client<FilesystemKeyStore>,
         network: &str,
     ) -> anyhow::Result<()> {
+        // A store left behind anchors the transaction to an old block and it expires (16 blocks).
+        client
+            .sync_state()
+            .await
+            .map_err(|e| anyhow::anyhow!("Could not sync before publishing: {e:?}"))?;
         let typed_entries = self
             .entries
             .iter()

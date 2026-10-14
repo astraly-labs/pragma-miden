@@ -10,7 +10,7 @@ use miden_client::{keystore::FilesystemKeyStore, Client, Felt, ZERO};
 use miden_protocol::account::{StorageMapKey, StorageSlotName};
 use miden_protocol::vm::AdviceInputs;
 use miden_standards::code_builder::CodeBuilder;
-use pm_accounts::oracle_v1::{get_oracle_v1_component_library, PairKey};
+use pm_accounts::oracle_v1::{get_oracle_v1_component_library, PairKey, ORACLE_PAUSED_ERR_CODE};
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -170,7 +170,14 @@ pub async fn read_pair(
             foreign_accounts,
         )
         .await
-        .map_err(|e| anyhow::anyhow!("failed to read {}: {e:?}", key.pair))?;
+        .map_err(|e| {
+            let detail = format!("{e:?}");
+            if detail.contains(&ORACLE_PAUSED_ERR_CODE.to_string()) {
+                anyhow::anyhow!("the oracle is paused: reads fail until it is unpaused")
+            } else {
+                anyhow::anyhow!("failed to read {}: {detail}", key.pair)
+            }
+        })?;
     anyhow::ensure!(stack.len() >= 4, "unexpected output for {}", key.pair);
     Ok(PairRead {
         pair: key.pair,
