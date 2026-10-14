@@ -94,3 +94,14 @@ const FROZEN: &[(&str, &str)] = &[
         "0x667a47fc84d6f1402e6052087f536af024c0ba2e2e56d414ec5c55759dd3468e",
     ),
 ];
+
+#[test]
+fn a_pair_key_carries_its_canonical_name_and_the_hex_push() {
+    use pm_accounts::oracle_v1::{pair_key, PairKey};
+
+    let key = PairKey::parse(" btc/usd ").unwrap();
+    assert_eq!(key.pair, "BTC/USD");
+    assert_eq!(key.key, pair_key("BTC/USD").unwrap());
+    assert_eq!(key.push(), format!("push.{}", key.key));
+    assert!(key.push().starts_with("push.0x"));
+}

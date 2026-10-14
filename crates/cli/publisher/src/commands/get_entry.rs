@@ -1,26 +1,27 @@
-use miden_client::{keystore::FilesystemKeyStore, Client, Felt};
+use miden_client::{keystore::FilesystemKeyStore, Client};
 use miden_protocol::vm::AdviceInputs;
 use miden_standards::code_builder::CodeBuilder;
 use pm_accounts::publisher::get_publisher_component_library;
-use pm_accounts::utils::word_to_masm;
 use pm_types::Entry;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use pm_accounts::oracle_v1::PairKey;
+
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(
-    about = "Retrieve an entry for a given faucet_id (published by this publisher). This version executes an onchain program to retrieve the information"
+    about = "Retrieve the entry of a pair (published by this publisher). This version executes an onchain program to retrieve the information"
 )]
 pub struct GetEntryCmd {
-    // Input faucet_id (format example: "1:0" for BTC/USD)
-    pub faucet_id: String,
+    /// Pair name, e.g. BTC/USD
+    pub pair: String,
 }
 
 // This CLI command is used to call the get_entry getter function from the publisher, and output it in the stack.
 // This is useful for debugging purposes, but it's better to call the entry command to get a more user-friendly output.
 impl GetEntryCmd {
-    /// Retrieves an entry from the publisher account for the specified faucet ID
+    /// Retrieves an entry from the publisher account for the specified pair
     ///
     /// This function performs the following operations:
     /// 1. Retrieves the publisher account ID from configuration
@@ -41,7 +42,7 @@ impl GetEntryCmd {
     ///
     /// This function can fail if:
     /// - The publisher ID cannot be retrieved from configuration
-    /// - The faucet_id string cannot be parsed
+    /// - The pair name is not a valid `BASE/QUOTE`
     /// - The transaction script compilation fails
     /// - The program execution fails
     /// - The returned stack doesn't contain the expected values
@@ -52,26 +53,7 @@ impl GetEntryCmd {
     ) -> anyhow::Result<Entry> {
         let publisher_id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
 
-        let parts: Vec<&str> = self.faucet_id.split(':').collect();
-        if parts.len() != 2 {
-            return Err(anyhow::anyhow!(
-                "Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"
-            ));
-        }
-        let prefix = parts[0]
-            .parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix"))?;
-        let suffix = parts[1]
-            .parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix"))?;
-
-        let faucet_id_word: miden_client::Word = [
-            Felt::new(0)?,
-            Felt::new(0)?,
-            Felt::new(suffix)?,
-            Felt::new(prefix)?,
-        ]
-        .into();
+        let key = PairKey::parse(&self.pair)?;
 
         let tx_script_code = format!(
             "
@@ -80,13 +62,13 @@ impl GetEntryCmd {
     
             @transaction_script
             pub proc main
-                push.{faucet_id}
+                {push_key}
 
                 call.publisher_module::get_entry
                 exec.sys::truncate_stack
             end
             ",
-            faucet_id = word_to_masm(faucet_id_word),
+            push_key = key.push(),
         );
 
         let publisher_lib = get_publisher_component_library();
@@ -107,7 +89,7 @@ impl GetEntryCmd {
             .map_err(|e| anyhow::anyhow!("Failed to execute get_entry program: {}", e))?;
         println!("Here is the output stack: {:?}", output_stack);
         Ok(Entry {
-            faucet_id: self.faucet_id.clone(),
+            pair: key.pair,
             price: output_stack[2].as_canonical_u64(),
             decimals: output_stack[1].as_canonical_u64() as u32,
             timestamp: output_stack[0].as_canonical_u64(),

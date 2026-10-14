@@ -379,14 +379,14 @@ async fn test_oracle_remove_publisher_fails_if_not_registered() -> Result<()> {
 async fn test_oracle_get_median_skips_soft_deleted_publishers() -> Result<()> {
     let pair_word = btc_usd_pair()?.to_word();
     let entry1 = Entry {
-        faucet_id: "1:0".to_string(),
+        pair: "BTC/USD".to_string(),
         price: 50_000_000_000,
         decimals: 8,
         timestamp: 1_739_722_449,
         num_sources: 0,
     };
     let entry2 = Entry {
-        faucet_id: "1:0".to_string(),
+        pair: "BTC/USD".to_string(),
         price: 52_000_000_000,
         decimals: 8,
         timestamp: 1_739_722_450,

@@ -18,17 +18,11 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let output = cli.command.call(&cli.network).await?;
-    match output {
-        commands::CommandOutput::Entry(entry) => {
-            println!(
-                "Price: {}, Decimals: {}, Timestamp: {}",
-                entry.price, entry.decimals, entry.timestamp
-            );
-        }
-        commands::CommandOutput::Felt(f) => {
-            println!("{}", f);
-        }
-        _ => {}
+    if let commands::CommandOutput::Entry(entry) = output {
+        println!(
+            "Price: {}, Decimals: {}, Timestamp: {}",
+            entry.price, entry.decimals, entry.timestamp
+        );
     }
     Ok(())
 }

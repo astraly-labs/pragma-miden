@@ -2,7 +2,8 @@ use miden_client::{Felt, Word};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
-    pub faucet_id: String,
+    /// Pair name (`BTC/USD`), empty when the entry was read without its key.
+    pub pair: String,
     pub price: u64,
     pub decimals: u32,
     pub timestamp: u64,
@@ -16,7 +17,7 @@ impl From<Word> for Entry {
         let [num_sources_felt, price_felt, decimals_felt, timestamp_felt] = elements;
 
         Entry {
-            faucet_id: String::new(),
+            pair: String::new(),
             price: price_felt.as_canonical_u64(),
             decimals: decimals_felt.as_canonical_u64() as u32,
             timestamp: timestamp_felt.as_canonical_u64(),

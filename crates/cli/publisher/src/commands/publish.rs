@@ -8,12 +8,15 @@ use miden_standards::code_builder::CodeBuilder;
 use miden_client::account::AccountId;
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use pm_types::Entry;
+
+use pm_accounts::oracle_v1::PairKey;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Publish an entry(Callable by the publisher itself)")]
 pub struct PublishCmd {
-    pub faucet_id: String, //"1:0"
+    /// Pair name, e.g. BTC/USD
+    pub pair: String,
     pub price: u64,
     pub decimals: u32,
     pub timestamp: u64,
@@ -47,7 +50,7 @@ impl PublishCmd {
     ///
     /// This function can fail if:
     /// - The publisher ID cannot be retrieved from configuration
-    /// - The pair string cannot be parsed into a valid Pair
+    /// - The pair name is not a valid `BASE/QUOTE`
     /// - The entry cannot be converted to a Word
     /// - The transaction script compilation fails
     /// - The transaction request building fails
@@ -63,22 +66,10 @@ impl PublishCmd {
             get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?
         };
 
-        let parts: Vec<&str> = self.faucet_id.split(':').collect();
-        if parts.len() != 2 {
-            return Err(anyhow::anyhow!(
-                "Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"
-            ));
-        }
-
-        let prefix = parts[0]
-            .parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix: {}", parts[0]))?;
-        let suffix = parts[1]
-            .parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix: {}", parts[1]))?;
+        let key = PairKey::parse(&self.pair)?;
 
         let entry_as_word = Word::try_from(Entry {
-            faucet_id: String::new(),
+            pair: self.pair.clone(),
             price: self.price,
             decimals: self.decimals,
             timestamp: self.timestamp,
@@ -93,7 +84,7 @@ impl PublishCmd {
                 @transaction_script
                 pub proc main
                     push.{entry}
-                    push.0.0.{suffix}.{prefix}
+                    {push_key}
 
                     call.publisher_module::publish_entry
         
@@ -101,8 +92,7 @@ impl PublishCmd {
                     exec.sys::truncate_stack                    
                 end
                 ",
-            prefix = prefix,
-            suffix = suffix,
+            push_key = key.push(),
             entry = word_to_masm(entry_as_word)
         );
         let publisher_lib = get_publisher_component_library();

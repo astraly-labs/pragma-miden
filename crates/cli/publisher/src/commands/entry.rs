@@ -6,13 +6,15 @@ use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use prettytable::{Cell, Row, Table};
 use std::path::Path;
 
+use pm_accounts::oracle_v1::PairKey;
+
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(
-    about = "Retrieve an entry for a given faucet_id (published by this publisher). This version read directly within the rust storage of the publisher"
+    about = "Retrieve the entry of a pair (published by this publisher). This version read directly within the rust storage of the publisher"
 )]
 pub struct EntryCmd {
-    // Input faucet_id (format example: "1:0" for BTC/USD)
-    pub faucet_id: String,
+    /// Pair name, e.g. BTC/USD
+    pub pair: String,
 }
 
 impl EntryCmd {
@@ -30,36 +32,17 @@ impl EntryCmd {
             .unwrap()
             .expect("Publisher account not found");
 
-        let parts: Vec<&str> = self.faucet_id.split(':').collect();
-        if parts.len() != 2 {
-            return Err(anyhow::anyhow!(
-                "Invalid faucet_id format. Expected PREFIX:SUFFIX (e.g., 1:0)"
-            ));
-        }
-        let prefix = parts[0]
-            .parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("Invalid faucet_id prefix"))?;
-        let suffix = parts[1]
-            .parse::<u64>()
-            .map_err(|_| anyhow::anyhow!("Invalid faucet_id suffix"))?;
-
-        let faucet_id_word: miden_client::Word = [
-            miden_client::Felt::new(0)?,
-            miden_client::Felt::new(0)?,
-            miden_client::Felt::new(suffix)?,
-            miden_client::Felt::new(prefix)?,
-        ]
-        .into();
+        let key = PairKey::parse(&self.pair)?;
 
         let publisher_entries_slot =
             miden_protocol::account::StorageSlotName::new("pragma::publisher::entries")
                 .map_err(|e| anyhow::anyhow!("Invalid storage slot name: {e:?}"))?;
         let entry_word = publisher
             .storage()
-            .get_map_item(&publisher_entries_slot, StorageMapKey::new(faucet_id_word))
+            .get_map_item(&publisher_entries_slot, StorageMapKey::new(key.key))
             .unwrap();
         let mut entry = Entry::from(entry_word);
-        entry.faucet_id = self.faucet_id.clone();
+        entry.pair = key.pair.clone();
 
         // Create the main info table
         let mut table = Table::new();
@@ -73,7 +56,7 @@ impl EntryCmd {
 
         table.add_row(Row::new(vec![
             Cell::new("Faucet ID").style_spec("Fc"),
-            Cell::new(&format!("💱 {}", self.faucet_id)).style_spec("Fy"),
+            Cell::new(&format!("💱 {}", key.pair)).style_spec("Fy"),
         ]));
 
         let price_float = entry.price as f64 / 10f64.powi(entry.decimals as i32);

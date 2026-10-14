@@ -11,7 +11,7 @@ use tokio::runtime::{Builder, Runtime};
 use tokio::sync::Mutex as AsyncMutex;
 mod commands;
 use crate::commands::{
-    entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, publish::PublishCmd,
+    entry::EntryCmd, get_entry::GetEntryCmd, init::InitCmd, key::PairKeyCmd, publish::PublishCmd,
     publish_batch::publish_batch as do_publish_batch, sync::SyncCmd,
 };
 use pm_utils_cli::{
@@ -170,7 +170,7 @@ fn py_init(
 #[allow(clippy::too_many_arguments)]
 fn py_publish(
     py: Python<'_>,
-    faucet_id: String,
+    pair: String,
     price: u64,
     decimals: u32,
     timestamp: u64,
@@ -190,7 +190,7 @@ fn py_publish(
         let mut client = client_arc.lock().await;
 
         let cmd = PublishCmd {
-            faucet_id,
+            pair,
             price,
             decimals,
             timestamp,
@@ -205,12 +205,12 @@ fn py_publish(
 }
 
 /// Get entry. Returns the entry serialized as a JSON string:
-/// `{"faucet_id": "1:0", "price": 6819900000000, "decimals": 8, "timestamp": 1700000000}`.
+/// `{"pair": "BTC/USD", "price": 6819900000000, "decimals": 8, "timestamp": 1700000000, "num_sources": 8}`.
 #[pyfunction]
 #[pyo3(name = "get_entry")]
 fn py_get_entry(
     py: Python<'_>,
-    faucet_id: String,
+    pair: String,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
@@ -224,11 +224,11 @@ fn py_get_entry(
         let client_arc = cached_client(network_str, store_config, keystore_path).await?;
         let mut client = client_arc.lock().await;
 
-        let cmd = GetEntryCmd { faucet_id };
+        let cmd = GetEntryCmd { pair };
         let entry = map_cmd_err(cmd.call(&mut client, network_str).await, &key, "Get entry")?;
 
         Ok(serde_json::json!({
-            "faucet_id": entry.faucet_id,
+            "pair": entry.pair,
             "price": entry.price,
             "decimals": entry.decimals,
             "timestamp": entry.timestamp,
@@ -243,7 +243,7 @@ fn py_get_entry(
 #[pyo3(name = "entry")]
 fn py_entry(
     py: Python<'_>,
-    faucet_id: String,
+    pair: String,
     storage_path: Option<String>,
     keystore_path: Option<String>,
     network: Option<String>,
@@ -257,7 +257,7 @@ fn py_entry(
         let client_arc = cached_client(network_str, store_config, keystore_path).await?;
         let mut client = client_arc.lock().await;
 
-        let cmd = EntryCmd { faucet_id };
+        let cmd = EntryCmd { pair };
         map_cmd_err(cmd.call(&mut client, network_str).await, &key, "Entry")?;
 
         Ok("Entry details retrieved successfully!".to_string())
@@ -266,8 +266,8 @@ fn py_entry(
 
 /// Publish a batch of price entries in a single Miden transaction.
 ///
-/// `entries` is a list of `(faucet_id, price, decimals, timestamp)` tuples,
-/// where `faucet_id` is the `"PREFIX:SUFFIX"` string (e.g. `"1:0"`). `num_sources`, when given,
+/// `entries` is a list of `(pair, price, decimals, timestamp)` tuples,
+/// where `pair` is the pair name (e.g. `"BTC/USD"`). `num_sources`, when given,
 /// has one value per entry: the number of exchanges aggregated into that price (0 = unknown).
 #[pyfunction]
 #[pyo3(name = "publish_batch")]
@@ -293,9 +293,7 @@ fn py_publish_batch(
     let entries: Vec<(String, u64, u32, u64, u64)> = entries
         .into_iter()
         .zip(num_sources)
-        .map(|((faucet_id, price, decimals, timestamp), n)| {
-            (faucet_id, price, decimals, timestamp, n)
-        })
+        .map(|((pair, price, decimals, timestamp), n)| (pair, price, decimals, timestamp, n))
         .collect();
     block_on(py, || async move {
         let store_config = get_store_config(storage_path);
@@ -495,6 +493,15 @@ fn py_consume_notes(
     })
 }
 
+/// The on-chain key of a pair, as 0x-prefixed hex (derived from its name, nothing to register).
+#[pyfunction]
+#[pyo3(name = "pair_key")]
+fn py_pair_key(pair: String) -> PyResult<String> {
+    PairKeyCmd { pair }
+        .call()
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
 /// Python module
 #[pymodule]
 fn pm_publisher(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
@@ -508,6 +515,7 @@ fn pm_publisher(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(py_balance))?;
     m.add_wrapped(wrap_pyfunction!(py_fund))?;
     m.add_wrapped(wrap_pyfunction!(py_consume_notes))?;
+    m.add_wrapped(wrap_pyfunction!(py_pair_key))?;
     Ok(())
 }
 

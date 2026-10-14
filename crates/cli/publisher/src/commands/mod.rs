@@ -1,6 +1,7 @@
 pub mod entry;
 pub mod get_entry;
 pub mod init;
+pub mod key;
 pub mod publish;
 pub mod publish_batch;
 pub mod sync;
@@ -12,6 +13,7 @@ use clap::Parser;
 use entry::EntryCmd;
 use get_entry::GetEntryCmd;
 use init::InitCmd;
+use key::PairKeyCmd;
 use pm_types::Entry;
 use pm_utils_cli::{
     get_publisher_id, setup_devnet_client, setup_local_client, setup_testnet_client, BalanceCmd,
@@ -56,11 +58,17 @@ pub enum SubCommand {
     Balance(BalanceCmd),
     #[clap(name = "consume", bin_name = "consume")]
     Consume(ConsumeCmd),
+    #[clap(name = "pair-key", bin_name = "pair-key")]
+    PairKey(PairKeyCmd),
 }
 
 impl SubCommand {
     #[allow(dead_code)] // entry point of the pm-publisher binary; unused by the lib target
     pub async fn call(&self, network: &str) -> anyhow::Result<CommandOutput> {
+        if let Self::PairKey(cmd) = self {
+            cmd.call()?;
+            return Ok(CommandOutput::None);
+        }
         let crate_path = PathBuf::new();
         let store_config = crate_path.join(STORE_FILENAME);
         let mut client = match network {
@@ -127,6 +135,7 @@ impl SubCommand {
                 cmd.call(&mut client, id).await?;
                 Ok(CommandOutput::None)
             }
+            Self::PairKey(_) => unreachable!("handled before the client is set up"),
         }
     }
 }

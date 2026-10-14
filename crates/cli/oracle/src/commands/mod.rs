@@ -3,6 +3,7 @@ pub mod init;
 pub mod median;
 pub mod median_batch;
 pub mod publishers;
+pub mod read;
 pub mod register_publisher;
 pub mod remove_publisher;
 pub mod sync;
@@ -11,7 +12,6 @@ pub mod upgrade;
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
-use miden_client::Felt;
 
 use get_entry::GetEntryCmd;
 use init::InitCmd;
@@ -32,9 +32,9 @@ use pm_utils_cli::{
 #[derive(Debug)]
 pub enum CommandOutput {
     None,
-    Felt(Felt),
+    Median(read::PairRead),
     Entry(Entry),
-    MedianBatch(Vec<median_batch::MedianResult>),
+    MedianBatch(Vec<read::PairRead>),
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -120,8 +120,8 @@ impl SubCommand {
                 Ok(CommandOutput::None)
             }
             Self::Median(cmd) => {
-                let median = cmd.call(&mut client, network).await?;
-                Ok(CommandOutput::Felt(median))
+                let read = cmd.call(&mut client, network).await?;
+                Ok(CommandOutput::Median(read))
             }
             Self::MedianBatch(cmd) => {
                 let results = cmd.call(&mut client, network).await?;
