@@ -6,9 +6,10 @@ use miden_client::{
 use miden_standards::code_builder::CodeBuilder;
 
 use miden_client::account::AccountId;
-use miden_client::Felt;
 use pm_accounts::{publisher::get_publisher_component_library, utils::word_to_masm};
 use pm_types::Entry;
+
+use pm_accounts::oracle_v1::PairKey;
 use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -73,50 +74,39 @@ impl PublishBatchCmd {
     }
 }
 
-/// Parses `FAUCET_PREFIX:FAUCET_SUFFIX:PRICE:DECIMALS:TIMESTAMP[:NUM_SOURCES]`.
+/// Parses `PAIR:PRICE:DECIMALS:TIMESTAMP[:NUM_SOURCES]`, e.g. `BTC/USD:8334932724000:8:1700000000:8`.
 pub fn parse_entry(entry_str: &str) -> anyhow::Result<(String, u64, u32, u64, u64)> {
     let parts: Vec<&str> = entry_str.split(':').collect();
-    if parts.len() != 5 && parts.len() != 6 {
+    if parts.len() != 4 && parts.len() != 5 {
         return Err(anyhow::anyhow!(
-            "Invalid entry format: {}. Expected FAUCET_PREFIX:FAUCET_SUFFIX:PRICE:DECIMALS:TIMESTAMP[:NUM_SOURCES]",
+            "Invalid entry format: {}. Expected PAIR:PRICE:DECIMALS:TIMESTAMP[:NUM_SOURCES]",
             entry_str
         ));
     }
-    let prefix = parts[0]
+    let pair = PairKey::parse(parts[0])?.pair;
+    let price = parts[1]
         .parse::<u64>()
-        .map_err(|e| anyhow::anyhow!("Invalid faucet_id prefix '{}': {}", parts[0], e))?;
-    let suffix = parts[1]
-        .parse::<u64>()
-        .map_err(|e| anyhow::anyhow!("Invalid faucet_id suffix '{}': {}", parts[1], e))?;
-    let price = parts[2]
-        .parse::<u64>()
-        .map_err(|e| anyhow::anyhow!("Invalid price '{}': {}", parts[2], e))?;
-    let decimals = parts[3]
+        .map_err(|e| anyhow::anyhow!("Invalid price '{}': {}", parts[1], e))?;
+    let decimals = parts[2]
         .parse::<u32>()
-        .map_err(|e| anyhow::anyhow!("Invalid decimals '{}': {}", parts[3], e))?;
-    let timestamp = parts[4]
+        .map_err(|e| anyhow::anyhow!("Invalid decimals '{}': {}", parts[2], e))?;
+    let timestamp = parts[3]
         .parse::<u64>()
-        .map_err(|e| anyhow::anyhow!("Invalid timestamp '{}': {}", parts[4], e))?;
-    let num_sources = match parts.get(5) {
+        .map_err(|e| anyhow::anyhow!("Invalid timestamp '{}': {}", parts[3], e))?;
+    let num_sources = match parts.get(4) {
         Some(raw) => raw
             .parse::<u64>()
             .map_err(|e| anyhow::anyhow!("Invalid num_sources '{}': {}", raw, e))?,
         None => 0,
     };
-    Ok((
-        format!("{prefix}:{suffix}"),
-        price,
-        decimals,
-        timestamp,
-        num_sources,
-    ))
+    Ok((pair, price, decimals, timestamp, num_sources))
 }
 
 /// Publish a batch of price entries in a single Miden transaction.
 ///
-/// Each entry is `(faucet_id, price, decimals, timestamp, num_sources)` where `faucet_id`
-/// is `"PREFIX:SUFFIX"` (e.g. `"1:0"` for BTC/USD) and `num_sources` is the number of
-/// exchanges aggregated into the price (0 when unknown).
+/// Each entry is `(pair, price, decimals, timestamp, num_sources)` where `pair` is the pair name
+/// (e.g. `"BTC/USD"`) and `num_sources` is the number of exchanges aggregated into the price
+/// (0 when unknown).
 ///
 /// Exposed as a free function so it can be called directly by other crates
 /// (notably the pyo3 binding) without having to round-trip through the
@@ -134,48 +124,28 @@ pub async fn publish_batch(
     };
 
     let mut entries_data = Vec::with_capacity(entries.len());
-    for (faucet_id, price, decimals, timestamp, num_sources) in entries {
-        let parts: Vec<&str> = faucet_id.split(':').collect();
-        if parts.len() != 2 {
-            return Err(anyhow::anyhow!(
-                "Invalid faucet_id format '{}'. Expected PREFIX:SUFFIX (e.g., 1:0)",
-                faucet_id
-            ));
-        }
-        let prefix = parts[0]
-            .parse::<u64>()
-            .map_err(|e| anyhow::anyhow!("Invalid faucet_id prefix '{}': {}", parts[0], e))?;
-        let suffix = parts[1]
-            .parse::<u64>()
-            .map_err(|e| anyhow::anyhow!("Invalid faucet_id suffix '{}': {}", parts[1], e))?;
-
-        let faucet_id_word: Word = [
-            Felt::new(0)?,
-            Felt::new(0)?,
-            Felt::new(suffix)?,
-            Felt::new(prefix)?,
-        ]
-        .into();
+    for (pair, price, decimals, timestamp, num_sources) in entries {
+        let key = PairKey::parse(pair)?;
         let entry_word = Word::try_from(Entry {
-            faucet_id: String::new(),
+            pair: key.pair.clone(),
             price: *price,
             decimals: *decimals,
             timestamp: *timestamp,
             num_sources: *num_sources,
         })?;
-        entries_data.push((faucet_id_word, entry_word));
+        entries_data.push((key, entry_word));
     }
 
     let mut publish_calls = String::new();
-    for (faucet_id_word, entry_word) in &entries_data {
+    for (key, entry_word) in &entries_data {
         publish_calls.push_str(&format!(
             "
                 push.{entry}
-                push.{faucet_id_word}
+                {push_key}
                 call.publisher_module::publish_entry
                 dropw
             ",
-            faucet_id_word = word_to_masm(*faucet_id_word),
+            push_key = key.push(),
             entry = word_to_masm(*entry_word)
         ));
     }
@@ -233,24 +203,33 @@ mod tests {
     use super::parse_entry;
 
     #[test]
+    fn an_entry_is_a_pair_name_and_its_numbers() {
+        assert_eq!(
+            parse_entry("btc/usd:8334932724000:8:1700000000").unwrap(),
+            ("BTC/USD".to_owned(), 8_334_932_724_000, 8, 1_700_000_000, 0)
+        );
+    }
+
+    #[test]
     fn num_sources_is_optional_and_defaults_to_unknown() {
-        assert_eq!(
-            parse_entry("15:0:999800:6:1791439525").unwrap(),
-            ("15:0".to_string(), 999_800, 6, 1_791_439_525, 0)
-        );
-        assert_eq!(
-            parse_entry("15:0:999800:6:1791439525:10").unwrap(),
-            ("15:0".to_string(), 999_800, 6, 1_791_439_525, 10)
-        );
+        assert_eq!(parse_entry("USDC/USD:999851:6:1700000000").unwrap().4, 0);
+        assert_eq!(parse_entry("USDC/USD:999851:6:1700000000:8").unwrap().4, 8);
+    }
+
+    #[test]
+    fn the_faucet_id_format_is_gone() {
+        assert!(parse_entry("1:0:8334932724000:8:1700000000").is_err());
+        assert!(parse_entry("1:0:8334932724000:8:1700000000:8").is_err());
     }
 
     #[test]
     fn malformed_entries_are_rejected() {
         for bad in [
-            "15:0:999800:6",
-            "15:0:999800:6:1791439525:10:1",
-            "15:0:abc:6:1791439525",
-            "15:0:999800:6:1791439525:x",
+            "BTC/USD:8334932724000:8",
+            "BTC/USD:8334932724000:8:1700000000:8:1",
+            "BTCUSD:8334932724000:8:1700000000",
+            "BTC/USD:abc:8:1700000000",
+            "BTC/USD:8334932724000:8:1700000000:x",
         ] {
             assert!(parse_entry(bad).is_err(), "{bad:?} must be rejected");
         }

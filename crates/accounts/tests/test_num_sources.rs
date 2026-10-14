@@ -58,7 +58,7 @@ async fn publish_then_read(num_sources: u64) -> Result<()> {
 
     // The word the CLI publishes (`Word::try_from(Entry)` is what publish / publish-batch use).
     let entry = Word::try_from(Entry {
-        faucet_id: String::new(),
+        pair: String::new(),
         price: 999_800,
         decimals: 6,
         timestamp: 1_791_439_525,
