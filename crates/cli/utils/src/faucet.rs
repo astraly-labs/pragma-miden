@@ -13,10 +13,11 @@ use miden_client::{
     account::{AccountId, NetworkId},
     keystore::FilesystemKeyStore,
     note::NoteId,
-    transaction::TransactionRequestBuilder,
     Client,
 };
 use serde::Deserialize;
+
+use crate::consume::submit_consume;
 use sha2::{Digest, Sha256};
 
 pub const TESTNET_FAUCET_API: &str = "https://faucet-api-testnet-miden.eu-central-8.gateway.fm";
@@ -141,14 +142,7 @@ pub async fn fund_account(
     let note = note
         .try_into()
         .map_err(|e| anyhow!("note record -> note: {e:?}"))?;
-    let request = TransactionRequestBuilder::new()
-        .build_consume_notes(vec![note])
-        .map_err(|e| anyhow!("consume request: {e:?}"))?;
-    client
-        .submit_new_transaction(account_id, request)
-        .await
-        .map_err(|e| anyhow!("consume tx: {e:?}"))?;
-    client.sync_state().await?;
+    submit_consume(client, account_id, vec![note]).await?;
 
     let (faucet, balance) = fee_asset_balance(client, account_id).await?;
     println!(

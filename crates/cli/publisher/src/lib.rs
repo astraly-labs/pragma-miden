@@ -1,4 +1,5 @@
 use miden_client::account::AccountId;
+use miden_client::note::NoteId;
 use miden_client::{keystore::FilesystemKeyStore, Client};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -14,9 +15,9 @@ use crate::commands::{
     publish_batch::publish_batch as do_publish_batch, sync::SyncCmd,
 };
 use pm_utils_cli::{
-    faucet_metadata, fee_asset_balance, fund_account, get_publisher_id, setup_devnet_client,
-    setup_local_client, setup_testnet_client, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
-    TESTNET_FAUCET_API,
+    consume_notes, faucet_metadata, fee_asset_balance, fund_account, get_publisher_id,
+    setup_devnet_client, setup_local_client, setup_testnet_client, PRAGMA_ACCOUNTS_STORAGE_FILE,
+    STORE_FILENAME, TESTNET_FAUCET_API,
 };
 
 /// Single shared Tokio runtime for the lifetime of the Python process.
@@ -451,6 +452,49 @@ fn py_fund(
     })
 }
 
+/// Consumes the notes waiting for the publisher account (fee tokens sent from another wallet): the
+/// P2ID notes, or exactly `note_ids` when given. Returns the consumed note ids (hex).
+#[pyfunction]
+#[pyo3(name = "consume_notes")]
+fn py_consume_notes(
+    py: Python<'_>,
+    note_ids: Option<Vec<String>>,
+    storage_path: Option<String>,
+    keystore_path: Option<String>,
+    network: Option<String>,
+) -> PyResult<Vec<String>> {
+    block_on(py, || async move {
+        let store_config = get_store_config(storage_path);
+        let network_str = network.as_deref().unwrap_or("testnet");
+        let key = client_key(network_str, &store_config, keystore_path.as_deref());
+        let client_arc = cached_client(network_str, store_config, keystore_path).await?;
+        let mut client = client_arc.lock().await;
+
+        let publisher_id = map_cmd_err(
+            get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network_str),
+            &key,
+            "Consume",
+        )?;
+        let only = map_cmd_err(
+            note_ids
+                .unwrap_or_default()
+                .iter()
+                .map(|id| {
+                    NoteId::try_from_hex(id).map_err(|e| anyhow::anyhow!("note id {id}: {e}"))
+                })
+                .collect::<anyhow::Result<Vec<_>>>(),
+            &key,
+            "Consume",
+        )?;
+        let (ids, _) = map_cmd_err(
+            consume_notes(&mut client, publisher_id, &only).await,
+            &key,
+            "Consume",
+        )?;
+        Ok(ids.iter().map(NoteId::to_hex).collect())
+    })
+}
+
 /// Python module
 #[pymodule]
 fn pm_publisher(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
@@ -463,6 +507,7 @@ fn pm_publisher(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(py_import_account))?;
     m.add_wrapped(wrap_pyfunction!(py_balance))?;
     m.add_wrapped(wrap_pyfunction!(py_fund))?;
+    m.add_wrapped(wrap_pyfunction!(py_consume_notes))?;
     Ok(())
 }
 

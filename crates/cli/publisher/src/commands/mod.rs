@@ -14,7 +14,7 @@ use init::InitCmd;
 use pm_types::Entry;
 use pm_utils_cli::{
     get_publisher_id, setup_devnet_client, setup_local_client, setup_testnet_client, BalanceCmd,
-    FundCmd, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
+    ConsumeCmd, FundCmd, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
 };
 use publish::PublishCmd;
 use publish_batch::PublishBatchCmd;
@@ -50,6 +50,8 @@ pub enum SubCommand {
     Fund(FundCmd),
     #[clap(name = "balance", bin_name = "balance")]
     Balance(BalanceCmd),
+    #[clap(name = "consume", bin_name = "consume")]
+    Consume(ConsumeCmd),
 }
 
 impl SubCommand {
@@ -108,6 +110,11 @@ impl SubCommand {
                 Ok(CommandOutput::None)
             }
             Self::Balance(cmd) => {
+                let id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
+                cmd.call(&mut client, id).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::Consume(cmd) => {
                 let id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
                 cmd.call(&mut client, id).await?;
                 Ok(CommandOutput::None)
