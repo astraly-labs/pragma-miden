@@ -227,6 +227,11 @@ async fn one_signer_pauses_all_signers_resume() -> Result<()> {
         format!("{paused:?}").contains("oracle is paused"),
         "{paused:?}"
     );
+    // A node without debug info reports the code only: it must stay the one documented.
+    assert!(
+        format!("{paused:?}").contains(&pm_accounts::oracle_v1::ORACLE_PAUSED_ERR_CODE.to_string()),
+        "{paused:?}"
+    );
 
     // Resuming needs every signer: two are not enough.
     let unpause = oracle_script("call.oracle_module::unpause")?;

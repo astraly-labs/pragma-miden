@@ -137,6 +137,10 @@ pub fn pair_key(pair: &str) -> anyhow::Result<Word> {
     ))
 }
 
+/// Error code of the assertion that fails every read while the oracle is paused (`oracle is
+/// paused`). A read run on a node without debug info reports this code and no message.
+pub const ORACLE_PAUSED_ERR_CODE: u64 = 13870478862780963547;
+
 /// A pair name and the storage key it is published and read under.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PairKey {

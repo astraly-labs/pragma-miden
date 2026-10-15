@@ -45,7 +45,10 @@ get_median_with_max_age(KEY, max_age) -> same, with your own freshness window
 
 - **Pause.** While the oracle is paused every read fails with `oracle is paused`. The whole
   transaction that made the foreign call fails with it and cannot be caught, so design for that: a
-  paused oracle blocks the actions that depend on a price, it never returns a stale one.
+  paused oracle blocks the actions that depend on a price, it never returns a stale one. A node
+  without debug info reports the failed assertion by its code only, `13870478862780963547`
+  (`ORACLE_PAUSED_ERR_CODE` in `pm-accounts`), and not by its message: that code means the oracle is
+  paused. `pm-oracle-cli median` translates it.
 - **Procedure root.** A foreign procedure invocation is bound to the MAST root of `get_median`. The
   oracle is code-upgradable (multisig, full quorum), and an upgrade that touches `get_median` or what
   it calls changes the root, after which a call using the old root fails. Pin the oracle account id
