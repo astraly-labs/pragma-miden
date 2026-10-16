@@ -19,10 +19,7 @@ use miden_protocol::{
     },
     assembly::Package,
 };
-use miden_standards::{
-    account::{access::Authority, upgrade::UpgradeManager},
-    code_builder::CodeBuilder,
-};
+use miden_standards::code_builder::CodeBuilder;
 
 pub const PUBLISHER_ACCOUNT_MASM: &str = include_str!("publisher.masm");
 
@@ -65,23 +62,18 @@ pub fn get_publisher_component() -> AccountComponent {
         .expect("assembly should succeed")
 }
 
-/// The publisher component plus the standard code-upgrade pair: `UpgradeManager` exposes
-/// `upgrade`, gated by `Authority::AuthControlled`, i.e. the publisher's own key.
-///
-/// The oracle calls the publisher's `get_entry` by its MAST root: an upgrade must never change
-/// that root (a test pins it), only add to the publisher. Storage can't be upgraded, so a new
-/// code must keep the same storage slots.
+/// The components of a publisher account. There is no code-upgrade component on purpose: the
+/// oracle calls the publisher's `get_entry` by its MAST root and a failing call aborts the read of
+/// every consumer, so a publisher able to change its own code could take the oracle down. The code
+/// a signer checks when registering a publisher is the code it runs forever; replacing a publisher
+/// means registering a new account (see `replace-publisher` in pm-multisig).
 pub fn get_publisher_components() -> Vec<AccountComponent> {
-    vec![
-        get_publisher_component(),
-        Authority::AuthControlled.into(),
-        UpgradeManager.into(),
-    ]
+    vec![get_publisher_component()]
 }
 
-/// The publisher account layout: auth + publisher + code-upgrade pair + `BasicWallet` (the
-/// fee-charging testnet needs it to receive the fee asset). Single source of truth for account
-/// creation and for the code an upgrade moves to.
+/// The publisher account layout: auth + publisher + `BasicWallet` (the fee-charging testnet needs
+/// it to receive the fee asset). Single source of truth for account creation and for the
+/// reference code a registered publisher must run.
 fn publisher_account_builder(
     seed: [u8; 32],
     account_type: AccountType,
@@ -106,20 +98,10 @@ fn publisher_reference_account() -> Account {
     .expect("the publisher account layout should be valid")
 }
 
-/// The account code of a publisher built by this binary: what `upgrade` moves a deployed
-/// publisher to.
+/// The account code of a publisher built by this binary: the reference code a publisher must run
+/// to be registered on the oracle.
 pub fn publisher_account_code() -> AccountCode {
     publisher_reference_account().code().clone()
-}
-
-/// The names of the storage slots of a publisher built by this binary.
-pub fn publisher_storage_slot_names() -> Vec<String> {
-    publisher_reference_account()
-        .storage()
-        .slots()
-        .iter()
-        .map(|slot| slot.name().to_string())
-        .collect()
 }
 
 pub struct PublisherAccountBuilder<'a> {
