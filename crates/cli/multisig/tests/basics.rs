@@ -76,6 +76,10 @@ fn actions_survive_json_and_describe_themselves() {
     for action in [
         Action::Pause,
         Action::Unpause,
+        Action::ReplacePublisher {
+            old: "0x6de0c1c9a43d5a9103a32ae348cbaa".into(),
+            new: "0x22a42798e8519c914214f1a63009c8".into(),
+        },
         Action::RegisterPublisher {
             publisher: "0x6de0c1c9a43d5a9103a32ae348cbaa".into(),
         },
@@ -103,4 +107,35 @@ fn a_generated_key_loads_back_with_the_same_commitment() {
         commitment
     );
     assert!(keys::generate(&path).is_err(), "never overwrite a key");
+}
+
+#[test]
+fn replacing_a_publisher_checks_the_new_account_only() {
+    let replace = Action::ReplacePublisher {
+        old: "0x6de0c1c9a43d5a9103a32ae348cbaa".into(),
+        new: "0x22a42798e8519c914214f1a63009c8".into(),
+    };
+    assert_eq!(
+        replace.registered_publishers(),
+        vec!["0x22a42798e8519c914214f1a63009c8"]
+    );
+    assert_eq!(replace.procedure_root().unwrap(), None);
+    assert!(Action::Pause.registered_publishers().is_empty());
+    assert_eq!(
+        Action::RegisterPublisher {
+            publisher: "0x6de0c1c9a43d5a9103a32ae348cbaa".into()
+        }
+        .registered_publishers(),
+        vec!["0x6de0c1c9a43d5a9103a32ae348cbaa"]
+    );
+}
+
+#[test]
+fn replacing_a_publisher_by_itself_is_refused() {
+    let same = Action::ReplacePublisher {
+        old: "0x6de0c1c9a43d5a9103a32ae348cbaa".into(),
+        new: "0x6de0c1c9a43d5a9103a32ae348cbaa".into(),
+    };
+    let builder = miden_client::transaction::TransactionRequestBuilder::new();
+    assert!(same.configure(builder).is_err());
 }

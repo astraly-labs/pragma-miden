@@ -110,6 +110,11 @@ enum ActionCmd {
     RemovePublisher {
         publisher: String,
     },
+    /// Register the new publisher and remove the old one in one proposal
+    ReplacePublisher {
+        old: String,
+        new: String,
+    },
     Pause,
     Unpause,
     /// Upgrade to the oracle code compiled in this binary
@@ -237,6 +242,10 @@ async fn main() -> Result<()> {
                 },
                 ActionCmd::RemovePublisher { publisher } => Action::RemovePublisher {
                     publisher: publisher_arg(&publisher)?,
+                },
+                ActionCmd::ReplacePublisher { old, new } => Action::ReplacePublisher {
+                    old: publisher_arg(&old)?,
+                    new: publisher_arg(&new)?,
                 },
                 ActionCmd::Pause => Action::Pause,
                 ActionCmd::Unpause => Action::Unpause,

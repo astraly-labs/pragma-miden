@@ -170,6 +170,31 @@ async fn unsigned_summary(
     }
 }
 
+/// A publisher is read through its `get_entry` root and cannot change its code, so the one check at
+/// registration holds for as long as it is registered: refuse any account that does not run exactly
+/// the reference code of this binary.
+async fn check_publishers(client: &mut MidenClient, action: &Action) -> Result<()> {
+    let reference = pm_accounts::publisher::publisher_account_code().commitment();
+    for publisher in action.registered_publishers() {
+        let id = AccountId::from_hex(publisher)
+            .map_err(|e| anyhow::anyhow!("bad publisher id {publisher}: {e}"))?;
+        client.import_account_by_id(id).await.with_context(|| {
+            format!("publisher {publisher} is not on the network yet: create it, fund it and let it run a first transaction")
+        })?;
+        let account = client
+            .get_account(id)
+            .await?
+            .with_context(|| format!("publisher {publisher} missing after import"))?;
+        ensure!(
+            account.code().commitment() == reference,
+            "publisher {publisher} runs code {}, not the reference publisher code {}: it would not be safe to register",
+            account.code().commitment().to_hex(),
+            reference.to_hex()
+        );
+    }
+    Ok(())
+}
+
 pub async fn propose(
     client: &mut MidenClient,
     network: &str,
@@ -178,6 +203,7 @@ pub async fn propose(
     valid_for_blocks: u32,
 ) -> Result<Proposal> {
     load_account(client, account_id).await?;
+    check_publishers(client, &action).await?;
     let nonce = account_nonce(client, account_id).await?;
     let salt = rand::random::<u32>();
     let bound = client.get_sync_height().await?;
@@ -217,6 +243,7 @@ pub async fn verify(client: &mut MidenClient, proposal: &Proposal) -> Result<Rep
     let account_id = AccountId::from_hex(&proposal.account_id)
         .map_err(|e| anyhow::anyhow!("bad account id: {e}"))?;
     load_account_at_nonce(client, account_id, proposal.account_nonce).await?;
+    check_publishers(client, &proposal.action).await?;
 
     let header = client.get_latest_block_header().await?;
     ensure!(

@@ -21,6 +21,15 @@ signer's own client, whose view of the chain supplies the bound block, and refus
 summary equals the proposal's. A proposal that cannot be reproduced is never signed. For `upgrade`, the
 binary must be built from the release being deployed: it refuses a code commitment it does not produce.
 
+## Publishers are checked, not trusted
+
+`register-publisher` and `replace-publisher` fetch the new publisher account from the chain and refuse it
+unless its code is exactly the reference publisher code of this binary; every signer repeats the check
+before signing. The oracle reads each publisher through the root of its `get_entry`, and a call that fails
+aborts the read of every consumer, so this is the check that keeps a faulty account out. Publisher accounts
+have no upgrade procedure, so what is checked at registration is what runs for as long as the account is
+registered.
+
 ## Setup, once
 
 ```bash
@@ -53,8 +62,9 @@ are in, anyone can run:
 pm-multisig execute proposal.json signature-1.json signature-2.json
 ```
 
-Actions: `register-publisher`, `remove-publisher`, `pause`, `unpause`, `upgrade`, `rotate-signers`,
-`consume-notes`. How many signatures each needs is set by the account's thresholds
+Actions: `register-publisher`, `remove-publisher`, `replace-publisher` (registers the new publisher and
+removes the old one in a single proposal, so a migration leaves no gap), `pause`, `unpause`, `upgrade`,
+`rotate-signers`, `consume-notes`. How many signatures each needs is set by the account's thresholds
 (`oracle_v1_proc_thresholds`): `pause` one signer, `unpause`, `upgrade` and `rotate-signers` all of them,
 the rest the default threshold.
 

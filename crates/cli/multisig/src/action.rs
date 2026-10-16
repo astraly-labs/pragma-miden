@@ -31,6 +31,12 @@ pub enum Action {
     RemovePublisher {
         publisher: String,
     },
+    /// Registers `new` and removes `old` in one transaction: the oracle reads one of them at every
+    /// moment, there is no gap to migrate a publisher.
+    ReplacePublisher {
+        old: String,
+        new: String,
+    },
     Pause,
     Unpause,
     /// Replaces the account code by the oracle code compiled in this binary.
@@ -64,6 +70,9 @@ impl Action {
         Ok(match self {
             Self::RegisterPublisher { publisher } => format!("register publisher {publisher}"),
             Self::RemovePublisher { publisher } => format!("remove publisher {publisher}"),
+            Self::ReplacePublisher { old, new } => {
+                format!("replace publisher {old} by {new} (register the new, remove the old)")
+            }
             Self::Pause => "pause the oracle (reads fail until unpaused)".into(),
             Self::Unpause => "unpause the oracle".into(),
             Self::Upgrade { code_commitment } => {
@@ -92,11 +101,23 @@ impl Action {
         })
     }
 
+    /// Accounts this action puts in front of the oracle's readers: they must run the reference
+    /// publisher code.
+    pub fn registered_publishers(&self) -> Vec<&str> {
+        match self {
+            Self::RegisterPublisher { publisher } => vec![publisher],
+            Self::ReplacePublisher { new, .. } => vec![new],
+            _ => vec![],
+        }
+    }
+
     /// Procedure whose approval threshold applies, `None` when the default threshold does.
     pub fn procedure_root(&self) -> Result<Option<AccountProcedureRoot>> {
         Ok(match self {
             Self::RegisterPublisher { .. } => Some(oracle_v1_proc_root("register_publisher")?),
             Self::RemovePublisher { .. } => Some(oracle_v1_proc_root("remove_publisher")?),
+            // Both calls are at the default threshold.
+            Self::ReplacePublisher { .. } => None,
             Self::Pause => Some(oracle_v1_proc_root("pause")?),
             Self::Unpause => Some(oracle_v1_proc_root("unpause")?),
             Self::Upgrade { .. } => Some(UpgradeManager::upgrade_root()),
@@ -121,6 +142,7 @@ impl Action {
             Self::RemovePublisher { publisher } => {
                 builder.custom_script(publisher_script("remove_publisher", publisher)?)
             }
+            Self::ReplacePublisher { old, new } => builder.custom_script(replace_script(old, new)?),
             Self::Pause => builder.custom_script(oracle_script("call.oracle_module::pause")?),
             Self::Unpause => builder.custom_script(oracle_script("call.oracle_module::unpause")?),
             Self::Upgrade { code_commitment } => {
@@ -184,13 +206,29 @@ fn oracle_script(body: &str) -> Result<TransactionScript> {
         .compile_tx_script(code)?)
 }
 
-fn publisher_script(proc_name: &str, publisher: &str) -> Result<TransactionScript> {
+fn publisher_call(proc_name: &str, publisher: &str) -> Result<String> {
     let id =
         AccountId::from_hex(publisher).map_err(|e| anyhow::anyhow!("bad publisher id: {e}"))?;
-    oracle_script(&format!(
+    Ok(format!(
         "push.0.0 push.{suffix} push.{prefix} call.oracle_module::{proc_name}",
         prefix = id.prefix().as_u64(),
         suffix = id.suffix(),
+    ))
+}
+
+fn publisher_script(proc_name: &str, publisher: &str) -> Result<TransactionScript> {
+    oracle_script(&publisher_call(proc_name, publisher)?)
+}
+
+fn replace_script(old: &str, new: &str) -> Result<TransactionScript> {
+    ensure!(
+        old != new,
+        "the old and the new publisher are the same account"
+    );
+    oracle_script(&format!(
+        "{}\n{}",
+        publisher_call("register_publisher", new)?,
+        publisher_call("remove_publisher", old)?
     ))
 }
 
