@@ -7,6 +7,7 @@ use miden_client::account::AccountId;
 use miden_client::transaction::TransactionScript;
 use miden_processor::advice::AdviceInputs;
 use miden_protocol::account::auth::{AuthScheme, AuthSecretKey, PublicKey};
+use miden_protocol::account::{StorageMapKey, StorageSlotName};
 use miden_protocol::crypto::SequentialCommit;
 use miden_protocol::transaction::ExecutedTransaction;
 use miden_protocol::{Felt, Hasher, Word, ZERO};
@@ -350,5 +351,66 @@ async fn removing_a_publisher_needs_the_default_quorum() -> Result<()> {
         b.tx_script(remove.clone())
     })
     .await?;
+    Ok(())
+}
+
+/// Migrating a publisher is one proposal: the new one is registered and the old one removed in the
+/// same transaction, so the oracle never reads neither of them.
+#[tokio::test]
+async fn replacing_a_publisher_takes_one_transaction_and_the_default_quorum() -> Result<()> {
+    let Setup {
+        mut mock_chain,
+        oracle_id,
+        signers,
+    } = setup()?;
+    let old = AccountId::from_hex("0x6de0c1c9a43d5a9103a32ae348cbaa")?;
+    let new = AccountId::from_hex("0x22a42798e8519c914214f1a63009c8")?;
+    let call = |name: &str, id: AccountId| {
+        format!(
+            "push.0.0 push.{suffix} push.{prefix} call.oracle_module::{name}",
+            prefix = id.prefix().as_u64(),
+            suffix = id.suffix(),
+        )
+    };
+
+    let register = oracle_script(&call("register_publisher", old))?;
+    let tx = execute_signed(&mock_chain, oracle_id, &signers, &[0, 1], 1, |b| {
+        b.tx_script(register.clone())
+    })
+    .await?;
+    commit(&mut mock_chain, &tx).await?;
+
+    let replace = oracle_script(&format!(
+        "{}\n{}",
+        call("register_publisher", new),
+        call("remove_publisher", old)
+    ))?;
+    let alone = execute_signed(&mock_chain, oracle_id, &signers, &[2], 2, |b| {
+        b.tx_script(replace.clone())
+    })
+    .await;
+    assert_unauthorized(alone, "replace_publisher must not pass with 1 of 3");
+    let tx = execute_signed(&mock_chain, oracle_id, &signers, &[0, 2], 3, |b| {
+        b.tx_script(replace.clone())
+    })
+    .await?;
+    commit(&mut mock_chain, &tx).await?;
+
+    let storage = mock_chain.committed_account(oracle_id)?.storage().clone();
+    let publishers = StorageSlotName::new("pragma::oracle::publishers").unwrap();
+    let at = |i: u64| {
+        storage
+            .get_map_item(
+                &publishers,
+                StorageMapKey::new([i, 0, 0, 0].map(|v| Felt::new(v).unwrap()).into()),
+            )
+            .unwrap()
+    };
+    assert_eq!(at(2), Word::default(), "the old publisher is removed");
+    assert_eq!(
+        (at(3)[0].as_canonical_u64(), at(3)[1].as_canonical_u64()),
+        (new.prefix().as_u64(), new.suffix().as_canonical_u64()),
+        "the new publisher is registered"
+    );
     Ok(())
 }

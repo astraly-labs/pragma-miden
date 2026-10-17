@@ -3845,6 +3845,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pm-multisig"
+version = "0.1.0-alpha.15"
+dependencies = [
+ "anyhow",
+ "clap",
+ "hex",
+ "miden-client",
+ "miden-protocol",
+ "miden-standards",
+ "miden-tx",
+ "pm-accounts",
+ "pm-utils-cli",
+ "rand 0.10.1",
+ "rand_chacha 0.10.0",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "pm-oracle-cli"
 version = "0.1.0-alpha.15"
 dependencies = [

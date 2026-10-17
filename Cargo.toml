@@ -2,6 +2,7 @@
 members = [
   "crates/types",
   "crates/accounts",
+  "crates/cli/multisig",
   "crates/cli/oracle",
   "crates/cli/publisher",
   "crates/cli/utils",
@@ -11,6 +12,7 @@ resolver = "1"
 default-members = [
   "crates/types",
   "crates/accounts",
+  "crates/cli/multisig",
   "crates/cli/oracle",
   "crates/cli/publisher",
   "crates/cli/utils",

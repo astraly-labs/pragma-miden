@@ -1,0 +1,32 @@
+[package]
+name = "pm-multisig"
+description = "Pragma-Miden cli to administer the oracle through its multisig"
+authors.workspace = true
+homepage.workspace = true
+edition.workspace = true
+repository.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "pm-multisig"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive"] }
+hex.workspace = true
+miden-client.workspace = true
+miden-protocol.workspace = true
+miden-standards.workspace = true
+miden-tx.workspace = true
+pm-accounts.workspace = true
+pm-utils-cli.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tokio.workspace = true
