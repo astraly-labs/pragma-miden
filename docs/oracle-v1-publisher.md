@@ -5,7 +5,7 @@ To confirm before this is published (draft in the repo, to port to the docs site
   handles the testnet faucet note);
 - the pair-name based publishing in the SDK / wheel (today entries are keyed by faucet id);
 - the cadence (60 s) and the source requirements (several independent exchanges) are proposals;
-- `pm-publisher-cli upgrade` is in pragma-miden#90.
+- the `replace-publisher` action of `pm-multisig` and its check of the publisher's code (pragma-miden#93 and follow-up).
 -->
 
 # Publishing to the Pragma oracle v1 on Miden
@@ -25,9 +25,11 @@ publisher component that stores your entries and answers the oracle.
 It writes `pragma_miden.json` (your account id), `keystore/` (your signing key) and a local store.
 **Back up `keystore/`**: without it you lose the account. Never share it.
 
-Do not modify the account code. The oracle reads your entries by calling `get_entry` through its code
-root; an account with other code makes the call fail. Before registering an account Pragma checks that it
-runs the reference publisher code.
+The account code is fixed: there is no way to upgrade it, not even by you. The oracle reads your entries by
+calling `get_entry` through its code root, and a call that fails aborts the read of every consumer, so an
+account able to change its code could take the oracle down. Before registering an account the signers
+check that it runs exactly the reference publisher code (`pm-multisig` refuses any other), and since the
+code cannot change, that check holds for as long as the account is registered.
 
 ## 2. Fund it
 
@@ -89,12 +91,13 @@ transaction: it is atomic, and cheaper than one transaction per pair.
 If you already run `price-pusher` for Starknet, Miden publishing is one more loop of the same process
 (`--miden-network`, `--miden-publish-interval`): a Miden problem never stops your Starknet push.
 
-## 6. Upgrades
+## 6. Replacing your account
 
-Your publisher account is code-upgradable by your own key. When Pragma asks you to upgrade (a new
-reference publisher code), run `pm-publisher-cli upgrade` from the release we name; `--dry-run` shows
-what would change. It refuses any change of the storage layout, and the code of `get_entry` is protected:
-an upgrade never changes what the oracle calls.
+A new version of the publisher code, or a lost or compromised key, means a new account: create it
+(`pm-publisher-cli init`), fund it, and send us its id. We register the new account and remove the old
+one in a single proposal (`replace-publisher`, two of three signers), so the oracle keeps reading you
+throughout and there is no gap. Keep only a few days of fees on the account: that is all there is to move,
+and whatever is left on the old account can stay there.
 
 ## 7. Leaving or being removed
 

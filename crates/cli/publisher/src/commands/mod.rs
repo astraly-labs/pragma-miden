@@ -5,7 +5,6 @@ pub mod key;
 pub mod publish;
 pub mod publish_batch;
 pub mod sync;
-pub mod upgrade;
 
 use std::path::{Path, PathBuf};
 
@@ -22,7 +21,6 @@ use pm_utils_cli::{
 use publish::PublishCmd;
 use publish_batch::PublishBatchCmd;
 use sync::SyncCmd;
-use upgrade::UpgradeCmd;
 
 // `commands` is shared by the pm-publisher binary (which dispatches through
 // SubCommand::call) and the pyo3 lib (which calls each subcommand directly), so
@@ -50,8 +48,6 @@ pub enum SubCommand {
     Sync(SyncCmd),
     #[clap(name = "get-entry", bin_name = "get-entry")]
     Get(GetEntryCmd),
-    #[clap(name = "upgrade", bin_name = "upgrade")]
-    Upgrade(UpgradeCmd),
     #[clap(name = "fund", bin_name = "fund")]
     Fund(FundCmd),
     #[clap(name = "balance", bin_name = "balance")]
@@ -115,10 +111,6 @@ impl SubCommand {
             Self::Get(cmd) => {
                 let entry = cmd.call(&mut client, network).await?;
                 Ok(CommandOutput::Entry(entry))
-            }
-            Self::Upgrade(cmd) => {
-                cmd.call(&mut client, network).await?;
-                Ok(CommandOutput::None)
             }
             Self::Fund(cmd) => {
                 let id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;

@@ -1,4 +1,4 @@
-//! A publisher account can upgrade its own code; the oracle keeps reading it afterwards.
+//! A publisher account runs fixed code: the oracle reads it, and nothing can replace its code.
 
 use anyhow::Result;
 use miden_client::account::AccountId;
@@ -8,13 +8,13 @@ use miden_protocol::account::{
     StorageMap, StorageMapKey, StorageSlot, StorageSlotName,
 };
 use miden_protocol::{Felt, Word};
-use miden_standards::account::{access::Authority, upgrade::UpgradeManager};
+use miden_standards::account::upgrade::UpgradeManager;
 use miden_standards::code_builder::CodeBuilder;
-use miden_testing::{Auth, MockChainBuilder};
+use miden_testing::{Auth, MockChain, MockChainBuilder};
 
 use pm_accounts::{
     oracle_v1::{get_oracle_v1_component_library, get_oracle_v1_components},
-    publisher::{get_entry_procedure_hash, get_publisher_component_code},
+    publisher::{get_entry_procedure_hash, get_publisher_component_code, publisher_account_code},
 };
 
 const NOW_TS: u32 = 2_000_000_000;
@@ -41,7 +41,7 @@ fn key() -> Word {
     [11, 22, 33, 44].map(|v| Felt::new(v).unwrap()).into()
 }
 
-/// A publisher with one seeded entry and the upgrade components.
+/// A publisher with one seeded entry.
 fn publisher_components() -> Result<Vec<AccountComponent>> {
     let entry: Word = [NOW - 5, 8, 52_000_000_000, 1]
         .map(|v| Felt::new(v).unwrap())
@@ -55,11 +55,7 @@ fn publisher_components() -> Result<Vec<AccountComponent>> {
         vec![slot],
         AccountComponentMetadata::new("pragma::publisher"),
     )?;
-    Ok(vec![
-        publisher,
-        Authority::AuthControlled.into(),
-        UpgradeManager.into(),
-    ])
+    Ok(vec![publisher])
 }
 
 fn upgraded_code() -> Result<AccountCode> {
@@ -123,8 +119,21 @@ fn register(publisher_id: AccountId) -> Result<TransactionScript> {
     ))
 }
 
-#[tokio::test]
-async fn an_upgraded_publisher_is_still_read_by_the_oracle() -> Result<()> {
+/// The reference code (what a signer checks before registering) carries no way to replace itself.
+#[test]
+fn the_reference_code_has_no_upgrade_procedure() {
+    let upgrade_root = UpgradeManager::upgrade_root();
+    let upgrade_root = upgrade_root.mast_root();
+    assert!(
+        publisher_account_code()
+            .procedures()
+            .iter()
+            .all(|p| p.mast_root() != upgrade_root),
+        "a publisher able to change its code could take the oracle down"
+    );
+}
+
+async fn registered_publisher_chain() -> Result<(MockChain, AccountId, AccountId)> {
     let mut builder = MockChainBuilder::new();
     let oracle =
         builder.add_existing_account_from_components(falcon_auth(), get_oracle_v1_components())?;
@@ -140,28 +149,12 @@ async fn an_upgraded_publisher_is_still_read_by_the_oracle() -> Result<()> {
         .await?;
     mock_chain.add_pending_executed_transaction(&tx)?;
     mock_chain.prove_next_block_at(NOW_TS)?;
+    Ok((mock_chain, oracle.id(), publisher.id()))
+}
 
-    // Upgrade the publisher with its own key: the code changes, the id and the entries don't.
-    let new_code = upgraded_code()?;
-    assert_ne!(publisher.code().commitment(), new_code.commitment());
-    let tx = mock_chain
-        .build_transaction(publisher.id())
-        .tx_script(upgrade_script(&new_code)?)
-        .account_code_upgrade(AccountCodeUpgrade::new(new_code.clone()))
-        .build()?
-        .execute()
-        .await?;
-    mock_chain.add_pending_executed_transaction(&tx)?;
-    mock_chain.prove_next_block()?;
-    assert_eq!(
-        mock_chain
-            .committed_account(publisher.id())?
-            .code()
-            .commitment(),
-        new_code.commitment()
-    );
-
-    // The oracle still reads the upgraded publisher: its get_entry root is unchanged.
+#[tokio::test]
+async fn a_publisher_is_read_by_the_oracle() -> Result<()> {
+    let (mock_chain, oracle, publisher) = registered_publisher_chain().await?;
     let read = oracle_script(&format!(
         "push.{key} call.oracle_module::get_median
          push.1 assert_eq.err=\"num_publishers\"
@@ -169,12 +162,31 @@ async fn an_upgraded_publisher_is_still_read_by_the_oracle() -> Result<()> {
         key = key()
     ))?;
     mock_chain
-        .build_transaction(oracle.id())
-        .foreign_accounts(vec![mock_chain.get_foreign_account_inputs(publisher.id())?])
+        .build_transaction(oracle)
+        .foreign_accounts(vec![mock_chain.get_foreign_account_inputs(publisher)?])
         .tx_script(read)
         .build()?
         .execute()
         .await
-        .map_err(|e| anyhow::anyhow!("the oracle can't read the upgraded publisher: {e:?}"))?;
+        .map_err(|e| anyhow::anyhow!("the oracle can't read the publisher: {e:?}"))?;
+    Ok(())
+}
+
+/// Even with its own key, a publisher cannot move to other code: there is no procedure to call.
+#[tokio::test]
+async fn a_publisher_cannot_replace_its_code() -> Result<()> {
+    let (mock_chain, _, publisher) = registered_publisher_chain().await?;
+    let new_code = upgraded_code()?;
+    let attempt = mock_chain
+        .build_transaction(publisher)
+        .tx_script(upgrade_script(&new_code)?)
+        .account_code_upgrade(AccountCodeUpgrade::new(new_code))
+        .build()?
+        .execute()
+        .await;
+    assert!(
+        attempt.is_err(),
+        "a publisher without an upgrade component must not be able to change its code"
+    );
     Ok(())
 }
