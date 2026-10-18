@@ -1,16 +1,15 @@
 use std::path::Path;
 
 use colored::*;
-use miden_client::{keystore::FilesystemKeyStore, Client};
+use miden_client::{account::AccountId, keystore::FilesystemKeyStore, Client};
 use pm_accounts::publisher::PublisherAccountBuilder;
-use pm_utils_cli::{add_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
+use pm_utils_cli::{add_publisher_id, set_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[clap(about = "Creates a new Publisher Account")]
 pub struct InitCmd {
-    // TODO: We may want to create ONLY a publisher. And assume the Oracle was created by someone else.
-    // In this case, just store the oracle id in the storage.
-    // If not provided and the oracle_id is empty in the storage, error!
+    /// Oracle this publisher feeds, stored next to the publisher id: `price-pusher` and the SDK
+    /// read it from there when `--miden-oracle-id` is not given.
     pub oracle_id: Option<String>,
 }
 
@@ -46,6 +45,14 @@ impl InitCmd {
         // if JsonStorage::exists(PRAGMA_ACCOUNTS_STORAGE) && JsonStorage::new(PRAGMA_ACCOUNTS_STORAGE).get_key(PUBLISHER_ACCOUNT_ID).is_some() {
         //     bail!("A Publisher has already been created! Delete it if you wanna start over.");
         // }
+        let oracle_id = self
+            .oracle_id
+            .as_deref()
+            .filter(|id| !id.is_empty())
+            .map(|id| {
+                AccountId::from_hex(id).map_err(|e| anyhow::anyhow!("invalid oracle id {id}: {e}"))
+            })
+            .transpose()?;
         client
             .sync_state()
             .await
@@ -65,6 +72,9 @@ impl InitCmd {
             network,
             &created_publisher_id,
         )?;
+        if let Some(oracle_id) = oracle_id {
+            set_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network, &oracle_id)?;
+        }
 
         // Clear screen for better presentation
         print!("\x1B[2J\x1B[1;1H");
