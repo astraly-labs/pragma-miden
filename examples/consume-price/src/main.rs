@@ -1,146 +1,177 @@
-use anyhow::{Context, Result};
+//! A consumer of the Pragma oracle v1: an account of its own calls `get_median` on the oracle through a
+//! Foreign Procedure Invocation, then applies the checks a consumer owes its own use of the price.
+
+use std::collections::BTreeMap;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use anyhow::{ensure, Context, Result};
+use clap::Parser;
 use miden_client::{
     account::AccountId, rpc::domain::account::AccountStorageRequirements,
-    transaction::ForeignAccount, Felt, Word, ZERO,
+    transaction::ForeignAccount, Felt, ZERO,
 };
-use miden_protocol::account::{StorageMapKey, StorageSlotName};
+use miden_protocol::account::{AccountType, StorageMapKey, StorageSlotName};
 use miden_protocol::vm::AdviceInputs;
 use miden_standards::code_builder::CodeBuilder;
-use pm_accounts::oracle::get_oracle_component_library;
-use pm_utils_cli::setup_testnet_client;
-use std::collections::BTreeMap;
+use pm_accounts::oracle_v1::{get_oracle_v1_component_library, PairKey, ORACLE_PAUSED_ERR_CODE};
+use pm_utils_cli::{create_wallet, setup_testnet_client};
 
-// ── Pragma Miden testnet oracle ───────────────────────────────────────────────
-const ORACLE_ID: &str = "0x0d39e78df12351510ec5047670b40e";
+#[derive(Parser)]
+struct Args {
+    /// Oracle account id (hex).
+    #[arg(long)]
+    oracle: String,
+    /// Pair to read, e.g. BTC/USD.
+    #[arg(long, default_value = "BTC/USD")]
+    pair: String,
+    /// Decimals your arithmetic assumes for this pair (8 for most, 6 for USDT/USD, USDC/USD, XAUT/USD).
+    #[arg(long, default_value_t = 8)]
+    decimals: u64,
+    /// Fewest publishers you accept behind the price.
+    #[arg(long, default_value_t = 2)]
+    min_publishers: u64,
+    /// Freshness window in seconds; the oracle default (120 s) when omitted.
+    #[arg(long)]
+    max_age: Option<u64>,
+}
 
-// ── Asset: BTC/USD (faucet_id "1:0") ─────────────────────────────────────────
-const PAIR_PREFIX: u64 = 1;
-const PAIR_SUFFIX: u64 = 0;
-
-// ── Storage slot names (defined in oracle.masm / publisher.masm) ──────────────
-const SLOT_NEXT_INDEX: &str = "pragma::oracle::next_publisher_index";
-const SLOT_PUBLISHERS: &str = "pragma::oracle::publishers";
-const SLOT_ENTRIES: &str = "pragma::publisher::entries";
+fn slot(name: &str) -> Result<StorageSlotName> {
+    StorageSlotName::new(name).map_err(|e| anyhow::anyhow!("invalid slot name {name}: {e:?}"))
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let oracle_id = AccountId::from_hex(ORACLE_ID)?;
-    let faucet_word: Word = [ZERO, ZERO, Felt::new(PAIR_SUFFIX)?, Felt::new(PAIR_PREFIX)?].into();
+    let args = Args::parse();
+    let oracle_id = AccountId::from_hex(&args.oracle)?;
+    let key = PairKey::parse(&args.pair)?;
 
-    // Store is created in ./miden_storage/store.sqlite3 relative to CWD.
+    // Local store in ./miden_storage, created on first run.
     let mut client = setup_testnet_client(None, None).await?;
+    client.sync_state().await?;
 
-    println!("Syncing with testnet...");
-    let summary = client.sync_state().await?;
-    println!("Latest block: {}", summary.block_num);
+    // The consumer: any account. A private wallet that never leaves this machine is enough to read.
+    let (consumer, _) = create_wallet(&mut client, AccountType::Private).await?;
+    println!("Consumer account: {}", consumer.id());
 
-    // ── Step 1: import oracle, read its publisher registry ────────────────────
+    // The oracle and the publishers it reads must all be known to the transaction.
     client.import_account_by_id(oracle_id).await?;
     client.sync_state().await?;
-
-    let oracle_account = client
+    let oracle = client
         .get_account(oracle_id)
         .await?
-        .context("oracle account not found on testnet")?;
-
-    let storage = oracle_account.storage();
-    let count_slot = StorageSlotName::new(SLOT_NEXT_INDEX)?;
-    let publisher_count = storage
-        .get_item(&count_slot)
-        .context("unable to read next_publisher_index")?[0]
+        .context("oracle account not found")?;
+    let storage = oracle.storage();
+    let next_index = storage
+        .get_item(&slot("pragma::oracle::next_publisher_index")?)
+        .context("unable to read the publisher count")?[0]
         .as_canonical_u64();
+    let publishers_slot = slot("pragma::oracle::publishers")?;
+    let entries_slot = slot("pragma::publisher::entries")?;
 
-    println!("Registered publishers: {}", publisher_count - 2);
-
-    // ── Step 2: collect publisher IDs from the oracle storage map ─────────────
-    let publishers_slot = StorageSlotName::new(SLOT_PUBLISHERS)?;
-    let publisher_ids: Vec<AccountId> = (2..publisher_count)
-        .map(|i| -> Result<AccountId> {
-            let key: Word = [Felt::new(i)?, ZERO, ZERO, ZERO].into();
-            let w = storage
-                .get_map_item(&publishers_slot, StorageMapKey::new(key))
-                .with_context(|| format!("publisher at index {i} not found"))?;
-            // Same layout as pm-oracle-cli: [prefix, suffix, 0, 0]
-            Ok(AccountId::new_unchecked([w[0], w[1]]))
-        })
-        .collect::<Result<_>>()?;
-
-    // ── Step 3: import each publisher, build ForeignAccount list ──────────────
-    let entries_slot = StorageSlotName::new(SLOT_ENTRIES)?;
-    let mut foreign_accounts: Vec<ForeignAccount> = vec![];
-
-    for pid in &publisher_ids {
-        client.import_account_by_id(*pid).await?;
-        println!("Imported publisher: {pid}");
-        foreign_accounts.push(ForeignAccount::public(
-            *pid,
-            AccountStorageRequirements::new([(
-                entries_slot.clone(),
-                &[StorageMapKey::new(faucet_word)],
-            )]),
-        )?);
-    }
-
-    // The oracle itself must also be a ForeignAccount for the FPI call.
-    foreign_accounts.push(ForeignAccount::public(
+    let mut foreign_accounts: BTreeMap<AccountId, ForeignAccount> = BTreeMap::new();
+    foreign_accounts.insert(
         oracle_id,
-        AccountStorageRequirements::default(),
-    )?);
-
-    client.sync_state().await?;
-
-    // ── Step 4: compile the script and execute via FPI ────────────────────────
-    let script_code = format!(
-        "
-        use oracle_component::oracle_module
-        use miden::core::sys
-
-        @transaction_script
-        pub proc main
-            push.0.0.{suffix}.{prefix}
-            call.oracle_module::get_median
-            exec.sys::truncate_stack
-        end
-        ",
-        prefix = PAIR_PREFIX,
-        suffix = PAIR_SUFFIX,
+        ForeignAccount::public(oracle_id, AccountStorageRequirements::default())?,
     );
-
-    let oracle_lib = get_oracle_component_library();
-    let script = CodeBuilder::default()
-        .with_dynamically_linked_package(&*oracle_lib)
-        .map_err(|e| anyhow::anyhow!("library error: {e:?}"))?
-        .compile_tx_script(script_code)
-        .map_err(|e| anyhow::anyhow!("compile error: {e:?}"))?;
-
-    let output_stack = client
-        .execute_program(
-            oracle_id,
-            script,
-            AdviceInputs::default(),
-            foreign_accounts
-                .into_iter()
-                .map(|fa| (fa.account_id(), fa))
-                .collect::<BTreeMap<_, _>>(),
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!("execute_program failed: {e:?}"))?;
-
-    // Stack layout (TOS first): [amount, is_tracked, median, ...]
-    let is_tracked = output_stack[0].as_canonical_u64();
-    let median = output_stack[1].as_canonical_u64();
-
-    if is_tracked == 0 {
-        println!("BTC/USD: not tracked by the oracle.");
-    } else {
-        // get_median returns the raw integer; decimals are a property of the
-        // pair (8 for BTC/USD, see README), not returned on the stack.
-        println!(
-            "BTC/USD: ${:.2}  (raw: {}, 8 decimals)",
-            median as f64 / 100_000_000.0,
-            median
+    for i in 2..next_index {
+        let w = storage
+            .get_map_item(
+                &publishers_slot,
+                StorageMapKey::new([Felt::new(i)?, ZERO, ZERO, ZERO].into()),
+            )
+            .with_context(|| format!("publisher at index {i}"))?;
+        if w[0] == ZERO && w[1] == ZERO {
+            continue; // removed by the multisig
+        }
+        let id = AccountId::new_unchecked([w[0], w[1]]);
+        client.import_account_by_id(id).await?;
+        foreign_accounts.insert(
+            id,
+            ForeignAccount::public(
+                id,
+                AccountStorageRequirements::new([(
+                    entries_slot.clone(),
+                    &[StorageMapKey::new(key.key)],
+                )]),
+            )?,
         );
     }
+    client.sync_state().await?;
+    println!("Publishers registered: {}", foreign_accounts.len() - 1);
 
+    // The consumer calls the oracle by the MAST root of the procedure. The root changes if an upgrade
+    // touches the procedure: pin the oracle id and follow the announcements.
+    let (name, extra) = match args.max_age {
+        Some(max_age) => ("get_median_with_max_age", format!("push.{max_age}")),
+        None => ("get_median", String::new()),
+    };
+    let script = CodeBuilder::default()
+        .with_dynamically_linked_package(&*get_oracle_v1_component_library())
+        .map_err(|e| anyhow::anyhow!("library error: {e:?}"))?
+        .compile_tx_script(format!(
+            "
+            use oracle_component::oracle_module
+            use miden::protocol::tx
+            use miden::core::sys
+
+            @transaction_script
+            pub proc main
+                {extra} {key}
+                procref.oracle_module::{name}
+                push.{prefix} push.{suffix}
+                # => [oracle_suffix, oracle_prefix, PROC_ROOT, KEY, (max_age)]
+                exec.tx::execute_foreign_procedure
+                exec.sys::truncate_stack
+            end
+            ",
+            key = key.push(),
+            prefix = oracle_id.prefix().as_felt(),
+            suffix = oracle_id.suffix(),
+        ))
+        .map_err(|e| anyhow::anyhow!("compile error: {e:?}"))?;
+
+    let stack = client
+        .execute_program(consumer.id(), script, AdviceInputs::default(), foreign_accounts)
+        .await
+        .map_err(|e| {
+            let detail = format!("{e:?}");
+            if detail.contains(&ORACLE_PAUSED_ERR_CODE.to_string()) {
+                anyhow::anyhow!("the oracle is paused: no price until it is unpaused")
+            } else {
+                anyhow::anyhow!("foreign call failed: {detail}")
+            }
+        })?;
+    ensure!(stack.len() >= 4, "unexpected output");
+    let (num_publishers, median, decimals, last_updated) = (
+        stack[0].as_canonical_u64(),
+        stack[1].as_canonical_u64(),
+        stack[2].as_canonical_u64(),
+        stack[3].as_canonical_u64(),
+    );
+    println!("Oracle answered: publishers={num_publishers} median={median} decimals={decimals} last_updated={last_updated}");
+
+    // The checks of docs/oracle-v1-consumer.md.
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    ensure!(
+        !(num_publishers == 0 && last_updated == 0),
+        "{}: nobody ever published this pair (check the name)",
+        key.pair
+    );
+    ensure!(num_publishers > 0, "{}: late, last entry {} s ago", key.pair, now.saturating_sub(last_updated));
+    ensure!(
+        num_publishers >= args.min_publishers,
+        "only {num_publishers} publisher(s), {} required",
+        args.min_publishers
+    );
+    ensure!(decimals == args.decimals, "decimals are {decimals}, expected {}", args.decimals);
+    ensure!(median > 0, "zero price");
+
+    println!(
+        "{}: {:.*} from {num_publishers} publisher(s), newest entry {} s old",
+        key.pair,
+        decimals as usize,
+        median as f64 / 10f64.powi(decimals as i32),
+        now.saturating_sub(last_updated)
+    );
     Ok(())
 }

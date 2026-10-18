@@ -782,8 +782,8 @@ name = "consume-price"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
  "miden-client",
- "miden-client-sqlite-store",
  "miden-protocol",
  "miden-standards",
  "pm-accounts",

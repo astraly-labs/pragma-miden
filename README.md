@@ -61,8 +61,8 @@ The target code is the oracle compiled in the binary. Storage can't be upgraded:
 ```bash
 git clone https://github.com/astraly-labs/pragma-miden
 cd pragma-miden
-cargo run --release -p consume-price
-# BTC/USD: $68199.00
+cargo run --release -p consume-price -- --oracle <ORACLE_ID> --pair BTC/USD
+# BTC/USD: 68199.00000000 from 3 publisher(s), newest entry 4 s old
 ```
 
 **Publish prices (Python SDK):**
