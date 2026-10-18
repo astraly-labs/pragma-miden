@@ -131,7 +131,12 @@ async fn main() -> Result<()> {
         .map_err(|e| anyhow::anyhow!("compile error: {e:?}"))?;
 
     let stack = client
-        .execute_program(consumer.id(), script, AdviceInputs::default(), foreign_accounts)
+        .execute_program(
+            consumer.id(),
+            script,
+            AdviceInputs::default(),
+            foreign_accounts,
+        )
         .await
         .map_err(|e| {
             let detail = format!("{e:?}");
@@ -157,13 +162,22 @@ async fn main() -> Result<()> {
         "{}: nobody ever published this pair (check the name)",
         key.pair
     );
-    ensure!(num_publishers > 0, "{}: late, last entry {} s ago", key.pair, now.saturating_sub(last_updated));
+    ensure!(
+        num_publishers > 0,
+        "{}: late, last entry {} s ago",
+        key.pair,
+        now.saturating_sub(last_updated)
+    );
     ensure!(
         num_publishers >= args.min_publishers,
         "only {num_publishers} publisher(s), {} required",
         args.min_publishers
     );
-    ensure!(decimals == args.decimals, "decimals are {decimals}, expected {}", args.decimals);
+    ensure!(
+        decimals == args.decimals,
+        "decimals are {decimals}, expected {}",
+        args.decimals
+    );
     ensure!(median > 0, "zero price");
 
     println!(
