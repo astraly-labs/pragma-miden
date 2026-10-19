@@ -106,9 +106,6 @@ pub fn oracle_v1_proc_thresholds(
     ])
 }
 
-/// Domain separator of the pair keys: bumping it changes every key, so it never changes.
-const PAIR_KEY_DOMAIN: &str = "pragma/v1/";
-
 /// The canonical name of a pair: upper case `BASE/QUOTE` with alphanumeric assets (`BTC/USD`).
 /// Anything else is rejected rather than silently mapped to another key.
 pub fn canonical_pair(pair: &str) -> anyhow::Result<String> {
@@ -125,16 +122,14 @@ pub fn canonical_pair(pair: &str) -> anyhow::Result<String> {
     Ok(canonical)
 }
 
-/// The on-chain key of a pair: the Poseidon2 hash of `pragma/v1/<BASE>/<QUOTE>`.
+/// The on-chain key of a pair: the Poseidon2 hash of its canonical name, `<BASE>/<QUOTE>` in upper case.
 ///
 /// Nothing to register and nothing to reassign: the key is a pure function of the pair name, so
 /// every publisher, consumer and tool derives the same word. In MASM, push the word with its hex
 /// literal.
 pub fn pair_key(pair: &str) -> anyhow::Result<Word> {
     let canonical = canonical_pair(pair)?;
-    Ok(Hasher::hash(
-        format!("{PAIR_KEY_DOMAIN}{canonical}").as_bytes(),
-    ))
+    Ok(Hasher::hash(canonical.as_bytes()))
 }
 
 /// Error code of the assertion that fails every read while the oracle is paused (`oracle is

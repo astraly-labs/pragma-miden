@@ -131,7 +131,7 @@ impl InitCmd {
             r#"
                 📊 Command Structure:
                 ╭────────────────────────────────────────────────────────────╮
-                │ pm-publisher-cli publish [FAUCET_ID] [PRICE] [DECIMALS] [TS]│
+                │ pm-publisher-cli publish [PAIR] [PRICE] [DECIMALS] [TS]     │
                 ╰────────────────────────────────────────────────────────────╯
                 "#
             .bright_blue()
@@ -142,7 +142,7 @@ impl InitCmd {
             "{}",
             r#"
                 ╭────────────────────────────────────────────────────────────╮
-                │ pm-publisher-cli publish 1:0 95000000000 6 1733844099      │
+                │ pm-publisher-cli publish BTC/USD 9500000000000 8 1733844099│
                 ╰────────────────────────────────────────────────────────────╯
                 "#
             .bright_blue()
@@ -152,17 +152,12 @@ impl InitCmd {
             "{}",
             r#"
                 💡 Parameters Explained:
-                • FAUCET_ID: Asset identifier (e.g., 1:0 for BTC/USD)
-                • PRICE    : Current price (e.g., 95000000000)
-                • DECIMALS : Number of decimal places (e.g., 6)
-                • TIMESTAMP: Current Unix timestamp
-                
-                📋 Faucet ID Mapping:
-                • 1:0 = BTC/USD   • 2:0 = ETH/USD   • 3:0 = WBTC/USD  • 4:0 = USDT/USD  • 5:0 = DAI/USD
-                • 6:0 = ZEC/USD   • 7:0 = XMR/USD   • 8:0 = DASH/USD  • 9:0 = XAUT/USD  • 10:0 = PAXG/USD
-                • 11:0 = LINK/USD • 12:0 = UNI/USD  • 13:0 = AAVE/USD • 14:0 = MORPHO/USD
-                • 15:0 = USDC/USD
-                "#
+                • PAIR     : BASE/QUOTE in upper case (e.g., BTC/USD); its on-chain key is derived from the name
+                • PRICE    : Price as an integer scaled by 10^DECIMALS (e.g., 9500000000000)
+                • DECIMALS : min(base decimals, quote decimals) of the pair (8 for BTC/USD, 6 for USDC/USD)
+                • TIMESTAMP: Unix time of the price you observed
+                • --num-sources: how many independent exchanges fed the price
+                                "#
             .bright_yellow()
         );
 

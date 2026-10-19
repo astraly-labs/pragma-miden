@@ -35,63 +35,63 @@ fn keys_are_frozen() {
 const FROZEN: &[(&str, &str)] = &[
     (
         "BTC/USD",
-        "0x44323e1bd7e4db3c183489902ee15223ce68fadd389935ef4b647e4f2fd4dd56",
+        "0xd189b4e9c38c367ba926ddb0044b781ca8fff18dcc10a0c75ff5600a1eb4d0eb",
     ),
     (
         "ETH/USD",
-        "0x2343857a7bf96696c57b506018559cd6878c73b8564c90491950f96280955445",
+        "0x9a50f4137c634e0b384a87bea3a186e578e21274af6ae752230ead4631233e1d",
     ),
     (
         "WBTC/USD",
-        "0x7a4a26fba5ab119d6fa96442acd26fc3a3ecec94cfdef00e23e2c9ab1619b7ed",
+        "0x4c972cdae7848e436e54fc4a19fa00ad5eded1b9c959744e16485a1d673217cd",
     ),
     (
         "USDT/USD",
-        "0x552d0b1ce1b93ab3749b11f36054bcc6604ca49e7d8be823f40ab6854b57d786",
+        "0x6cbc5578f2e294131c429b5be03ef87692da0d4300816ae7238058817c6a8085",
     ),
     (
         "DAI/USD",
-        "0x2dccf10abbacebb70ea4c248be2bf104c9788e8ad3fee016d909da0c874fd295",
+        "0x59660b43348776410276dc5bc2934ca549660b0faf88299acc7a003283f90e6e",
     ),
     (
         "ZEC/USD",
-        "0x876668e170f809ef7099c8ade3088b6fbf0e54b649db4a783644f4a576be94fe",
+        "0x39179ab0864e74f9f5160fa3bcf182ed2ee70a81ff40784b561d197fe8e25681",
     ),
     (
         "XMR/USD",
-        "0x8639235f652f268a657017176b2941b1f3c59aac6b63cec94a9a9df0212fe65e",
+        "0xc7abe26df1eab19ff1b48f8ecbf31efda088362551f2c026e0f23add86dc3cbe",
     ),
     (
         "DASH/USD",
-        "0xe6c166dfd263ed763d959847f830020627e5fd3827e365f20f41f0653159b6e1",
+        "0x2184974137b3e2018306c63381590e30b2cbffc503a7e7a4003a55fb1c9fede2",
     ),
     (
         "XAUT/USD",
-        "0x69ce100018957585f34173d5a967c9eca59bdaade34e52848c5c4e4e450d9f36",
+        "0xb6246558eb55426ad719c05c058b66f87da325120789876aa5e3af156f90896c",
     ),
     (
         "PAXG/USD",
-        "0xcf25ab8ebb781fb3babb91e3eafedf083c63a6be81cfd6a6236b0bf628fdba97",
+        "0x286672fe34caa39c41a593157ecdcdb88543b12e462ad8dea33f685039acaba2",
     ),
     (
         "LINK/USD",
-        "0x768c43414e8b9abf36b5d666277609273013d77e120235505bf871ad3fe7cf05",
+        "0x47966fdc920a12359900a930cd5ec3e5c583e542a2ca4b5061013d401c55fc80",
     ),
     (
         "UNI/USD",
-        "0x686733e8ac27b5c81429e0a563cb039cd818201709e021bc4325dcf984fad029",
+        "0x28b5da79b6aab6289ab569fc3b679226b0d113fb1d9f0df62410a93241b3c29c",
     ),
     (
         "AAVE/USD",
-        "0x7f4e027d4e2636f7a0f451dd4fc00afb5cbe4d4df11a52dfd6e1465c9755f42a",
+        "0x8f738295d669c20ccd2fd738b2284def832da2ded53b9afc22e8746f1c84c7e6",
     ),
     (
         "MORPHO/USD",
-        "0xbc7d5128dad10d9b0848398ca7cd373bef5002fe24f95d688b3e8636f812bdc4",
+        "0xfd585c6cd7a15d199c4914a57e5533c8327e31eb3515099002d1add2647bb23b",
     ),
     (
         "USDC/USD",
-        "0x667a47fc84d6f1402e6052087f536af024c0ba2e2e56d414ec5c55759dd3468e",
+        "0x1dfbb6c4acb913805c4df6731bfe7bfb8b6acd999bb768feb24979170807ee51",
     ),
 ];
 
