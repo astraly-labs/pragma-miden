@@ -21,9 +21,6 @@ const ERR_PUBLISHER_NOT_REGISTERED = "publisher not registered"
 # (`get_median_with_max_age`). Policy value, to be confirmed before mainnet.
 const DEFAULT_MAX_AGE_SECONDS=120
 
-# Error if a read is attempted while the oracle is paused.
-const ERR_ORACLE_PAUSED = "oracle is paused"
-
 # Pause flag: [paused, 0, 0, 0], paused is 0 or 1. Toggled by `pause` / `unpause`, whose
 # authorization is the account's own auth (multisig thresholds per procedure).
 const PAUSED_SLOT=word("pragma::oracle::paused")
@@ -421,11 +418,22 @@ proc read_prices
     # => [num_publishers, median_price, decimals, last_updated]
 end
 
-#! Fails if the oracle is paused.
-proc assert_not_paused
+#! Reads the prices unless the oracle is paused. A paused oracle has no price to give: it answers
+#! like a pair nobody ever published, so a consumer handles it on the same path as "no price"
+#! (a failing foreign call would abort the consumer's whole transaction, and it cannot be caught).
+#!
+#! Inputs:  [KEY(4), max_age]
+#! Outputs: [num_publishers, median_price, decimals, last_updated]
+proc read_prices_unless_paused
     push.PAUSED_SLOT[0..2] exec.active_account::get_item
     movdn.3 drop drop drop
-    assertz.err=ERR_ORACLE_PAUSED
+    # => [paused, KEY(4), max_age]
+    if.true
+        dropw drop
+        push.0.0.0.0
+    else
+        exec.read_prices
+    end
 end
 
 #! Reads the median price of a pair with the default freshness window.
@@ -433,15 +441,15 @@ end
 #! Inputs:  [KEY(4)]
 #! Outputs: [num_publishers, median_price, decimals, last_updated]
 #!
-#! Fails if the oracle is paused. See `read_prices` for the meaning of every output.
+#! While the oracle is paused it answers [0, 0, 0, 0] (no price). See `read_prices` for the meaning
+#! of every output.
 @account_procedure
 pub proc get_median
-    exec.assert_not_paused
     push.DEFAULT_MAX_AGE_SECONDS
     # => [max_age, KEY(4)] -> move max_age below the key
     movdn.4
     # => [KEY(4), max_age]
-    exec.read_prices
+    exec.read_prices_unless_paused
     exec.sys::truncate_stack
 end
 
@@ -450,15 +458,15 @@ end
 #! Inputs:  [KEY(4), max_age]
 #! Outputs: [num_publishers, median_price, decimals, last_updated]
 #!
-#! Fails if the oracle is paused. `max_age` is not capped: a caller can accept old data on purpose.
+#! While the oracle is paused it answers [0, 0, 0, 0] (no price). `max_age` is not capped: a caller can
+#! accept old data on purpose.
 @account_procedure
 pub proc get_median_with_max_age
-    exec.assert_not_paused
-    exec.read_prices
+    exec.read_prices_unless_paused
     exec.sys::truncate_stack
 end
 
-#! Pauses the oracle: reads fail until `unpause`. Who may call it is decided by the account's
+#! Pauses the oracle: reads answer "no price" until `unpause`. Who may call it is decided by the account's
 #! authentication (e.g. a multisig threshold of 1 for this procedure).
 #!
 #! Inputs:  []

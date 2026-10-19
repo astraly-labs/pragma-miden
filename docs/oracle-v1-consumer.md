@@ -28,7 +28,8 @@ get_median_with_max_age(KEY, max_age) -> same, with your own freshness window
    `decimals` are `0` and must never be used. The call does not fail in that case. Pick a minimum
    that matches the value at risk: with a single publisher the "median" is that publisher alone.
 2. **Distinguish late from unknown.** `num_publishers = 0` with `last_updated > 0` is a late pair;
-   both at `0` is a key nobody ever published, which is also what a typo in the pair name produces.
+   both at `0` is a key nobody ever published, which is also what a typo in the pair name produces
+   and what a paused oracle answers.
    Derive the key with `pair_key`, never by hand, and test it against a pair you know is live.
 3. **Freshness against your own tolerance.** The default 120 s is a general-purpose window,
    not a safety margin for your protocol. If you liquidate, settle or mint on this price, call `get_median_with_max_age` with
@@ -44,12 +45,12 @@ get_median_with_max_age(KEY, max_age) -> same, with your own freshness window
 
 ## Things that can change under you
 
-- **Pause.** While the oracle is paused every read fails with `oracle is paused`. The whole
-  transaction that made the foreign call fails with it and cannot be caught, so design for that: a
-  paused oracle blocks the actions that depend on a price, it never returns a stale one. A node
-  without debug info reports the failed assertion by its code only, `13870478862780963547`
-  (`ORACLE_PAUSED_ERR_CODE` in `pm-accounts`), and not by its message: that code means the oracle is
-  paused. `pm-oracle-cli median` translates it.
+- **Pause.** We can pause the oracle in an incident (one signer). While it is paused, `get_median`
+  and `get_median_with_max_age` do not fail: they answer `[0, 0, 0, 0]`, "no price", which is the
+  answer for a pair nobody published. A foreign call that fails would abort your whole transaction
+  and cannot be caught on Miden, so a paused oracle is handled on the same path as a missing price:
+  the check on `num_publishers` below is what protects you, and you decide whether to block, fall back
+  or wait. `pm-oracle-cli median` reads the pause flag and says so; `pm-multisig status` shows it.
 - **Procedure root.** A foreign procedure invocation is bound to the MAST root of `get_median`. The
   oracle is code-upgradable (multisig, full quorum), and an upgrade that touches `get_median` or what
   it calls changes the root, after which a call using the old root fails (`UnknownAccountProcedure`, seen on

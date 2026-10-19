@@ -365,7 +365,7 @@ async fn a_removed_publisher_is_ignored_entirely() -> Result<()> {
 }
 
 #[tokio::test]
-async fn pause_blocks_reads_until_unpause() -> Result<()> {
+async fn pause_answers_no_price_until_unpause() -> Result<()> {
     let mut w = world(vec![vec![(key(), entry(100, 8, NOW - 5))]]).await?;
     let ok = || Expected {
         num_publishers: 1,
@@ -373,22 +373,19 @@ async fn pause_blocks_reads_until_unpause() -> Result<()> {
         decimals: 8,
         last_updated: NOW - 5,
     };
+    let no_price = || Expected {
+        num_publishers: 0,
+        median: 0,
+        decimals: 0,
+        last_updated: 0,
+    };
     w.read(None, ok()).await?;
 
+    // A paused oracle does not fail the consumer's transaction: it answers like an unknown pair,
+    // through both read procedures.
     w.call("call.oracle_module::pause").await?;
-    let paused = w
-        .read(None, ok())
-        .await
-        .expect_err("reads must fail while paused");
-    assert!(
-        format!("{paused:?}").contains("oracle is paused"),
-        "unexpected error: {paused:?}"
-    );
-    let paused_with_age = w
-        .read(Some(60), ok())
-        .await
-        .expect_err("both read procedures are paused");
-    assert!(format!("{paused_with_age:?}").contains("oracle is paused"));
+    w.read(None, no_price()).await?;
+    w.read(Some(60), no_price()).await?;
 
     w.call("call.oracle_module::unpause").await?;
     w.read(None, ok()).await

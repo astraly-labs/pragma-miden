@@ -73,7 +73,7 @@ impl Action {
             Self::ReplacePublisher { old, new } => {
                 format!("replace publisher {old} by {new} (register the new, remove the old)")
             }
-            Self::Pause => "pause the oracle (reads fail until unpaused)".into(),
+            Self::Pause => "pause the oracle (reads answer \"no price\" until unpaused)".into(),
             Self::Unpause => "unpause the oracle".into(),
             Self::Upgrade { code_commitment } => {
                 format!("upgrade the account code to {code_commitment}")

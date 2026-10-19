@@ -10,7 +10,7 @@ use miden_client::{keystore::FilesystemKeyStore, Client, Felt, ZERO};
 use miden_protocol::account::{StorageMapKey, StorageSlotName};
 use miden_protocol::vm::AdviceInputs;
 use miden_standards::code_builder::CodeBuilder;
-use pm_accounts::oracle_v1::{get_oracle_v1_component_library, PairKey, ORACLE_PAUSED_ERR_CODE};
+use pm_accounts::oracle_v1::{get_oracle_v1_component_library, PairKey};
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -43,6 +43,8 @@ impl PairRead {
 pub struct OracleView {
     oracle_id: AccountId,
     publishers: Vec<AccountId>,
+    /// A paused oracle answers "no price" to every read.
+    paused: bool,
 }
 
 fn slot(name: &str) -> Result<StorageSlotName> {
@@ -77,6 +79,11 @@ pub async fn load_oracle(
         .context("oracle account not found")?;
     let storage = account.storage();
 
+    let paused = storage
+        .get_item(&slot("pragma::oracle::paused")?)
+        .context("unable to retrieve the pause flag")?[0]
+        .as_canonical_u64()
+        == 1;
     let next_index = slot("pragma::oracle::next_publisher_index")?;
     let publisher_count = storage
         .get_item(&next_index)
@@ -104,6 +111,7 @@ pub async fn load_oracle(
     Ok(OracleView {
         oracle_id,
         publishers,
+        paused,
     })
 }
 
@@ -170,15 +178,12 @@ pub async fn read_pair(
             foreign_accounts,
         )
         .await
-        .map_err(|e| {
-            let detail = format!("{e:?}");
-            if detail.contains(&ORACLE_PAUSED_ERR_CODE.to_string()) {
-                anyhow::anyhow!("the oracle is paused: reads fail until it is unpaused")
-            } else {
-                anyhow::anyhow!("failed to read {}: {detail}", key.pair)
-            }
-        })?;
+        .map_err(|e| anyhow::anyhow!("failed to read {}: {e:?}", key.pair))?;
     anyhow::ensure!(stack.len() >= 4, "unexpected output for {}", key.pair);
+    anyhow::ensure!(
+        !(view.paused && stack[0].as_canonical_u64() == 0),
+        "the oracle is paused: it answers \"no price\" until it is unpaused"
+    );
     Ok(PairRead {
         pair: key.pair,
         num_publishers: stack[0].as_canonical_u64(),
