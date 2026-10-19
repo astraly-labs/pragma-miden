@@ -1,55 +1,40 @@
 # consume-price
 
-Minimal example that reads the BTC/USD price from the Pragma oracle on Miden testnet.
+A consumer of the Pragma oracle v1 on Miden. It creates a throwaway account of its own, calls
+`get_median` on the oracle through a Foreign Procedure Invocation (FPI), then applies the checks a
+consumer owes its own use of the price (see [`docs/oracle-v1-consumer.md`](../../docs/oracle-v1-consumer.md)).
 
 ## Run
 
 ```bash
 git clone https://github.com/astraly-labs/pragma-miden
 cd pragma-miden
-cargo run --release -p consume-price
+cargo run --release -p consume-price -- --oracle <ORACLE_ID> --pair BTC/USD
 ```
 
-Expected output:
+```
+Consumer account: 0xc99d6606798ed24139a06b72528cdd
+Publishers registered: 2
+Oracle answered: publishers=2 median=8098771542703 decimals=8 last_updated=1792334980
+BTC/USD: 80987.71542703 from 2 publisher(s), newest entry 13 s old
+```
 
-```
-Syncing with testnet...
-Latest block: 651945
-Registered publishers: 1
-Imported publisher: 0x6de0c1c9a43d5a9103a32ae348cbaa
-BTC/USD: $78600.70  (raw: 7860070031031, 8 decimals)
-```
+Options: `--decimals` (what your arithmetic assumes, 8 by default), `--min-publishers` (2 by default),
+`--max-age` (seconds, the oracle default of 120 s when omitted).
+
+The run fails, with the reason, when the oracle is paused, when nobody ever published the pair (a typo in
+the name produces the same answer), when the pair is late, when too few publishers back the price, or when
+the decimals are not the ones you expect.
 
 ## How it works
 
-1. Connects to `rpc.testnet.miden.io` via `miden-client`
-2. Fetches the oracle account and reads the registered publisher list from its storage map
-3. Imports each publisher account as a `ForeignAccount`
-4. Executes a transaction script that calls `get_median` on the oracle via FPI (Foreign Procedure Invocation)
-5. Prints the median price returned on the stack
+1. Connects to the Miden testnet with `miden-client`; the local state is in `./miden_storage`.
+2. Imports the oracle and reads the registered publishers from its storage (removed slots are skipped).
+3. Compiles a transaction script linked to the oracle library: `procref` gives the MAST root of
+   `get_median` and `execute_foreign_procedure` calls it on the oracle account. A smart contract does the
+   same from its own code.
+4. The oracle and every publisher are declared as foreign accounts of the transaction.
+5. Reads `[num_publishers, median, decimals, last_updated]` off the stack and checks it.
 
-Local state is stored in `./miden_storage/store.sqlite3` (created automatically).
-
-## Change the asset
-
-Edit `PAIR_PREFIX` / `PAIR_SUFFIX` in `src/main.rs`:
-
-| faucet_id | PREFIX | SUFFIX | Asset      | decimals |
-|-----------|--------|--------|------------|----------|
-| `1:0`     | `1`    | `0`    | BTC/USD    | 8        |
-| `2:0`     | `2`    | `0`    | ETH/USD    | 8        |
-| `3:0`     | `3`    | `0`    | WBTC/USD   | 8        |
-| `4:0`     | `4`    | `0`    | USDT/USD   | 6        |
-| `5:0`     | `5`    | `0`    | DAI/USD    | 8        |
-| `6:0`     | `6`    | `0`    | ZEC/USD    | 8        |
-| `7:0`     | `7`    | `0`    | XMR/USD    | 8        |
-| `8:0`     | `8`    | `0`    | DASH/USD   | 8        |
-| `9:0`     | `9`    | `0`    | XAUT/USD   | 6        |
-| `10:0`    | `10`   | `0`    | PAXG/USD   | 8        |
-| `11:0`    | `11`   | `0`    | LINK/USD   | 8        |
-| `12:0`    | `12`   | `0`    | UNI/USD    | 8        |
-| `13:0`    | `13`   | `0`    | AAVE/USD   | 8        |
-| `14:0`    | `14`   | `0`    | MORPHO/USD | 8        |
-| `15:0`    | `15`   | `0`    | USDC/USD   | 6        |
-
-`get_median` returns the raw integer only: scale it by the pair's decimals (`min(base.decimals, quote.decimals)` in pragma-sdk, 8 for most pairs, 6 for USDT/USD, USDC/USD and XAUT/USD).
+The foreign call is bound to the MAST root of `get_median`: an oracle upgrade that touches the procedure
+changes the root. Pin the oracle id and follow the upgrade announcements.

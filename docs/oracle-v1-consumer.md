@@ -51,8 +51,9 @@ get_median_with_max_age(KEY, max_age) -> same, with your own freshness window
   paused. `pm-oracle-cli median` translates it.
 - **Procedure root.** A foreign procedure invocation is bound to the MAST root of `get_median`. The
   oracle is code-upgradable (multisig, full quorum), and an upgrade that touches `get_median` or what
-  it calls changes the root, after which a call using the old root fails. Pin the oracle account id
-  and the root, and follow the upgrade announcements.
+  it calls changes the root, after which a call using the old root fails (`UnknownAccountProcedure`, seen on
+  the testnet after an upgrade of the dummy oracle). Pin the oracle account id and the root, and follow
+  the upgrade announcements. `examples/consume-price` is a complete consumer using this call.
 - **Publisher set.** Publishers are added and removed by the multisig (default quorum). The median
   moves accordingly, which is why `num_publishers` is part of the answer.
 
