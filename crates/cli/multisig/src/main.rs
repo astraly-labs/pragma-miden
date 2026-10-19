@@ -306,7 +306,7 @@ async fn main() -> Result<()> {
             if !yes && !confirm("Sign this?")? {
                 bail!("not signed");
             }
-            let file = proposal::sign(&proposal, &reproduced, &secret).await?;
+            let file = proposal::sign(&client, &proposal, &reproduced, &secret).await?;
             write_json(&out, &file)?;
             println!("signature of {} written to {}", file.signer, out.display());
         }

@@ -7,11 +7,11 @@ use miden_client::{
     transaction::{ChainAnchor, TransactionRequest, TransactionRequestBuilder},
     Client, ClientError,
 };
-use miden_protocol::account::auth::AuthSecretKey;
+use miden_protocol::account::{auth::AuthSecretKey, StorageMapKey};
 use miden_protocol::block::{BlockHeader, BlockNumber};
 use miden_protocol::crypto::SequentialCommit;
 use miden_protocol::{Felt, Hasher, Word};
-use miden_standards::account::auth::{FeeConversionInfo, MultisigAuthArgs};
+use miden_standards::account::auth::{AuthMultisig, FeeConversionInfo, MultisigAuthArgs};
 use miden_tx::auth::{SigningInputs, TransactionAuthenticator};
 use miden_tx::utils::serde::Serializable;
 use miden_tx::TransactionExecutorError;
@@ -277,12 +277,42 @@ pub async fn verify(client: &mut MidenClient, proposal: &Proposal) -> Result<Rep
     })
 }
 
+/// The public key commitments allowed to approve on the account, as the local copy knows them.
+pub async fn signers(client: &MidenClient, account_id: AccountId) -> Result<Vec<Word>> {
+    let account = client
+        .get_account(account_id)
+        .await?
+        .context("account missing")?;
+    let storage = account.storage();
+    let count = storage.get_item(AuthMultisig::threshold_config_slot())?[1].as_canonical_u64();
+    (0..count)
+        .map(|i| {
+            storage
+                .get_map_item(
+                    AuthMultisig::approver_public_keys_slot(),
+                    StorageMapKey::from_index(i as u32),
+                )
+                .map_err(Into::into)
+        })
+        .collect()
+}
+
 pub async fn sign(
+    client: &MidenClient,
     proposal: &Proposal,
     reproduced: &Reproduced,
     secret: &AuthSecretKey,
 ) -> Result<SignatureFile> {
     let commitment = secret.public_key().to_commitment();
+    let account_id = AccountId::from_hex(&proposal.account_id)
+        .map_err(|e| anyhow::anyhow!("bad account id: {e}"))?;
+    ensure!(
+        signers(client, account_id)
+            .await?
+            .contains(&Word::from(commitment)),
+        "{} is not a signer of this account: it would be rejected at execution",
+        Word::from(commitment).to_hex()
+    );
     let signature = keys::authenticator(secret)
         .get_signature(commitment, &reproduced.signing)
         .await?;
@@ -340,7 +370,15 @@ pub async fn execute(
     let executed = client
         .execute_transaction_at(account_id, request, reproduced.anchor)
         .await
-        .map_err(|e| anyhow::anyhow!("the account rejected the signatures: {e:?}"))?;
+        .map_err(|e| match e {
+            ClientError::TransactionExecutorError(TransactionExecutorError::Unauthorized(_)) => {
+                anyhow::anyhow!(
+                    "the account rejected the signatures: not enough approvals from its current \
+                     signers for this action (see `status` for the signers and thresholds)"
+                )
+            }
+            e => anyhow::anyhow!("the account rejected the transaction: {e:?}"),
+        })?;
     let proven = client.prove_transaction(&executed).await?;
     let height = client.submit_proven_transaction(proven, &executed).await?;
     client.apply_transaction(&executed, height).await?;
