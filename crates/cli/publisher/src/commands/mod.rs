@@ -15,8 +15,8 @@ use init::InitCmd;
 use key::PairKeyCmd;
 use pm_types::Entry;
 use pm_utils_cli::{
-    get_publisher_id, setup_devnet_client, setup_local_client, setup_testnet_client, BalanceCmd,
-    ConsumeCmd, FundCmd, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
+    get_publisher_id, setup_network_client, BalanceCmd, ConsumeCmd, FundCmd, Network,
+    PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
 };
 use publish::PublishCmd;
 use publish_batch::PublishBatchCmd;
@@ -67,26 +67,9 @@ impl SubCommand {
         }
         let crate_path = PathBuf::new();
         let store_config = crate_path.join(STORE_FILENAME);
-        let mut client = match network {
-            "testnet" => {
-                println!("Using testnet client");
-                setup_testnet_client(Some(store_config), None).await?
-            }
-            "devnet" => {
-                println!("Using devnet client");
-                setup_devnet_client(Some(store_config), None).await?
-            }
-            "local" => {
-                println!("Using local client");
-                setup_local_client(Some(store_config), None).await?
-            }
-            other => {
-                return Err(anyhow::anyhow!(
-                    "Unknown network '{}'. Must be 'local', 'devnet' or 'testnet'",
-                    other
-                ));
-            }
-        };
+        let net = Network::parse(network)?;
+        println!("Using {net} client");
+        let mut client = setup_network_client(net, Some(store_config), None).await?;
         match self {
             Self::Init(cmd) => {
                 cmd.call(&mut client, network).await?;
@@ -113,6 +96,7 @@ impl SubCommand {
                 Ok(CommandOutput::Entry(entry))
             }
             Self::Fund(cmd) => {
+                net.require_faucet()?;
                 let id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
                 cmd.call(&mut client, id).await?;
                 Ok(CommandOutput::None)

@@ -1,4 +1,4 @@
-use crate::STORE_FILENAME;
+use crate::{Network, STORE_FILENAME};
 use miden_client::grpc_support::{DEVNET_PROVER_ENDPOINT, TESTNET_PROVER_ENDPOINT};
 use miden_client::{
     account::{
@@ -93,6 +93,16 @@ fn default_keystore_path() -> String {
             None => return "./keystore".to_string(),
         }
     }
+}
+
+/// Builds the client for a network: its node, and its hosted prover when it has one.
+pub async fn setup_network_client(
+    network: Network,
+    path: Option<PathBuf>,
+    keystore_path: Option<String>,
+) -> anyhow::Result<Client<FilesystemKeyStore>> {
+    let prover = network.prover();
+    Ok(setup_client(network.endpoint()?, prover.as_deref(), path, keystore_path).await?)
 }
 
 pub async fn setup_local_client(
