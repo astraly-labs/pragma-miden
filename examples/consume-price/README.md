@@ -19,7 +19,7 @@ Oracle answered: publishers=2 median=8098771542703 decimals=8 last_updated=17923
 BTC/USD: 80987.71542703 from 2 publisher(s), newest entry 13 s old
 ```
 
-Options: `--decimals` (what your arithmetic assumes, 8 by default), `--min-publishers` (2 by default),
+Options: `--network` (`testnet` by default, `mainnet` for production), `--decimals` (what your arithmetic assumes, 8 by default), `--min-publishers` (2 by default),
 `--max-age` (seconds, the oracle default of 120 s when omitted).
 
 The run fails, with the reason, when the oracle is paused (it then answers "no price"), when nobody ever

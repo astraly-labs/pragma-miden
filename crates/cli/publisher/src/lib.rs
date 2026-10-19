@@ -1,7 +1,7 @@
 use miden_client::account::AccountId;
 use miden_client::note::NoteId;
 use miden_client::{keystore::FilesystemKeyStore, Client};
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::future::Future;
@@ -16,8 +16,8 @@ use crate::commands::{
 };
 use pm_utils_cli::{
     consume_notes, faucet_metadata, fee_asset_balance, fund_account, get_publisher_id,
-    setup_devnet_client, setup_local_client, setup_testnet_client, PRAGMA_ACCOUNTS_STORAGE_FILE,
-    STORE_FILENAME, TESTNET_FAUCET_API,
+    setup_network_client, Network, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
+    TESTNET_FAUCET_API,
 };
 
 /// Single shared Tokio runtime for the lifetime of the Python process.
@@ -428,6 +428,9 @@ fn py_fund(
         let store_config = get_store_config(storage_path);
         let network_str = network.as_deref().unwrap_or("testnet");
         let key = client_key(network_str, &store_config, keystore_path.as_deref());
+        let net = Network::parse(network_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        net.require_faucet()
+            .map_err(|e| PyRuntimeError::new_err(format!("Fund failed: {e}")))?;
         let client_arc = cached_client(network_str, store_config, keystore_path).await?;
         let mut client = client_arc.lock().await;
 
@@ -526,32 +529,11 @@ async fn setup_client(
     store_config: PathBuf,
     keystore_path: Option<String>,
 ) -> PyResult<Client<FilesystemKeyStore>> {
-    match network {
-        "devnet" => {
-            println!("Initializing devnet client");
-            setup_devnet_client(Some(store_config), keystore_path)
-                .await
-                .map_err(|e| PyValueError::new_err(format!("Failed to setup devnet client: {}", e)))
-        }
-        "testnet" => {
-            println!("Initializing testnet client");
-            setup_testnet_client(Some(store_config), keystore_path)
-                .await
-                .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to setup testnet client: {}", e))
-                })
-        }
-        "local" => {
-            println!("Initializing local client");
-            setup_local_client(Some(store_config), keystore_path)
-                .await
-                .map_err(|e| PyValueError::new_err(format!("Failed to setup local client: {}", e)))
-        }
-        other => Err(PyValueError::new_err(format!(
-            "Unknown network '{}'. Must be 'local', 'devnet' or 'testnet'",
-            other
-        ))),
-    }
+    let net = Network::parse(network).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    println!("Initializing {net} client");
+    setup_network_client(net, Some(store_config), keystore_path)
+        .await
+        .map_err(|e| PyValueError::new_err(format!("Failed to setup {net} client: {e}")))
 }
 
 // Helper function to setup store configuration path

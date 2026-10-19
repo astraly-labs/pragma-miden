@@ -14,10 +14,13 @@ use miden_protocol::account::{AccountType, StorageMapKey, StorageSlotName};
 use miden_protocol::vm::AdviceInputs;
 use miden_standards::code_builder::CodeBuilder;
 use pm_accounts::oracle_v1::{get_oracle_v1_component_library, PairKey};
-use pm_utils_cli::{create_wallet, setup_testnet_client};
+use pm_utils_cli::{create_wallet, setup_network_client, Network};
 
 #[derive(Parser)]
 struct Args {
+    /// Network of the oracle (local, devnet, testnet or mainnet).
+    #[arg(long, default_value = "testnet")]
+    network: String,
     /// Oracle account id (hex).
     #[arg(long)]
     oracle: String,
@@ -46,7 +49,7 @@ async fn main() -> Result<()> {
     let key = PairKey::parse(&args.pair)?;
 
     // Local store in ./miden_storage, created on first run.
-    let mut client = setup_testnet_client(None, None).await?;
+    let mut client = setup_network_client(Network::parse(&args.network)?, None, None).await?;
     client.sync_state().await?;
 
     // The consumer: any account. A private wallet that never leaves this machine is enough to read.

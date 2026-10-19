@@ -10,7 +10,7 @@ use pm_multisig::account::{commitment_hex, parse_commitment, AccountSpec};
 use pm_multisig::action::{publisher_arg, signer_args, Action};
 use pm_multisig::keys;
 use pm_multisig::proposal::{self, MidenClient, Proposal, SignatureFile};
-use pm_utils_cli::{request_tokens, setup_devnet_client, setup_testnet_client, TESTNET_FAUCET_API};
+use pm_utils_cli::{request_tokens, setup_network_client, Network, TESTNET_FAUCET_API};
 use serde::{de::DeserializeOwned, Serialize};
 
 /// A block is about 3 seconds.
@@ -22,7 +22,7 @@ const BLOCKS_PER_HOUR: u32 = 1_200;
     about = "Administer the Pragma oracle through its multisig"
 )]
 struct Cli {
-    /// Network to use (testnet or devnet)
+    /// Network to use (local, devnet, testnet or mainnet)
     #[clap(short = 'n', long, default_value = "testnet", global = true)]
     network: String,
     /// Directory holding the local client store
@@ -148,11 +148,7 @@ async fn client(network: &str, dir: &Path) -> Result<MidenClient> {
     std::fs::create_dir_all(dir)?;
     let store = dir.join("store.sqlite3");
     let keystore = dir.join("keystore").to_string_lossy().into_owned();
-    Ok(match network {
-        "testnet" => setup_testnet_client(Some(store), Some(keystore)).await?,
-        "devnet" => setup_devnet_client(Some(store), Some(keystore)).await?,
-        other => bail!("unsupported network {other}"),
-    })
+    setup_network_client(Network::parse(network)?, Some(store), Some(keystore)).await
 }
 
 fn confirm(question: &str) -> Result<bool> {
@@ -223,6 +219,7 @@ async fn main() -> Result<()> {
             println!("account id: {}", account.id().to_hex());
         }
         Command::Fund { account, amount } => {
+            Network::parse(&cli.network)?.require_faucet()?;
             let id = account_id(&account)?;
             let note = request_tokens(TESTNET_FAUCET_API, id, amount).await?;
             println!("faucet note {}", note.to_hex());

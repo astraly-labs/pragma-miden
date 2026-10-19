@@ -9,12 +9,7 @@
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
-use miden_client::{
-    account::{AccountId, NetworkId},
-    keystore::FilesystemKeyStore,
-    note::NoteId,
-    Client,
-};
+use miden_client::{account::AccountId, keystore::FilesystemKeyStore, note::NoteId, Client};
 use serde::Deserialize;
 
 use crate::consume::submit_consume;
@@ -234,9 +229,8 @@ impl BalanceCmd {
         };
         client.sync_state().await?;
         let (faucet, balance) = fee_asset_balance(client, account_id).await?;
-        let bech32 = account_id.to_bech32(NetworkId::Testnet);
         println!(
-            "{} ({bech32}): fee asset {} balance = {balance}",
+            "{}: fee asset {} balance = {balance}",
             account_id.to_hex(),
             faucet.to_hex()
         );

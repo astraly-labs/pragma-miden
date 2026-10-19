@@ -25,8 +25,8 @@ use sync::SyncCmd;
 use upgrade::UpgradeCmd;
 
 use pm_utils_cli::{
-    get_oracle_id, setup_devnet_client, setup_local_client, setup_testnet_client, BalanceCmd,
-    FundCmd, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
+    get_oracle_id, setup_network_client, BalanceCmd, FundCmd, Network,
+    PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
 };
 
 #[derive(Debug)]
@@ -68,26 +68,9 @@ impl SubCommand {
         let crate_path = PathBuf::new();
         let store_config = crate_path.join(STORE_FILENAME);
         // Set up client based on network parameter
-        let mut client = match network {
-            "testnet" => {
-                println!("Using testnet client");
-                setup_testnet_client(Some(store_config), None).await?
-            }
-            "devnet" => {
-                println!("Using devnet client");
-                setup_devnet_client(Some(store_config), None).await?
-            }
-            "local" => {
-                println!("Using local client");
-                setup_local_client(Some(store_config), None).await?
-            }
-            other => {
-                return Err(anyhow::anyhow!(
-                    "Unknown network '{}'. Must be 'local', 'devnet' or 'testnet'",
-                    other
-                ));
-            }
-        };
+        let net = Network::parse(network)?;
+        println!("Using {net} client");
+        let mut client = setup_network_client(net, Some(store_config), None).await?;
         match self {
             Self::Init(cmd) => {
                 cmd.call(&mut client, network).await?;
@@ -98,6 +81,7 @@ impl SubCommand {
                 Ok(CommandOutput::None)
             }
             Self::Fund(cmd) => {
+                net.require_faucet()?;
                 let id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
                 cmd.call(&mut client, id).await?;
                 Ok(CommandOutput::None)
