@@ -22,8 +22,8 @@ BTC/USD: 80987.71542703 from 2 publisher(s), newest entry 13 s old
 Options: `--decimals` (what your arithmetic assumes, 8 by default), `--min-publishers` (2 by default),
 `--max-age` (seconds, the oracle default of 120 s when omitted).
 
-The run fails, with the reason, when the oracle is paused, when nobody ever published the pair (a typo in
-the name produces the same answer), when the pair is late, when too few publishers back the price, or when
+The run fails, with the reason, when the oracle is paused (it then answers "no price"), when nobody ever
+published the pair (a typo in the name produces the same answer), when the pair is late, when too few publishers back the price, or when
 the decimals are not the ones you expect.
 
 ## How it works

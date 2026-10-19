@@ -13,7 +13,7 @@ use miden_client::{
 use miden_protocol::account::{AccountType, StorageMapKey, StorageSlotName};
 use miden_protocol::vm::AdviceInputs;
 use miden_standards::code_builder::CodeBuilder;
-use pm_accounts::oracle_v1::{get_oracle_v1_component_library, PairKey, ORACLE_PAUSED_ERR_CODE};
+use pm_accounts::oracle_v1::{get_oracle_v1_component_library, PairKey};
 use pm_utils_cli::{create_wallet, setup_testnet_client};
 
 #[derive(Parser)]
@@ -65,6 +65,11 @@ async fn main() -> Result<()> {
         .get_item(&slot("pragma::oracle::next_publisher_index")?)
         .context("unable to read the publisher count")?[0]
         .as_canonical_u64();
+    let paused = storage
+        .get_item(&slot("pragma::oracle::paused")?)
+        .context("unable to read the pause flag")?[0]
+        .as_canonical_u64()
+        == 1;
     let publishers_slot = slot("pragma::oracle::publishers")?;
     let entries_slot = slot("pragma::publisher::entries")?;
 
@@ -138,14 +143,7 @@ async fn main() -> Result<()> {
             foreign_accounts,
         )
         .await
-        .map_err(|e| {
-            let detail = format!("{e:?}");
-            if detail.contains(&ORACLE_PAUSED_ERR_CODE.to_string()) {
-                anyhow::anyhow!("the oracle is paused: no price until it is unpaused")
-            } else {
-                anyhow::anyhow!("foreign call failed: {detail}")
-            }
-        })?;
+        .map_err(|e| anyhow::anyhow!("foreign call failed: {e:?}"))?;
     ensure!(stack.len() >= 4, "unexpected output");
     let (num_publishers, median, decimals, last_updated) = (
         stack[0].as_canonical_u64(),
@@ -155,7 +153,12 @@ async fn main() -> Result<()> {
     );
     println!("Oracle answered: publishers={num_publishers} median={median} decimals={decimals} last_updated={last_updated}");
 
-    // The checks of docs/oracle-v1-consumer.md.
+    // The checks of docs/oracle-v1-consumer.md. A paused oracle answers "no price", like any pair
+    // without a fresh price.
+    ensure!(
+        !(paused && num_publishers == 0),
+        "the oracle is paused: no price until it is unpaused"
+    );
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     ensure!(
         !(num_publishers == 0 && last_updated == 0),

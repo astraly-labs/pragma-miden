@@ -159,10 +159,10 @@ fn setup() -> Result<Setup> {
     })
 }
 
-/// A read of an unknown key: succeeds with all zeros unless the oracle is paused.
+/// A read of an unknown key: succeeds with all zeros, paused or not.
 ///
 /// Executed as the multisig account itself, so it needs the usual 2 signatures (the account auth
-/// always bumps the nonce). A pause failure is raised by the script, before the auth procedure.
+/// always bumps the nonce).
 async fn read_unknown_key(
     mock_chain: &MockChain,
     oracle_id: AccountId,
@@ -221,18 +221,10 @@ async fn one_signer_pauses_all_signers_resume() -> Result<()> {
     .await?;
     commit(&mut mock_chain, &tx).await?;
 
-    let paused = read_unknown_key(&mock_chain, oracle_id, &signers, 51)
-        .await
-        .expect_err("paused");
-    assert!(
-        format!("{paused:?}").contains("oracle is paused"),
-        "{paused:?}"
-    );
-    // A node without debug info reports the code only: it must stay the one documented.
-    assert!(
-        format!("{paused:?}").contains(&pm_accounts::oracle_v1::ORACLE_PAUSED_ERR_CODE.to_string()),
-        "{paused:?}"
-    );
+    // A paused oracle still answers (with no price): the read does not fail. The flag is what
+    // changed.
+    assert!(is_paused(&mock_chain, oracle_id)?);
+    read_unknown_key(&mock_chain, oracle_id, &signers, 51).await?;
 
     // Resuming needs every signer: two are not enough.
     let unpause = oracle_script("call.oracle_module::unpause")?;
@@ -247,7 +239,17 @@ async fn one_signer_pauses_all_signers_resume() -> Result<()> {
     })
     .await?;
     commit(&mut mock_chain, &three).await?;
+    assert!(!is_paused(&mock_chain, oracle_id)?);
     read_unknown_key(&mock_chain, oracle_id, &signers, 52).await
+}
+
+fn is_paused(mock_chain: &MockChain, oracle_id: AccountId) -> Result<bool> {
+    let slot = StorageSlotName::new("pragma::oracle::paused").unwrap();
+    let flag = mock_chain
+        .committed_account(oracle_id)?
+        .storage()
+        .get_item(&slot)?;
+    Ok(flag[0].as_canonical_u64() == 1)
 }
 
 fn update_signers_config(threshold: u64, public_keys: &[PublicKey]) -> Vec<Felt> {
