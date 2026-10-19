@@ -11,8 +11,9 @@ get_median(KEY)                       -> [num_publishers, median_price, decimals
 get_median_with_max_age(KEY, max_age) -> same, with your own freshness window
 ```
 
-- `KEY` is `pair_key("BTC/USD")`: the Poseidon2 hash of `pragma/v1/BTC/USD`, upper case. Push it as
-  a hex literal. The keys of the supported pairs are frozen in `crates/accounts/tests/test_pair_key.rs`.
+- `KEY` is `pair_key("BTC/USD")`: the Poseidon2 hash (Miden `Hasher::hash`) of the pair name in upper
+  case, `BTC/USD`, as UTF-8 bytes. Push it as a hex literal.
+  The keys of the supported pairs are frozen in `crates/accounts/tests/test_pair_key.rs`.
 - Only publisher entries no older than `max_age` seconds (against the reference block timestamp)
   enter the median. `get_median` uses **120 s**.
 - `num_publishers`: publishers whose entry is in the median.
