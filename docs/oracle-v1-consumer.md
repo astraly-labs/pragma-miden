@@ -22,6 +22,33 @@ get_median_with_max_age(KEY, max_age) -> same, with your own freshness window
 - `last_updated`: timestamp of the newest entry ever published for the pair, fresh or not. `0` if
   nobody ever published it.
 
+## Supported pairs and keys
+
+The key of a pair is derived from its name, so there is nothing to look up or register. These are the pairs
+published at launch; the keys are frozen (`crates/accounts/tests/test_pair_key.rs`) and will not change.
+`decimals` is what the publishers use for the pair: read it from the answer rather than hard-coding it.
+
+| Pair | Decimals | Key | Also on Starknet |
+|------|----------|-----|------------------|
+| `BTC/USD` | 8 | `0xd189b4e9c38c367ba926ddb0044b781ca8fff18dcc10a0c75ff5600a1eb4d0eb` | yes |
+| `ETH/USD` | 8 | `0x9a50f4137c634e0b384a87bea3a186e578e21274af6ae752230ead4631233e1d` | yes |
+| `WBTC/USD` | 8 | `0x4c972cdae7848e436e54fc4a19fa00ad5eded1b9c959744e16485a1d673217cd` | yes |
+| `USDT/USD` | 6 | `0x6cbc5578f2e294131c429b5be03ef87692da0d4300816ae7238058817c6a8085` | yes |
+| `DAI/USD` | 8 | `0x59660b43348776410276dc5bc2934ca549660b0faf88299acc7a003283f90e6e` | yes |
+| `ZEC/USD` | 8 | `0x39179ab0864e74f9f5160fa3bcf182ed2ee70a81ff40784b561d197fe8e25681` | no |
+| `XMR/USD` | 8 | `0xc7abe26df1eab19ff1b48f8ecbf31efda088362551f2c026e0f23add86dc3cbe` | no |
+| `DASH/USD` | 8 | `0x2184974137b3e2018306c63381590e30b2cbffc503a7e7a4003a55fb1c9fede2` | no |
+| `XAUT/USD` | 6 | `0xb6246558eb55426ad719c05c058b66f87da325120789876aa5e3af156f90896c` | no |
+| `PAXG/USD` | 8 | `0x286672fe34caa39c41a593157ecdcdb88543b12e462ad8dea33f685039acaba2` | no |
+| `LINK/USD` | 8 | `0x47966fdc920a12359900a930cd5ec3e5c583e542a2ca4b5061013d401c55fc80` | no |
+| `UNI/USD` | 8 | `0x28b5da79b6aab6289ab569fc3b679226b0d113fb1d9f0df62410a93241b3c29c` | no |
+| `AAVE/USD` | 8 | `0x8f738295d669c20ccd2fd738b2284def832da2ded53b9afc22e8746f1c84c7e6` | no |
+| `MORPHO/USD` | 8 | `0xfd585c6cd7a15d199c4914a57e5533c8327e31eb3515099002d1add2647bb23b` | no |
+| `USDC/USD` | 6 | `0x1dfbb6c4acb913805c4df6731bfe7bfb8b6acd999bb768feb24979170807ee51` | yes |
+
+Derive any other key with `pair_key("BASE/QUOTE")` (`pm-publisher-cli pair-key BASE/QUOTE`, or the
+`pair_key` function of the `pm-publisher` wheel and of the `pm-accounts` crate).
+
 ## What to check before using a price
 
 1. **`num_publishers` is at least what you need.** `0` means there is no price: `median_price` and
