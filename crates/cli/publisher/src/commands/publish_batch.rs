@@ -17,8 +17,8 @@ use pm_utils_cli::{get_publisher_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
     about = "Publish multiple entries in a single transaction (Callable by the publisher itself)"
 )]
 pub struct PublishBatchCmd {
-    /// Faucet IDs to publish in format: "1:0:98000000000:6:1234567890 2:0:1900000000:6:1234567890"
-    /// Format per entry: FAUCET_ID:PRICE:DECIMALS:TIMESTAMP (e.g., "1:0" for BTC/USD)
+    /// Entries, one argument each: PAIR:PRICE:DECIMALS:TIMESTAMP[:NUM_SOURCES]
+    /// e.g. "BTC/USD:9800000000000:8:1733844099:7 USDC/USD:1000000:6:1733844099:5"
     #[clap(required = true)]
     pub entries: Vec<String>,
     /// Optional publisher ID. If not provided, uses the first publisher from config
