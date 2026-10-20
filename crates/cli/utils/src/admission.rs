@@ -9,11 +9,16 @@ use std::time::Duration;
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use miden_client::account::AccountId;
+use miden_client::block::BlockNumber;
 use miden_client::rpc::generated::account::AccountId as ProtoAccountId;
 use miden_client::rpc::generated::rpc::node_service_client::NodeServiceClient;
 use miden_client::rpc::generated::rpc::{IsAccountAllowedRequest, RegisterAccountRequest};
+use miden_client::rpc::{GrpcClient, NodeRpcClient};
+use tonic::metadata::MetadataValue;
+use tonic::service::interceptor::InterceptedService;
+use tonic::service::Interceptor;
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint as TonicEndpoint};
-use tonic::Code;
+use tonic::{Code, Request, Status};
 
 use crate::Network;
 
@@ -22,7 +27,35 @@ pub const INVITATION_CODE_ENV: &str = "MIDEN_INVITATION_CODE";
 
 const TIMEOUT: Duration = Duration::from_secs(60);
 
-async fn connect(network: Network) -> Result<NodeServiceClient<Channel>> {
+/// API version announced to the node: the one of the `miden-client` this crate depends on.
+const API_VERSION: &str = "0.17.1";
+
+/// The node wants `accept: application/vnd.miden; version=..; genesis=..` on its write calls.
+#[derive(Clone)]
+pub struct AcceptHeader(MetadataValue<tonic::metadata::Ascii>);
+
+impl Interceptor for AcceptHeader {
+    fn call(&mut self, mut request: Request<()>) -> Result<Request<()>, Status> {
+        request.metadata_mut().insert("accept", self.0.clone());
+        Ok(request)
+    }
+}
+
+type Client = NodeServiceClient<InterceptedService<Channel, AcceptHeader>>;
+
+async fn genesis_commitment(network: Network) -> Result<String> {
+    let rpc = GrpcClient::new(&network.endpoint()?, TIMEOUT.as_millis() as u64);
+    let (header, _) = rpc
+        .get_block_header_by_number(Some(BlockNumber::GENESIS), false)
+        .await
+        .map_err(|e| anyhow!("reading the genesis block: {e}"))?;
+    Ok(header.commitment().to_hex())
+}
+
+async fn connect(network: Network) -> Result<Client> {
+    let genesis = genesis_commitment(network).await?;
+    let accept = format!("application/vnd.miden; version={API_VERSION}; genesis={genesis}");
+    let accept = AcceptHeader(accept.parse().context("accept header")?);
     let url = network.endpoint()?.to_string();
     let mut endpoint = TonicEndpoint::from_shared(url.clone())
         .with_context(|| format!("bad node address {url}"))?
@@ -35,7 +68,7 @@ async fn connect(network: Network) -> Result<NodeServiceClient<Channel>> {
         .connect()
         .await
         .with_context(|| format!("connecting to {url}"))?;
-    Ok(NodeServiceClient::new(channel))
+    Ok(NodeServiceClient::with_interceptor(channel, accept))
 }
 
 /// Whether the node lets this account transact (always true on a node without an allowlist).
