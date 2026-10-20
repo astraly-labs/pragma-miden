@@ -1,6 +1,9 @@
 use miden_client::{
     asset::FungibleAsset,
-    note::{Note, NoteAssets, NoteRecipient, NoteStorage, NoteType, P2idNote, PartialNoteMetadata},
+    note::{
+        Note, NoteAssets, NoteRecipient, NoteStorage, NoteType, P2idNote, P2ideNote,
+        PartialNoteMetadata,
+    },
 };
 use miden_protocol::testing::account_id::{
     ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET, ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_IMMUTABLE_CODE,
@@ -30,6 +33,17 @@ fn p2id(n: u64) -> Note {
         .into()
 }
 
+fn p2ide(n: u64) -> Note {
+    P2ideNote::builder()
+        .sender(AccountId::try_from(ACCOUNT_ID_SENDER).unwrap())
+        .target(AccountId::try_from(ACCOUNT_ID_REGULAR_PUBLIC_ACCOUNT_IMMUTABLE_CODE).unwrap())
+        .serial_number(serial(n))
+        .assets(assets().iter().cloned())
+        .build()
+        .unwrap()
+        .into()
+}
+
 fn custom_script_note() -> Note {
     let script = CodeBuilder::default()
         .compile_note_script("@note_script\npub proc main\n    nop\nend")
@@ -48,6 +62,20 @@ fn only_p2id_notes_are_consumed_by_default() {
     let selected = select_notes(vec![custom_script_note(), kept.clone()], &[]).unwrap();
     assert_eq!(selected.len(), 1);
     assert_eq!(selected[0].id(), kept.id());
+}
+
+#[test]
+fn p2ide_notes_are_consumed_like_p2id_ones() {
+    let (id_note, ide_note) = (p2id(1), p2ide(2));
+    let selected = select_notes(
+        vec![custom_script_note(), id_note.clone(), ide_note.clone()],
+        &[],
+    )
+    .unwrap();
+    assert_eq!(
+        selected.iter().map(Note::id).collect::<Vec<_>>(),
+        vec![id_note.id(), ide_note.id()]
+    );
 }
 
 #[test]

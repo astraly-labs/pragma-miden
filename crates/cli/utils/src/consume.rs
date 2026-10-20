@@ -7,7 +7,7 @@ use anyhow::{anyhow, bail, Result};
 use miden_client::{
     account::AccountId,
     keystore::FilesystemKeyStore,
-    note::{Note, NoteId, P2idNote},
+    note::{Note, NoteId, P2idNote, P2ideNote},
     transaction::TransactionRequestBuilder,
     Client,
 };
@@ -17,14 +17,21 @@ use crate::faucet::fee_asset_balance;
 /// Notes consumed by a single transaction; more are left for the next run.
 pub const MAX_NOTES_PER_TX: usize = 20;
 
-/// Picks the notes to consume. Without explicit ids, only P2ID notes (the standard transfer) are
+/// The standard transfer notes: P2ID, and P2IDE which is P2ID with a reclaim height and a timelock (a
+/// wallet such as Bread sends P2IDE). Both only credit their assets to the target account.
+fn is_transfer_note(note: &Note) -> bool {
+    let root = note.script().root();
+    root == P2idNote::script_root() || root == P2ideNote::script_root()
+}
+
+/// Picks the notes to consume. Without explicit ids, only the standard transfer notes are
 /// taken: a note with another script runs its code in the account's context, so it is consumed only
 /// when asked for by id.
 pub fn select_notes(consumable: Vec<Note>, only: &[NoteId]) -> Result<Vec<Note>> {
     if only.is_empty() {
         return Ok(consumable
             .into_iter()
-            .filter(|note| note.script().root() == P2idNote::script_root())
+            .filter(|note| is_transfer_note(note))
             .take(MAX_NOTES_PER_TX)
             .collect());
     }
@@ -63,6 +70,15 @@ pub async fn consume_notes(
     only: &[NoteId],
 ) -> Result<(Vec<NoteId>, u64)> {
     client.sync_state().await?;
+    // A wallet may have sent the money as a private note, which only the note transport carries.
+    if client.is_note_transport_enabled() {
+        match client.fetch_private_notes().await {
+            Ok(()) => {
+                client.sync_state().await?;
+            }
+            Err(e) => eprintln!("could not fetch private notes ({e}); public notes only"),
+        }
+    }
     let consumable = client
         .get_consumable_notes(Some(account_id))
         .await?

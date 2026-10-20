@@ -12,6 +12,9 @@ pub const MAINNET_RPC_URL: &str = "https://rpc.cedar.miden.io";
 pub const MAINNET_PROVER_URL: &str = "https://tx-prover.cedar.miden.io";
 pub const RPC_URL_ENV: &str = "MIDEN_RPC_URL";
 pub const PROVER_URL_ENV: &str = "MIDEN_PROVER_URL";
+/// Mainnet note transport: where wallets leave the private notes they send (Bread does by default).
+pub const MAINNET_TRANSPORT_URL: &str = "https://transport.cedar.miden.io";
+pub const TRANSPORT_URL_ENV: &str = "MIDEN_TRANSPORT_URL";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, VariantNames)]
 #[strum(serialize_all = "lowercase")]
@@ -50,6 +53,12 @@ impl Network {
             Self::Testnet => Some(TESTNET_PROVER_ENDPOINT.to_string()),
             Self::Mainnet => Some(env_or(PROVER_URL_ENV, MAINNET_PROVER_URL)),
         }
+    }
+
+    /// The note transport this network's accounts receive private notes from. Only the mainnet
+    /// needs it: money sent there by a wallet may be a private note, which no chain read shows.
+    pub fn note_transport(self) -> Option<String> {
+        (self == Self::Mainnet).then(|| env_or(TRANSPORT_URL_ENV, MAINNET_TRANSPORT_URL))
     }
 
     /// Only the testnet has a public faucet; elsewhere accounts are funded by a transfer.
@@ -121,6 +130,14 @@ mod tests {
         assert!(Network::Testnet.require_faucet().is_ok());
         for network in [Network::Local, Network::Devnet, Network::Mainnet] {
             assert!(network.require_faucet().is_err(), "{network}");
+        }
+    }
+
+    #[test]
+    fn only_the_mainnet_listens_to_a_note_transport() {
+        assert!(Network::Mainnet.note_transport().is_some());
+        for network in [Network::Local, Network::Devnet, Network::Testnet] {
+            assert!(network.note_transport().is_none(), "{network}");
         }
     }
 
