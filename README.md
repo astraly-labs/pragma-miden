@@ -9,25 +9,28 @@
 </p>
 
 <p align="center">
-  <a href="https://docs.pragma.build/pragma/miden/introduction">Documentation</a> ·
-  <a href="https://docs.pragma.build/pragma/miden/publisher">Publish Prices</a> ·
-  <a href="https://docs.pragma.build/pragma/miden/consumer">Consume Data</a>
+  <a href="https://docs.pragma.build/miden/introduction">Documentation</a> ·
+  <a href="https://docs.pragma.build/miden/v1-publisher">Publish Prices</a> ·
+  <a href="https://docs.pragma.build/miden/v1-consumer">Consume Data</a>
 </p>
 
 <p align="center">
-  🟢 <strong>Live oracle:</strong> <a href="https://miden.pragma.build">miden.pragma.build</a> — real-time BTC / ETH / WBTC / USDT / DAI medians, published every Starknet tick by the <a href="https://github.com/astraly-labs/pragma-sdk">pragma-sdk</a> price-pusher.
+  🟢 <strong>Live oracle (testnet v1):</strong> <a href="https://miden.pragma.build">miden.pragma.build</a> — real-time medians of the 15 pairs, published by the Pragma publisher every 30 seconds.
 </p>
 
 ---
 
 ## Deployments
 
-### Testnet (Miden 0.17)
+### Testnet (Miden 0.17), oracle v1
 
 | Role       | Account ID                           | Explorer |
 |------------|--------------------------------------|----------|
-| Oracle     | `0x0d39e78df12351510ec5047670b40e`  | [view](https://testnet.midenscan.com/account/mtst1aqxnneud7y34z5gwc5z8vu95pcsdmcxm) |
-| Publisher  | `0x6de0c1c9a43d5a9103a32ae348cbaa`  | [view](https://testnet.midenscan.com/account/mtst1apk7pswf5s744ygr5v4wxjxt4g0tmmsy) |
+| Oracle     | `0xf86fe46c20e578513374651ecd6d0f`  | [view](https://testnet.midenscan.com/account/mtst1aruxlervyrjhs5fnw3j3antdpu70h04k) |
+| Publisher  | `0xabdc2c135b5b269175afd10bdf0ebd`  | [view](https://testnet.midenscan.com/account/mtst1az4actqntddjdyt44lgshhcwh5j52f3e) |
+
+The pairs and their on-chain keys are listed in [Pairs and keys](https://docs.pragma.build/miden/v1-pairs).
+The former testnet oracle (`0x0d39e78df12351510ec5047670b40e`, faucet-id keys) is retired.
 
 > Addresses change between testnet iterations. This table is the source of truth.
 
@@ -37,22 +40,20 @@
 ### Fees (Miden 0.17)
 
 Every transaction pays a fee in the chain's native asset, taken from the sender's vault
-(a 14-entry `publish-batch` costs ~112 base units, a `register-publisher` ~119; reads are free).
-Both accounts carry `BasicWallet` so they can receive it. On testnet the public faucet is the
-only source: `pm-oracle-cli -n testnet fund` / `pm-publisher-cli -n testnet fund` solve its
-proof-of-work, mint a 100-token P2ID note and consume it; `balance` shows what is left.
-The price-pusher refills itself through `pm_publisher.fund` when the balance drops below its threshold.
+(a 15-entry `publish-batch` costs ~112 base units, a `register-publisher` ~119; reads are free).
+Both accounts carry `BasicWallet` so they can receive it. On testnet the public faucet is a source:
+`pm-publisher-cli -n testnet fund` solves its proof-of-work, requests a P2ID note and consumes it
+(`balance` shows what is left); the faucet is sometimes down, a transfer from another account works
+too. There is no faucet on mainnet (USDCx): send the fee asset to the account, then run
+`pm-publisher-cli -n mainnet consume` so that it opens the note. A mainnet account must also be on
+the network allowlist before its first transaction: `register-account` (invitation code) and `allowed`.
 
-### Upgrading the oracle (Miden 0.17)
+### Administering the oracle (v1)
 
-The oracle account installs the standard `UpgradeManager`, gated by its own auth key, so a MASM change doesn't need a new account id (no re-registering publishers, no new address). From a workspace that holds the oracle admin key:
-
-```bash
-pm-oracle-cli -n testnet upgrade --dry-run   # compare the deployed code with this binary's
-pm-oracle-cli -n testnet upgrade             # submit the upgrade
-```
-
-The target code is the oracle compiled in the binary. Storage can't be upgraded: the command refuses when the storage slots differ from the deployed ones, in which case a new oracle must be deployed.
+The oracle v1 is a multisig administered with `pm-multisig` (register and remove publishers, pause,
+upgrade, rotate signers). Every change is a proposal that the signers rebuild and sign on their own
+machine: see [docs/signer-guide.md](docs/signer-guide.md) and [crates/cli/multisig](crates/cli/multisig).
+Storage can't be upgraded: a change of the storage layout needs a new oracle.
 
 ## Quick start
 
@@ -61,7 +62,7 @@ The target code is the oracle compiled in the binary. Storage can't be upgraded:
 ```bash
 git clone https://github.com/astraly-labs/pragma-miden
 cd pragma-miden
-cargo run --release -p consume-price -- --oracle <ORACLE_ID> --pair BTC/USD
+cargo run --release -p consume-price -- --oracle 0xf86fe46c20e578513374651ecd6d0f --pair BTC/USD --min-publishers 1
 # BTC/USD: 68199.00000000 from 3 publisher(s), newest entry 4 s old
 ```
 
@@ -72,11 +73,11 @@ from pragma_sdk.miden.client import PragmaMidenClient, MidenEntry
 
 client = PragmaMidenClient(network="testnet")
 await client.publish_entries([
-    MidenEntry(pair="1:0", price=68199_000000, decimals=6),
+    MidenEntry(pair="BTC/USD", price=68199_00000000, decimals=8, num_sources=7),
 ])
 ```
 
-→ Full integration guides at [docs.pragma.build/pragma/miden](https://docs.pragma.build/pragma/miden/introduction).
+→ Full integration guides at [docs.pragma.build/miden](https://docs.pragma.build/miden/introduction).
 
 ---
 
