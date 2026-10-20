@@ -15,12 +15,21 @@
 </p>
 
 <p align="center">
-  🟢 <strong>Live oracle (testnet v1):</strong> <a href="https://miden.pragma.build">miden.pragma.build</a> — real-time medians of the 15 pairs, published by the Pragma publisher every 30 seconds.
+  🟢 <strong>Live oracle v1:</strong> mainnet (every 3 seconds) and testnet (every 30 seconds), 15 pairs — prices on <a href="https://miden.pragma.build">miden.pragma.build</a> (testnet).
 </p>
 
 ---
 
 ## Deployments
+
+### Mainnet (Miden Cedar), oracle v1
+
+| Role       | Account ID                           | Address |
+|------------|--------------------------------------|---------|
+| Oracle     | `0x8f8d747477ca171144feadc60a1137`  | `mm1az8c6ar5wl9pwy2yl6kuvzs3xufm50dz` (multisig, 2 of 3) |
+| Publisher  | `0x0b7956bf6589079170e900eb69cd84`  | `mm1aq9hj44lvkys0ytsayqwk6wdss0nwsr6` |
+
+Node `https://rpc.cedar.miden.io`, explorer `https://explorer.cedar.miden.io`. Entries are published every 3 seconds.
 
 ### Testnet (Miden 0.17), oracle v1
 
