@@ -2,6 +2,7 @@
 // to every caller of the setup_* helpers.
 #![allow(clippy::result_large_err)]
 
+pub mod admission;
 pub mod client;
 pub mod constants;
 pub mod consume;
@@ -10,6 +11,7 @@ pub mod network;
 pub mod networks;
 pub mod storage;
 
+pub use admission::*;
 pub use client::*;
 pub use constants::*;
 pub use consume::*;

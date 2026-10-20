@@ -15,8 +15,8 @@ use init::InitCmd;
 use key::PairKeyCmd;
 use pm_types::Entry;
 use pm_utils_cli::{
-    get_publisher_id, setup_network_client, BalanceCmd, ConsumeCmd, FundCmd, Network,
-    PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
+    get_publisher_id, setup_network_client, AllowedCmd, BalanceCmd, ConsumeCmd, FundCmd, Network,
+    RegisterAccountCmd, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
 };
 use publish::PublishCmd;
 use publish_batch::PublishBatchCmd;
@@ -54,6 +54,10 @@ pub enum SubCommand {
     Balance(BalanceCmd),
     #[clap(name = "consume", bin_name = "consume")]
     Consume(ConsumeCmd),
+    #[clap(name = "allowed", bin_name = "allowed")]
+    Allowed(AllowedCmd),
+    #[clap(name = "register-account", bin_name = "register-account")]
+    RegisterAccount(RegisterAccountCmd),
     #[clap(name = "pair-key", bin_name = "pair-key")]
     PairKey(PairKeyCmd),
 }
@@ -109,6 +113,16 @@ impl SubCommand {
             Self::Consume(cmd) => {
                 let id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
                 cmd.call(&mut client, id).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::Allowed(cmd) => {
+                let id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
+                cmd.call(net, id).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::RegisterAccount(cmd) => {
+                let id = get_publisher_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
+                cmd.call(net, id).await?;
                 Ok(CommandOutput::None)
             }
             Self::PairKey(_) => unreachable!("handled before the client is set up"),
