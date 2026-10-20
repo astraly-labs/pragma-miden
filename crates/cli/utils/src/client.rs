@@ -1,5 +1,6 @@
 use crate::{Network, STORE_FILENAME};
 use miden_client::grpc_support::{DEVNET_PROVER_ENDPOINT, TESTNET_PROVER_ENDPOINT};
+use miden_client::note_transport::grpc::GrpcNoteTransportClient;
 use miden_client::{
     account::{
         component::{AuthSingleSig, BasicWallet},
@@ -42,6 +43,7 @@ const MAX_DECODING_MESSAGE_SIZE: usize = 128 * 1024 * 1024;
 async fn setup_client(
     endpoint: Endpoint,
     prover_endpoint: Option<&str>,
+    note_transport: Option<&str>,
     path: Option<PathBuf>,
     keystore_path: Option<String>,
 ) -> Result<Client<FilesystemKeyStore>, ClientError> {
@@ -71,6 +73,13 @@ async fn setup_client(
         .rpc(rpc_api)
         .store(Arc::new(store));
 
+    if let Some(transport_url) = note_transport {
+        builder = builder.note_transport(Arc::new(GrpcNoteTransportClient::new(
+            transport_url.to_string(),
+            RPC_TIMEOUT_MS,
+        )));
+    }
+
     if let Some(prover_url) = prover_endpoint {
         builder = builder.prover(Arc::new(RemoteTransactionProver::new(
             prover_url.to_string(),
@@ -95,21 +104,28 @@ fn default_keystore_path() -> String {
     }
 }
 
-/// Builds the client for a network: its node, and its hosted prover when it has one.
+/// Builds the client for a network: its node, its hosted prover and its note transport when it has them.
 pub async fn setup_network_client(
     network: Network,
     path: Option<PathBuf>,
     keystore_path: Option<String>,
 ) -> anyhow::Result<Client<FilesystemKeyStore>> {
     let prover = network.prover();
-    Ok(setup_client(network.endpoint()?, prover.as_deref(), path, keystore_path).await?)
+    Ok(setup_client(
+        network.endpoint()?,
+        prover.as_deref(),
+        network.note_transport().as_deref(),
+        path,
+        keystore_path,
+    )
+    .await?)
 }
 
 pub async fn setup_local_client(
     path: Option<PathBuf>,
     keystore_path: Option<String>,
 ) -> Result<Client<FilesystemKeyStore>, ClientError> {
-    setup_client(Endpoint::localhost(), None, path, keystore_path).await
+    setup_client(Endpoint::localhost(), None, None, path, keystore_path).await
 }
 
 pub async fn setup_devnet_client(
@@ -119,6 +135,7 @@ pub async fn setup_devnet_client(
     setup_client(
         Endpoint::devnet(),
         Some(DEVNET_PROVER_ENDPOINT),
+        None,
         path,
         keystore_path,
     )
@@ -132,6 +149,7 @@ pub async fn setup_testnet_client(
     setup_client(
         Endpoint::testnet(),
         Some(TESTNET_PROVER_ENDPOINT),
+        None,
         storage_path,
         keystore_path,
     )

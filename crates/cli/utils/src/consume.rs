@@ -63,6 +63,15 @@ pub async fn consume_notes(
     only: &[NoteId],
 ) -> Result<(Vec<NoteId>, u64)> {
     client.sync_state().await?;
+    // A wallet may have sent the money as a private note, which only the note transport carries.
+    if client.is_note_transport_enabled() {
+        match client.fetch_private_notes().await {
+            Ok(()) => {
+                client.sync_state().await?;
+            }
+            Err(e) => eprintln!("could not fetch private notes ({e}); public notes only"),
+        }
+    }
     let consumable = client
         .get_consumable_notes(Some(account_id))
         .await?
