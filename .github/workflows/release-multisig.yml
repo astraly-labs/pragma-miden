@@ -1,0 +1,67 @@
+name: Release pm-multisig binaries
+
+# A signer of the oracle multisig runs `pm-multisig`; building it takes a Rust toolchain and several
+# minutes. A tag `multisig-v*` builds the binaries from that exact commit and attaches them, with
+# their checksums, to a GitHub release.
+on:
+  push:
+    tags:
+      - "multisig-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      # Toolchain pinned in rust-toolchain.toml.
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked -p pm-multisig --target ${{ matrix.target }}
+
+      - name: Name the binary after its target
+        run: cp target/${{ matrix.target }}/release/pm-multisig pm-multisig-${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pm-multisig-${{ matrix.target }}
+          path: pm-multisig-${{ matrix.target }}
+
+  release:
+    name: Attach to the release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pm-multisig-*
+          path: bin
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: bin
+        run: sha256sum pm-multisig-* > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" bin/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --notes "pm-multisig built from commit $GITHUB_SHA. Verify the download with SHA256SUMS before running it (see docs/signer-guide.md)."
