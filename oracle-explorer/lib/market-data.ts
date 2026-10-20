@@ -1,11 +1,11 @@
 /**
  * Exchange market data for display-only metadata in the Oracle Explorer:
  * 24h stats (change%, high, low) and the 24h chart fallback. Which exchange
- * serves a pair is declared once, in lib/faucet-config.ts (`market`).
+ * serves a pair is declared once, in lib/pair-config.ts (`market`).
  */
 
 import type { PriceHistoryRow } from '@/lib/db';
-import { PAIR_TO_MARKET, type MarketRef } from '@/lib/faucet-config';
+import { PAIR_TO_MARKET, type MarketRef } from '@/lib/pair-config';
 
 export interface Stats24h {
   change24h: number;

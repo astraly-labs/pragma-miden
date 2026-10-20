@@ -4,7 +4,7 @@ import { getCached, setCache } from '@/lib/cache';
 import { fetchMultiple24hStats } from '@/lib/market-data';
 import { insertPriceHistory } from '@/lib/db';
 import type { Asset } from '@/types/asset';
-import { FAUCET_CONFIGS, FAUCET_ID_TO_PAIR, FAUCET_ID_TO_DECIMALS, PAIR_TO_FAUCET_ID } from '@/lib/faucet-config';
+import { PAIR_CONFIGS } from '@/lib/pair-config';
 
 const execAsync = promisify(exec);
 
@@ -17,39 +17,44 @@ const MAX_RETRIES = 3;
 // Lock to prevent multiple concurrent CLI spawns (cache stampede prevention)
 const pendingRequests = new Map<string, Promise<Asset[]>>();
 
-interface MedianResult {
-  faucet_id: string;
-  is_tracked: boolean;
+// What `pm-oracle-cli median-batch --json` answers for each pair. `num_publishers` is the number of
+// publishers whose fresh entry is in the median: 0 means there is no price (nobody published, the
+// entries are too old, or the oracle is paused), and `median` and `decimals` are then 0.
+interface PairRead {
+  pair: string;
+  num_publishers: number;
   median: number;
-  amount: number;
+  decimals: number;
+  last_updated: number;
 }
 
-async function fetchAllMediansWithRetry(faucetIds: string[]): Promise<Map<string, number>> {
+// Price and decimals of every pair that has a price.
+interface Priced {
+  price: number;
+  decimals: number;
+}
+
+async function fetchAllMediansWithRetry(pairs: string[]): Promise<Map<string, Priced>> {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const { stdout } = await execAsync(
-        `cd ${ORACLE_WORKSPACE} && ${CLI_PATH}/pm-oracle-cli median-batch ${faucetIds.join(' ')} --network ${NETWORK} --json`,
+        `cd ${ORACLE_WORKSPACE} && ${CLI_PATH}/pm-oracle-cli median-batch ${pairs.join(' ')} --network ${NETWORK} --json`,
         { timeout: 30000 }
       );
-      
+
       const lines = stdout.trim().split('\n');
       const jsonLine = lines.find(line => line.startsWith('['));
-      
+
       if (jsonLine) {
-        const results: MedianResult[] = JSON.parse(jsonLine);
-        const priceMap = new Map<string, number>();
-        
-        results.forEach(({ faucet_id, is_tracked, median }) => {
-          if (!is_tracked) return;
-          
-          const pair = FAUCET_ID_TO_PAIR.get(faucet_id);
-          const decimals = FAUCET_ID_TO_DECIMALS.get(faucet_id);
-          if (pair && decimals !== undefined) {
-            priceMap.set(pair, median / Math.pow(10, decimals));
-          }
+        const results: PairRead[] = JSON.parse(jsonLine);
+        const priced = new Map<string, Priced>();
+
+        results.forEach(({ pair, num_publishers, median, decimals }) => {
+          if (num_publishers === 0) return;
+          priced.set(pair, { price: median / Math.pow(10, decimals), decimals });
         });
-        
-        return priceMap;
+
+        return priced;
       }
     } catch (error) {
       if (attempt === MAX_RETRIES - 1) {
@@ -58,21 +63,20 @@ async function fetchAllMediansWithRetry(faucetIds: string[]): Promise<Map<string
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
-  
+
   throw new Error('Failed to fetch medians after retries');
 }
 
-function storeLivePrices(priceMap: Map<string, number>): void {
+function storeLivePrices(priced: Map<string, Priced>): void {
   try {
     const timestamp = Math.floor(Date.now() / 1000);
 
-    const rows = Array.from(priceMap.entries()).map(([pair, price]) => {
-      const faucetId = PAIR_TO_FAUCET_ID.get(pair);
-      const decimals = faucetId !== undefined
-        ? FAUCET_ID_TO_DECIMALS.get(faucetId) ?? 8
-        : 8;
-      return { pair, price, decimals, timestamp };
-    });
+    const rows = Array.from(priced.entries()).map(([pair, { price, decimals }]) => ({
+      pair,
+      price,
+      decimals,
+      timestamp,
+    }));
 
     insertPriceHistory(rows);
   } catch (error) {
@@ -81,16 +85,15 @@ function storeLivePrices(priceMap: Map<string, number>): void {
 }
 
 async function fetchPricesInternal(): Promise<Asset[]> {
-  const faucetIds = FAUCET_CONFIGS.map(config => config.faucetId);
-  const pairs = FAUCET_CONFIGS.map(config => config.pair);
-  
+  const pairs = PAIR_CONFIGS.map(config => config.pair);
+
   const [midenPrices, binanceStats] = await Promise.all([
-    fetchAllMediansWithRetry(faucetIds),
+    fetchAllMediansWithRetry(pairs),
     fetchMultiple24hStats(pairs),
   ]);
 
-  const assets: Asset[] = FAUCET_CONFIGS.map(({ pair, name, marketCap }) => {
-    const price = midenPrices.get(pair) || 0;
+  const assets: Asset[] = PAIR_CONFIGS.map(({ pair, name, marketCap }) => {
+    const price = midenPrices.get(pair)?.price ?? 0;
     const symbol = pair;
     
     const binanceData = binanceStats.get(pair);

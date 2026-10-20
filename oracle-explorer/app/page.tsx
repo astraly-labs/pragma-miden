@@ -7,11 +7,11 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import type { Asset } from "@/types/asset";
 import { fetchPrices } from "@/lib/api";
-import { FAUCET_CONFIGS } from "@/lib/faucet-config";
+import { PAIR_CONFIGS } from "@/lib/pair-config";
 
 const REFRESH_INTERVAL = 10000;
 
-const FAUCET_IDS = FAUCET_CONFIGS.map(({ faucetId, pair }) => ({ id: faucetId, pair }));
+const PAIRS = PAIR_CONFIGS.map(({ pair, key }) => ({ pair, key }));
 
 const CONTRACTS = [
   { name: "Oracle", address: "mtst1aqxnneud7y34z5gwc5z8vu95pcsdmcxm", url: "https://testnet.midenscan.com/account/mtst1aqxnneud7y34z5gwc5z8vu95pcsdmcxm" },
@@ -23,7 +23,7 @@ const PUBLISHER_STEPS = [
   { title: "Initialize your publisher account", code: "./target/release/pm-publisher-cli -n testnet init 0x0d39e78df12351510ec5047670b40e", note: "The argument is the Pragma oracle id on the Miden 0.17 testnet" },
   { title: "Fund it with the testnet fee asset", description: "Miden 0.17 charges every transaction a fee; this solves the faucet's proof-of-work, mints 100 tokens and consumes the note (~112 base units per 14-entry batch)", code: "./target/release/pm-publisher-cli -n testnet fund" },
   { title: "Request registration", description: "Send your publisher ID to the Oracle administrator", code: "./target/release/pm-oracle-cli -n testnet register-publisher YOUR_PUBLISHER_ID" },
-  { title: "Start publishing prices", code: "./target/release/pm-publisher-cli -n testnet publish 1:0 98179840000 6 1738593825", note: "Where 1:0 = BTC/USD, price has 6 decimal places" },
+  { title: "Start publishing prices", code: "./target/release/pm-publisher-cli -n testnet publish BTC/USD 9817984000000 8 1738593825 --num-sources 5", note: "Pair name, price scaled by 10^decimals (8 for BTC/USD), timestamp, number of sources" },
 ];
 
 function CodeBlock({ code }: { code: string }) {
@@ -212,13 +212,13 @@ export default function Home() {
             </div>
 
             {consumerTab === "single" ? (
-              <CodeBlock code={`./target/release/pm-oracle-cli median 1:0 --network testnet\n# Output: Median value: 76436215000`} />
+              <CodeBlock code={`./target/release/pm-oracle-cli median BTC/USD --network testnet\n# Output: BTC/USD: 7643621500000 (8 decimals) from 1 publisher(s), last entry at 1792522844`} />
             ) : (
-              <CodeBlock code={`./target/release/pm-oracle-cli median-batch 1:0 2:0 3:0 --network testnet --json\n# Output: [{"faucet_id":"1:0","is_tracked":true,"median":76436215000},...]`} />
+              <CodeBlock code={`./target/release/pm-oracle-cli median-batch BTC/USD ETH/USD USDC/USD --network testnet --json\n# Output: [{"pair":"BTC/USD","num_publishers":1,"median":7643621500000,"decimals":8,"last_updated":1792522844},...]`} />
             )}
 
             <p className="text-[rgba(255,255,255,0.25)] text-xs mt-4 font-mono leading-relaxed">
-              Returns: <span className="text-[rgba(255,255,255,0.4)]">is_tracked</span> &middot; <span className="text-[rgba(255,255,255,0.4)]">median_price</span> (6 decimals) &middot; <span className="text-[rgba(255,255,255,0.4)]">amount</span> (optional)
+              Returns: <span className="text-[rgba(255,255,255,0.4)]">num_publishers</span> &middot; <span className="text-[rgba(255,255,255,0.4)]">median</span> &middot; <span className="text-[rgba(255,255,255,0.4)]">decimals</span> &middot; <span className="text-[rgba(255,255,255,0.4)]">last_updated</span> (0 publishers means no price)
             </p>
           </div>
 
@@ -257,19 +257,19 @@ export default function Home() {
         {/* Asset → Faucet ID mapping */}
         <section className="py-16">
           <p className="text-[rgba(255,255,255,0.3)] text-xs font-mono uppercase tracking-[0.2em] mb-3">Pair index</p>
-          <h2 className="h2 text-white mb-2">Asset to faucet ID</h2>
+          <h2 className="h2 text-white mb-2">Pair keys</h2>
           <p className="text-[rgba(255,255,255,0.5)] text-sm mb-10">
-            Each asset is indexed on-chain by a faucet ID. Pass it to{" "}
-            <code className="text-[rgba(255,255,255,0.7)] font-mono text-xs">pm-oracle-cli median &lt;FAUCET_ID&gt;</code>{" "}
-            or any client query.
+            Each pair is keyed on-chain by the Poseidon2 hash of its name. Pass the name to{" "}
+            <code className="text-[rgba(255,255,255,0.7)] font-mono text-xs">pm-oracle-cli median &lt;PAIR&gt;</code>{" "}
+            and use the key in your own queries.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-            {FAUCET_IDS.map((faucet) => (
-              <div key={faucet.id} className="card p-4 flex flex-col gap-1">
-                <span className="text-[rgba(255,255,255,0.3)] text-xs font-mono uppercase tracking-wider">
-                  {faucet.id}
+            {PAIRS.map((entry) => (
+              <div key={entry.pair} className="card p-4 flex flex-col gap-1">
+                <span className="text-[rgba(255,255,255,0.3)] text-xs font-mono tracking-wider truncate" title={entry.key}>
+                  {entry.key.slice(0, 10)}…{entry.key.slice(-6)}
                 </span>
-                <span className="text-white text-sm font-medium">{faucet.pair}</span>
+                <span className="text-white text-sm font-medium">{entry.pair}</span>
               </div>
             ))}
           </div>
