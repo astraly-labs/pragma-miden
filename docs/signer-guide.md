@@ -20,16 +20,45 @@ someone else can sign as you.
 
 ## 1. Install `pm-multisig`
 
+**Recommended: the prebuilt binary.** The team tags the exact version to use (`multisig-v...`) and the
+release carries the binaries and their checksums. Download yours, check it, and make it executable:
+
+```bash
+TAG=multisig-v1          # the tag the team gives you
+TARGET=aarch64-apple-darwin   # macOS Apple silicon; use x86_64-unknown-linux-gnu on Linux
+mkdir -p ~/pragma-signer && cd ~/pragma-signer
+curl -fsSL -O "https://github.com/astraly-labs/pragma-miden/releases/download/$TAG/pm-multisig-$TARGET"
+curl -fsSL -O "https://github.com/astraly-labs/pragma-miden/releases/download/$TAG/SHA256SUMS"
+grep " pm-multisig-$TARGET\$" SHA256SUMS | shasum -a 256 -c -     # must print: OK
+chmod +x pm-multisig-$TARGET && mkdir -p ~/.local/bin && mv pm-multisig-$TARGET ~/.local/bin/pm-multisig
+pm-multisig --help       # ~/.local/bin must be on your PATH
+```
+
+Do not run a binary whose checksum does not match. The same release page lists the commit it was built from.
+
+**Alternative: build it yourself** (a signer who wants to verify the source, and for an `upgrade` proposal):
+
 ```bash
 git clone https://github.com/astraly-labs/pragma-miden
 cd pragma-miden
+git checkout <TAG>
 cargo build --release -p pm-multisig        # the repo pins the Rust toolchain
 cp target/release/pm-multisig ~/.local/bin/ # or anywhere on your PATH
-pm-multisig --help
 ```
 
 For an `upgrade` proposal your binary must be built from the release being deployed (`sign` refuses a code
 commitment your binary does not produce). Pull the tag the team announces and rebuild before signing it.
+
+### Check that you have the right version
+
+Before signing anything, adopt the spec the team sends you. It rebuilds the oracle account and checks its id:
+
+```bash
+pm-multisig -n mainnet adopt --spec spec.json
+```
+
+The `account id` printed must be the one the team announced. If it is different, your binary is not the
+same version: do not sign, and tell the team.
 
 ## 2. Create your key
 
