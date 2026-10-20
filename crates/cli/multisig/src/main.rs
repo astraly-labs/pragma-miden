@@ -10,7 +10,10 @@ use pm_multisig::account::{commitment_hex, parse_commitment, AccountSpec};
 use pm_multisig::action::{publisher_arg, signer_args, Action};
 use pm_multisig::keys;
 use pm_multisig::proposal::{self, MidenClient, Proposal, SignatureFile};
-use pm_utils_cli::{request_tokens, setup_network_client, Network, TESTNET_FAUCET_API};
+use pm_utils_cli::{
+    is_account_allowed, read_invitation_code, register_account, request_tokens,
+    setup_network_client, Network, TESTNET_FAUCET_API,
+};
 use serde::{de::DeserializeOwned, Serialize};
 
 /// A block is about 3 seconds.
@@ -60,6 +63,19 @@ enum Command {
         account: String,
         #[clap(long, default_value_t = 10_000)]
         amount: u64,
+    },
+    /// Tell whether the node lets the account transact (mainnet allowlist)
+    Allowed {
+        #[clap(long)]
+        account: String,
+    },
+    /// Register the account on the mainnet allowlist with an invitation code (used once)
+    RegisterAccount {
+        #[clap(long)]
+        account: String,
+        /// File whose first line is the invitation code (else the MIDEN_INVITATION_CODE variable)
+        #[clap(long)]
+        code_file: Option<PathBuf>,
     },
     /// Build a proposal and write it to a file
     Propose {
@@ -223,6 +239,31 @@ async fn main() -> Result<()> {
             let id = account_id(&account)?;
             let note = request_tokens(TESTNET_FAUCET_API, id, amount).await?;
             println!("faucet note {}", note.to_hex());
+        }
+        Command::Allowed { account } => {
+            let id = account_id(&account)?;
+            let net = Network::parse(&cli.network)?;
+            let allowed = is_account_allowed(net, id).await?;
+            println!(
+                "{}: {}",
+                id.to_hex(),
+                if allowed { "allowed" } else { "NOT allowed" }
+            );
+        }
+        Command::RegisterAccount { account, code_file } => {
+            let id = account_id(&account)?;
+            let net = Network::parse(&cli.network)?;
+            if is_account_allowed(net, id).await? {
+                println!("{}: already allowed, the code is kept", id.to_hex());
+            } else {
+                let code = read_invitation_code(code_file.as_deref())?;
+                register_account(net, id, &code).await?;
+                println!(
+                    "{}: registered (allowed: {})",
+                    id.to_hex(),
+                    is_account_allowed(net, id).await?
+                );
+            }
         }
         Command::Propose {
             account,

@@ -25,8 +25,8 @@ use sync::SyncCmd;
 use upgrade::UpgradeCmd;
 
 use pm_utils_cli::{
-    get_oracle_id, setup_network_client, BalanceCmd, FundCmd, Network,
-    PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
+    get_oracle_id, setup_network_client, AllowedCmd, BalanceCmd, FundCmd, Network,
+    RegisterAccountCmd, PRAGMA_ACCOUNTS_STORAGE_FILE, STORE_FILENAME,
 };
 
 #[derive(Debug)]
@@ -61,6 +61,10 @@ pub enum SubCommand {
     Fund(FundCmd),
     #[clap(name = "balance", bin_name = "balance")]
     Balance(BalanceCmd),
+    #[clap(name = "allowed", bin_name = "allowed")]
+    Allowed(AllowedCmd),
+    #[clap(name = "register-account", bin_name = "register-account")]
+    RegisterAccount(RegisterAccountCmd),
 }
 
 impl SubCommand {
@@ -89,6 +93,16 @@ impl SubCommand {
             Self::Balance(cmd) => {
                 let id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
                 cmd.call(&mut client, id).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::Allowed(cmd) => {
+                let id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
+                cmd.call(net, id).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::RegisterAccount(cmd) => {
+                let id = get_oracle_id(Path::new(PRAGMA_ACCOUNTS_STORAGE_FILE), network)?;
+                cmd.call(net, id).await?;
                 Ok(CommandOutput::None)
             }
             Self::RegisterPublisher(cmd) => {
