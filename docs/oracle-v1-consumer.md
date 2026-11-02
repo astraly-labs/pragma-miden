@@ -25,7 +25,7 @@ get_median_with_max_age(KEY, max_age) -> same, with your own freshness window
 ## Supported pairs and keys
 
 The key of a pair is derived from its name, so there is nothing to look up or register. These are the pairs
-published at launch; the keys are frozen (`crates/accounts/tests/test_pair_key.rs`) and will not change.
+published; the keys are frozen (`crates/accounts/tests/test_pair_key.rs`) and will not change.
 `decimals` is what the publishers use for the pair: read it from the answer rather than hard-coding it.
 
 | Pair | Decimals | Key | Also on Starknet |
@@ -44,6 +44,7 @@ published at launch; the keys are frozen (`crates/accounts/tests/test_pair_key.r
 | `UNI/USD` | 8 | `0x28b5da79b6aab6289ab569fc3b679226b0d113fb1d9f0df62410a93241b3c29c` | no |
 | `AAVE/USD` | 8 | `0x8f738295d669c20ccd2fd738b2284def832da2ded53b9afc22e8746f1c84c7e6` | no |
 | `MORPHO/USD` | 8 | `0xfd585c6cd7a15d199c4914a57e5533c8327e31eb3515099002d1add2647bb23b` | no |
+| `SOL/USD` | 8 | `0xdbfdcf1f148cd4b866f188062000209522f4097d4d95e86c4b999fab0c008140` | no |
 | `USDC/USD` | 6 | `0x1dfbb6c4acb913805c4df6731bfe7bfb8b6acd999bb768feb24979170807ee51` | yes |
 
 Derive any other key with `pair_key("BASE/QUOTE")` (`pm-publisher-cli pair-key BASE/QUOTE`, or the

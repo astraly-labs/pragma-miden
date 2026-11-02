@@ -44,6 +44,7 @@ export const PAIR_CONFIGS: PairConfig[] = [
   { pair: 'UNI/USD', key: '0x28b5da79b6aab6289ab569fc3b679226b0d113fb1d9f0df62410a93241b3c29c', name: 'Uniswap', marketCap: 4_450_000_000, decimals: 8, market: binance('UNIUSDT') },
   { pair: 'AAVE/USD', key: '0x8f738295d669c20ccd2fd738b2284def832da2ded53b9afc22e8746f1c84c7e6', name: 'Aave', marketCap: 2_000_000_000, decimals: 8, market: binance('AAVEUSDT') },
   { pair: 'MORPHO/USD', key: '0xfd585c6cd7a15d199c4914a57e5533c8327e31eb3515099002d1add2647bb23b', name: 'Morpho', marketCap: 1_650_000_000, decimals: 8, market: binance('MORPHOUSDT') },
+  { pair: 'SOL/USD', key: '0xdbfdcf1f148cd4b866f188062000209522f4097d4d95e86c4b999fab0c008140', name: 'Solana', marketCap: 53_000_000_000, decimals: 8, market: binance('SOLUSDT') },
   { pair: 'USDC/USD', key: '0x1dfbb6c4acb913805c4df6731bfe7bfb8b6acd999bb768feb24979170807ee51', name: 'USD Coin', marketCap: 74_000_000_000, decimals: 6, market: binance('USDCUSDT') },
 ];
 
