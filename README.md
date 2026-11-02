@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  🟢 <strong>Live oracle (testnet v1):</strong> <a href="https://miden.pragma.build">miden.pragma.build</a> — real-time medians of the 15 pairs, published by the Pragma publisher every 30 seconds.
+  🟢 <strong>Live oracle (testnet v1):</strong> <a href="https://miden.pragma.build">miden.pragma.build</a> — real-time medians of the 16 pairs, published by the Pragma publisher every 30 seconds.
 </p>
 
 ---

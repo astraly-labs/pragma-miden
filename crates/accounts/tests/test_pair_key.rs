@@ -90,6 +90,10 @@ const FROZEN: &[(&str, &str)] = &[
         "0xfd585c6cd7a15d199c4914a57e5533c8327e31eb3515099002d1add2647bb23b",
     ),
     (
+        "SOL/USD",
+        "0xdbfdcf1f148cd4b866f188062000209522f4097d4d95e86c4b999fab0c008140",
+    ),
+    (
         "USDC/USD",
         "0x1dfbb6c4acb913805c4df6731bfe7bfb8b6acd999bb768feb24979170807ee51",
     ),
