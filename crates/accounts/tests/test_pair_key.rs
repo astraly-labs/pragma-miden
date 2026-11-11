@@ -94,6 +94,10 @@ const FROZEN: &[(&str, &str)] = &[
         "0xdbfdcf1f148cd4b866f188062000209522f4097d4d95e86c4b999fab0c008140",
     ),
     (
+        "NEAR/USD",
+        "0x2c66776e8ed99c95a7c125b5a99d5ed9fbe19b4fe1c403a7f337cd75711d79d8",
+    ),
+    (
         "USDC/USD",
         "0x1dfbb6c4acb913805c4df6731bfe7bfb8b6acd999bb768feb24979170807ee51",
     ),
