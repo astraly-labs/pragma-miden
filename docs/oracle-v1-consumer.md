@@ -45,6 +45,7 @@ published; the keys are frozen (`crates/accounts/tests/test_pair_key.rs`) and wi
 | `AAVE/USD` | 8 | `0x8f738295d669c20ccd2fd738b2284def832da2ded53b9afc22e8746f1c84c7e6` | no |
 | `MORPHO/USD` | 8 | `0xfd585c6cd7a15d199c4914a57e5533c8327e31eb3515099002d1add2647bb23b` | no |
 | `SOL/USD` | 8 | `0xdbfdcf1f148cd4b866f188062000209522f4097d4d95e86c4b999fab0c008140` | no |
+| `NEAR/USD` | 8 | `0x2c66776e8ed99c95a7c125b5a99d5ed9fbe19b4fe1c403a7f337cd75711d79d8` | no |
 | `USDC/USD` | 6 | `0x1dfbb6c4acb913805c4df6731bfe7bfb8b6acd999bb768feb24979170807ee51` | yes |
 
 Derive any other key with `pair_key("BASE/QUOTE")` (`pm-publisher-cli pair-key BASE/QUOTE`, or the
