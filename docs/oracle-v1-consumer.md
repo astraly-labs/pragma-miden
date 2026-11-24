@@ -63,7 +63,10 @@ Derive any other key with `pair_key("BASE/QUOTE")` (`pm-publisher-cli pair-key B
 3. **Freshness against your own tolerance.** The default 120 s is a general-purpose window,
    not a safety margin for your protocol. If you liquidate, settle or mint on this price, call `get_median_with_max_age` with
    the bound your protocol can live with, and compare `last_updated` with the reference block
-   timestamp yourself.
+   timestamp yourself. Keep that bound tight: `max_age` is not capped, and a very large one (above the
+   current time, about 1.8 billion seconds) also accepts a registered publisher that has never published the
+   pair, with a price of `0`. A day is plenty for any use. The age is measured against your transaction's
+   reference block, not real time: if an old block would hurt you, bound its age yourself.
 4. **`decimals` is what you expect.** It follows the pair (8 for most, 6 for USDT/USD, USDC/USD and
    XAUT/USD) and is read from the data, so assert it against the value your arithmetic assumes
    instead of hard-coding a scale.
@@ -71,6 +74,10 @@ Derive any other key with `pair_key("BASE/QUOTE")` (`pm-publisher-cli pair-key B
    cap your protocol needs (a circuit breaker against the last accepted price, for instance).
 6. **Arithmetic stays in range.** A price is a felt below 2^64 - 2^32 + 1. Multiplying it by an
    amount overflows quickly; scale in u64/u128 helpers, not raw felt arithmetic.
+7. **The foreign accounts are the current publishers.** The call reads each registered publisher through a
+   foreign procedure invocation, so your transaction must carry exactly that set. Adding or removing a
+   publisher changes it: do not freeze the list in your code, read it (`pm-oracle-cli publishers`) and
+   follow the announcements.
 
 ## Things that can change under you
 

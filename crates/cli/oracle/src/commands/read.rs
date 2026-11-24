@@ -6,11 +6,12 @@ use anyhow::{Context, Result};
 use miden_client::account::AccountId;
 use miden_client::rpc::domain::account::AccountStorageRequirements;
 use miden_client::transaction::ForeignAccount;
-use miden_client::{keystore::FilesystemKeyStore, Client, Felt, ZERO};
+use miden_client::{keystore::FilesystemKeyStore, Client};
 use miden_protocol::account::{StorageMapKey, StorageSlotName};
 use miden_protocol::vm::AdviceInputs;
 use miden_standards::code_builder::CodeBuilder;
 use pm_accounts::oracle_v1::{get_oracle_v1_component_library, PairKey};
+use pm_accounts::publisher::consistency::registered_publishers;
 use pm_utils_cli::{get_oracle_id, PRAGMA_ACCOUNTS_STORAGE_FILE};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -84,25 +85,7 @@ pub async fn load_oracle(
         .context("unable to retrieve the pause flag")?[0]
         .as_canonical_u64()
         == 1;
-    let next_index = slot("pragma::oracle::next_publisher_index")?;
-    let publisher_count = storage
-        .get_item(&next_index)
-        .context("unable to retrieve the publisher count")?[0]
-        .as_canonical_u64();
-    let publishers_slot = slot("pragma::oracle::publishers")?;
-    // A publisher id word is [prefix, suffix, 0, 0]; a slot zeroed by `remove_publisher` is skipped.
-    let publishers: Vec<AccountId> = (2..publisher_count)
-        .map(|i| {
-            let key = [Felt::new(i)?, ZERO, ZERO, ZERO];
-            storage
-                .get_map_item(&publishers_slot, StorageMapKey::new(key.into()))
-                .with_context(|| format!("failed to retrieve the publisher at index {i}"))
-        })
-        .collect::<Result<Vec<_>>>()?
-        .into_iter()
-        .filter(|w| !(w[0] == ZERO && w[1] == ZERO))
-        .map(|w| AccountId::new_unchecked([w[0], w[1]]))
-        .collect();
+    let publishers = registered_publishers(&account)?;
 
     for publisher in &publishers {
         import_if_needed(client, *publisher).await?;

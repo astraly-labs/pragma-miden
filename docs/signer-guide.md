@@ -16,7 +16,9 @@ someone else can sign as you.
 2. Back it up in a password manager (below) before you do anything else with it.
 3. Sign only what you understand. `sign` rebuilds the transaction itself and prints the action; if the
    action is not what you were told to expect, do not sign.
-4. If the key may be compromised or lost, tell the team immediately: the signers rotate it out.
+4. If the key may be compromised or lost, tell the team immediately. A single signer can `pause` the
+   oracle, but `unpause`, the code upgrade and the rotation of the signers need every signer, the lost key
+   included: a lost key with no backup cannot be rotated out. That is why the backup (2) comes first.
 
 ## 1. Install `pm-multisig`
 
@@ -129,7 +131,10 @@ Read the action:
 - it must be the one you were told to expect (register, remove or replace a given publisher, pause,
   unpause, upgrade, rotate signers, consume notes);
 - the account must be the oracle you know;
-- for a publisher, the id must be the one the team announced.
+- for a publisher, the id must be the one the team announced, and it must already publish every pair
+  (`propose` refuses one that does not, unless the proposer says otherwise: ask).
+  `pm-publisher-cli get-entry` shows what an account holds; once it is registered,
+  `pm-oracle-cli check-consistency` compares it with the other publishers.
 
 Answer `y` only if everything matches. Do not use `--yes`, which skips the question. Send `my-signature.json`
 back (it is not secret). Signatures expire (72 hours by default): if a proposal is expired, ask for a new one.

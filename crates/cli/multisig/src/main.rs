@@ -89,6 +89,10 @@ enum Command {
         /// Same, in blocks (overrides --valid-for-hours)
         #[clap(long)]
         valid_for_blocks: Option<u32>,
+        /// Register a publisher that does not publish yet (by default it must already hold a usable entry,
+        /// with the registered publishers' decimals, for every pair they serve)
+        #[clap(long)]
+        allow_unpublished: bool,
         #[command(subcommand)]
         action: ActionCmd,
     },
@@ -270,6 +274,7 @@ async fn main() -> Result<()> {
             out,
             valid_for_hours,
             valid_for_blocks,
+            allow_unpublished,
             action,
         } => {
             let id = account_id(&account)?;
@@ -313,6 +318,7 @@ async fn main() -> Result<()> {
                 id,
                 action,
                 valid_for_blocks.unwrap_or(valid_for_hours * BLOCKS_PER_HOUR),
+                allow_unpublished,
             )
             .await?;
             write_json(&out, &proposal)?;

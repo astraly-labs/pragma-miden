@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
 use anyhow::{bail, ensure, Context, Result};
@@ -16,6 +17,11 @@ use miden_tx::auth::{SigningInputs, TransactionAuthenticator};
 use miden_tx::utils::serde::Serializable;
 use miden_tx::TransactionExecutorError;
 use serde::{Deserialize, Serialize};
+
+use pm_accounts::publisher::consistency::{
+    check_newcomer, published_entries, registered_publishers, Limits, PublisherEntries,
+    DEFAULT_MAX_AGE_SECONDS, DEFAULT_MAX_SPREAD_BPS,
+};
 
 use crate::action::Action;
 use crate::keys;
@@ -195,15 +201,88 @@ async fn check_publishers(client: &mut MidenClient, action: &Action) -> Result<(
     Ok(())
 }
 
+/// A publisher worth registering already publishes: it holds a usable entry (published, priced,
+/// fresh, not ahead of the chain) with the registered publishers' decimals for every pair they
+/// serve. One that does not would count as a source of nothing, or skew the median.
+async fn check_publisher_entries(
+    client: &mut MidenClient,
+    oracle_id: AccountId,
+    action: &Action,
+) -> Result<()> {
+    let newcomers = action.registered_publishers();
+    if newcomers.is_empty() {
+        return Ok(());
+    }
+    let oracle = client
+        .get_account(oracle_id)
+        .await?
+        .context("oracle account missing")?;
+    let existing_ids = registered_publishers(&oracle)?;
+    let newcomer_ids = newcomers
+        .iter()
+        .map(|id| {
+            AccountId::from_hex(id).map_err(|e| anyhow::anyhow!("bad publisher id {id}: {e}"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    for id in existing_ids.iter().chain(&newcomer_ids) {
+        if let Err(e) = client.import_account_by_id(*id).await {
+            ensure!(
+                client.get_account(*id).await?.is_some(),
+                "cannot load publisher {}: {e}",
+                id.to_hex()
+            );
+        }
+    }
+    client.sync_state().await.context("sync")?;
+
+    let mut existing = BTreeMap::new();
+    for id in &existing_ids {
+        existing.insert(*id, entries_of(client, *id).await?);
+    }
+    let limits = Limits {
+        now: u64::from(client.get_latest_block_header().await?.timestamp()),
+        max_age: DEFAULT_MAX_AGE_SECONDS,
+        max_spread_bps: DEFAULT_MAX_SPREAD_BPS,
+    };
+    for id in newcomer_ids {
+        let entries = entries_of(client, id).await?;
+        let findings = check_newcomer(&existing, id, &entries, limits);
+        ensure!(
+            findings.is_empty(),
+            "publisher {} is not ready to be registered:\n{}\npublish every pair first, or pass --allow-unpublished to propose anyway",
+            id.to_hex(),
+            findings
+                .iter()
+                .map(|f| format!("  key {}: {}", Word::from(f.key), f.issue))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+    Ok(())
+}
+
+async fn entries_of(client: &MidenClient, id: AccountId) -> Result<PublisherEntries> {
+    let account = client
+        .get_account(id)
+        .await?
+        .with_context(|| format!("publisher {} missing after import", id.to_hex()))?;
+    published_entries(&account)
+}
+
 pub async fn propose(
     client: &mut MidenClient,
     network: &str,
     account_id: AccountId,
     action: Action,
     valid_for_blocks: u32,
+    allow_unpublished: bool,
 ) -> Result<Proposal> {
     load_account(client, account_id).await?;
     check_publishers(client, &action).await?;
+    if !allow_unpublished {
+        check_publisher_entries(client, account_id, &action).await?;
+    }
     let nonce = account_nonce(client, account_id).await?;
     let salt = rand::random::<u32>();
     let bound = client.get_sync_height().await?;
