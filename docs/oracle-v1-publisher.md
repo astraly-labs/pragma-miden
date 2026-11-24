@@ -49,6 +49,12 @@ Send Pragma your publisher account id and a contact. We check the account, then 
 moment your entries count in the median. You can read your account's entries with `pm-publisher-cli
 get-entry` to check what the oracle will see.
 
+Publish first, register after: the proposal is refused for an account that does not hold a fresh,
+priced entry for every pair the registered publishers serve, with the decimals they use. An entry that was
+never published would otherwise count as a source with no data. Once registered, `pm-oracle-cli
+check-consistency` reports anything that drifts (decimals, zero price, a timestamp ahead of the chain, a
+stale entry, a price far from the others).
+
 Registration is per account. If you replace your account, it has to be registered again.
 
 ## 4. What to publish

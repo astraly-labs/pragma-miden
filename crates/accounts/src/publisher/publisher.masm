@@ -13,7 +13,7 @@ const ENTRIES_MAP_SLOT=word("pragma::publisher::entries")
 #! The price will be stored in the publisher map for the given asset, overriding the
 #! last value.
 #!
-#! Inputs:  [faucet_id_word, ENTRY]
+#! Inputs:  [pair_key_word, ENTRY] ; ENTRY being [timestamp, decimals, price, num_sources]
 #! Outputs: []
 #!
 @account_procedure
@@ -23,10 +23,10 @@ pub proc publish_entry
     exec.sys::truncate_stack
 end
 
-#! Get the published entry for a faucet_id.
+#! Get the published entry for a pair.
 #!
-#! Inputs:  [faucet_id_word]
-#! Outputs: [ENTRY] ; Word being [faucet_id_prefix, price, decimals, timestamp]
+#! Inputs:  [pair_key_word]
+#! Outputs: [ENTRY] ; Word being [timestamp, decimals, price, num_sources], all 0 if never published
 #!
 @account_procedure
 pub proc get_entry

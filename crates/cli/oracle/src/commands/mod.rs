@@ -1,3 +1,4 @@
+pub mod check_consistency;
 pub mod get_entry;
 pub mod init;
 pub mod median;
@@ -13,6 +14,7 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 
+use check_consistency::CheckConsistencyCmd;
 use get_entry::GetEntryCmd;
 use init::InitCmd;
 use median::MedianCmd;
@@ -53,6 +55,8 @@ pub enum SubCommand {
     MedianBatch(MedianBatchCmd),
     #[clap(name = "publishers", bin_name = "publishers")]
     Publishers(PublishersCmd),
+    #[clap(name = "check-consistency", bin_name = "check-consistency")]
+    CheckConsistency(CheckConsistencyCmd),
     #[clap(name = "get-entry", bin_name = "get-entry")]
     GetEntry(GetEntryCmd),
     #[clap(name = "upgrade", bin_name = "upgrade")]
@@ -126,6 +130,10 @@ impl SubCommand {
                 Ok(CommandOutput::MedianBatch(results))
             }
             Self::Publishers(cmd) => {
+                cmd.call(&mut client, network).await?;
+                Ok(CommandOutput::None)
+            }
+            Self::CheckConsistency(cmd) => {
                 cmd.call(&mut client, network).await?;
                 Ok(CommandOutput::None)
             }

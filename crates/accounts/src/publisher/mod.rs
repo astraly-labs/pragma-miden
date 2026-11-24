@@ -1,3 +1,5 @@
+pub mod consistency;
+
 use std::sync::Arc;
 
 use rand::RngExt;
