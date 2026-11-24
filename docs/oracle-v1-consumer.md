@@ -22,6 +22,20 @@ get_median_with_max_age(KEY, max_age) -> same, with your own freshness window
 - `last_updated`: timestamp of the newest entry ever published for the pair, fresh or not. `0` if
   nobody ever published it.
 
+## Which entries count
+
+A publisher's entry counts in the median only when all of these hold; otherwise it is as if the
+publisher had nothing for the pair, and it does not move `last_updated` either:
+
+- it was published (`timestamp` is not `0`) and carries a price (not `0`);
+- its timestamp is not more than 30 s ahead of the reference block (a publisher's clock is never exactly
+  the chain's; within 30 s the entry counts as just published);
+- it is no older than `max_age`.
+
+If the entries that count do not all use the same decimals, the oracle answers "no price" (`num_publishers`
+`0`, `last_updated` kept) rather than a median that mixes scales: one faulty publisher cannot move the price,
+and the pair stays unavailable until it is fixed or removed.
+
 ## Supported pairs and keys
 
 The key of a pair is derived from its name, so there is nothing to look up or register. These are the pairs
@@ -85,6 +99,10 @@ Derive any other key with `pair_key("BASE/QUOTE")` (`pm-publisher-cli pair-key B
   it calls changes the root, after which a call using the old root fails (`UnknownAccountProcedure`, seen on
   the testnet after an upgrade of the dummy oracle). Pin the oracle account id and the root, and follow
   the upgrade announcements. `examples/consume-price` is a complete consumer using this call.
+- **Hardened reads.** The rules of "Which entries count" ship with an oracle code upgrade. They change the
+  root of `get_median` and `get_median_with_max_age` (the other procedures keep theirs). We announce the
+  new roots and the date ahead of the upgrade so you can switch before it; until then the previous rules apply:
+  a publisher that never published a pair counts as a source when you pass a very large `max_age`, so cap it.
 - **Publisher set.** Publishers are added and removed by the multisig (default quorum). The median
   moves accordingly, which is why `num_publishers` is part of the answer.
 

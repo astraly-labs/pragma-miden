@@ -13,7 +13,7 @@ use miden_standards::code_builder::CodeBuilder;
 use miden_testing::{Auth, MockChain, MockChainBuilder};
 
 use pm_accounts::{
-    oracle_v1::{get_oracle_v1_component_library, get_oracle_v1_components},
+    oracle_v1::{get_oracle_v1_component_library, get_oracle_v1_components, oracle_v1_proc_root},
     publisher::get_publisher_component_code,
 };
 
@@ -389,4 +389,168 @@ async fn pause_answers_no_price_until_unpause() -> Result<()> {
 
     w.call("call.oracle_module::unpause").await?;
     w.read(None, ok()).await
+}
+
+const SKEW: u64 = 30;
+
+#[tokio::test]
+async fn a_publisher_that_never_published_is_not_a_source_even_with_a_huge_max_age() -> Result<()> {
+    let ts = NOW - 5;
+    // Two registered publishers with no entry for the pair: their zero word is not a quote.
+    let w = world(vec![vec![(key(), entry(100, 8, ts))], vec![], vec![]]).await?;
+    w.read(
+        Some(NOW),
+        Expected {
+            num_publishers: 1,
+            median: 100,
+            decimals: 8,
+            last_updated: ts,
+        },
+    )
+    .await
+}
+
+#[tokio::test]
+async fn a_zero_price_is_not_a_quote() -> Result<()> {
+    let w = world(vec![
+        vec![(key(), entry(0, 8, NOW - 1))],
+        vec![(key(), entry(100, 8, NOW - 5))],
+    ])
+    .await?;
+    // The zero entry counts neither in the median nor as the last update.
+    w.read(
+        None,
+        Expected {
+            num_publishers: 1,
+            median: 100,
+            decimals: 8,
+            last_updated: NOW - 5,
+        },
+    )
+    .await
+}
+
+#[tokio::test]
+async fn an_entry_dated_far_ahead_of_the_block_is_ignored_entirely() -> Result<()> {
+    let no_price = Expected {
+        num_publishers: 0,
+        median: 0,
+        decimals: 0,
+        last_updated: 0,
+    };
+    // Alone: it neither counts nor inflates `last_updated`.
+    let w = world(vec![vec![(key(), entry(100, 8, NOW + SKEW + 1))]]).await?;
+    w.read(None, no_price).await?;
+
+    // Next to a fresh one: only the fresh one is seen.
+    let fresh = NOW - 5;
+    let w = world(vec![
+        vec![(key(), entry(900, 8, NOW + 1_000))],
+        vec![(key(), entry(100, 8, fresh))],
+    ])
+    .await?;
+    w.read(
+        None,
+        Expected {
+            num_publishers: 1,
+            median: 100,
+            decimals: 8,
+            last_updated: fresh,
+        },
+    )
+    .await
+}
+
+#[tokio::test]
+async fn an_entry_slightly_ahead_of_the_block_is_fresh() -> Result<()> {
+    // Inside the clock-skew margin, boundary included, at any `max_age`.
+    for ahead in [1, SKEW] {
+        let w = world(vec![vec![(key(), entry(100, 8, NOW + ahead))]]).await?;
+        for max_age in [None, Some(0), Some(60)] {
+            w.read(
+                max_age,
+                Expected {
+                    num_publishers: 1,
+                    median: 100,
+                    decimals: 8,
+                    last_updated: NOW + ahead,
+                },
+            )
+            .await?;
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn fresh_entries_that_disagree_on_decimals_give_no_price() -> Result<()> {
+    // 1.00 at 6 decimals and 1.00 at 8 decimals: no median is better than 0.505.
+    let w = world(vec![
+        vec![(key(), entry(1_000_000, 6, NOW - 5))],
+        vec![(key(), entry(100_000_000, 8, NOW - 3))],
+        vec![(key(), entry(100_000_000, 8, NOW - 4))],
+    ])
+    .await?;
+    w.read(
+        None,
+        Expected {
+            num_publishers: 0,
+            median: 0,
+            decimals: 0,
+            last_updated: NOW - 3,
+        },
+    )
+    .await
+}
+
+#[tokio::test]
+async fn a_stale_entry_with_other_decimals_does_not_matter() -> Result<()> {
+    let w = world(vec![
+        vec![(key(), entry(1_000_000, 6, NOW - 7_200))],
+        vec![(key(), entry(100_000_000, 8, NOW - 3))],
+    ])
+    .await?;
+    w.read(
+        None,
+        Expected {
+            num_publishers: 1,
+            median: 100_000_000,
+            decimals: 8,
+            last_updated: NOW - 3,
+        },
+    )
+    .await
+}
+
+/// The multisig keys its approval thresholds (`pause` 1 signer, `unpause` all of them) and the
+/// signers' proposals by procedure root. A change to these procedures drops the override silently:
+/// the default threshold would apply. Reads (`get_median*`) may change with an upgrade announced to
+/// the integrators; these may not.
+#[test]
+fn governed_procedure_roots_are_frozen() -> Result<()> {
+    for (name, root) in [
+        (
+            "pause",
+            "0x37a00ae72f0dcc58845d3d6241cb448c5012a19b49b8eca1cd15d17d02beb450",
+        ),
+        (
+            "unpause",
+            "0xf11c776cc60665ba24757cd59a0429f60c9bdfc654b90eb96b40a5e1475e71d9",
+        ),
+        (
+            "register_publisher",
+            "0x726684874ab066b79e4437d4451bf2f5971ced8e5f92f3e7b531452dd496772e",
+        ),
+        (
+            "remove_publisher",
+            "0x0c5e18bbc680f827ef0723a22ae82b9f135d8c0d0b17ff3567023e37957f5294",
+        ),
+    ] {
+        assert_eq!(
+            oracle_v1_proc_root(name)?.as_word().to_hex(),
+            root,
+            "{name}"
+        );
+    }
+    Ok(())
 }
