@@ -21,6 +21,11 @@ const ERR_PUBLISHER_NOT_REGISTERED = "publisher not registered"
 # (`get_median_with_max_age`). Policy value, to be confirmed before mainnet.
 const DEFAULT_MAX_AGE_SECONDS=120
 
+# How far ahead of the reference block an entry's timestamp may be before it is ignored. Within the
+# margin the entry counts as fresh (age 0): a publisher's clock is never exactly the chain's.
+# Policy value.
+const CLOCK_SKEW_SECONDS=30
+
 # Pause flag: [paused, 0, 0, 0], paused is 0 or 1. Toggled by `pause` / `unpause`, whose
 # authorization is the account's own auth (multisig thresholds per procedure).
 const PAUSED_SLOT=word("pragma::oracle::paused")
@@ -29,6 +34,9 @@ const PAUSED_SLOT=word("pragma::oracle::paused")
 const MAX_AGE_PTR=10000
 const COUNT_PTR=10001
 const NEWEST_TS_PTR=10002
+# Decimals of the first fresh entry, and a flag set when another fresh entry disagrees.
+const DECIMALS_PTR=10003
+const DECIMALS_MISMATCH_PTR=10004
 # Word-aligned: the pair key (4 felts) is kept here to avoid carrying it on the stack.
 const KEY_PTR=10016
 
@@ -295,6 +303,9 @@ end
 #! Reads the publishers' entries for a pair and aggregates them.
 #!
 #! Only entries no older than `max_age` seconds (relative to the reference block timestamp) count.
+#! An entry that was never published (ts = 0), with a zero price, or dated more than
+#! CLOCK_SKEW_SECONDS ahead of the reference block is ignored altogether; one dated slightly ahead
+#! has age 0. If the fresh entries do not all share the same decimals, there is no price.
 #! Soft-deleted publishers (stored id [0,0,0,0]) are skipped without a Foreign Procedure Invocation.
 #!
 #! Inputs:  [KEY(4), max_age]
@@ -302,8 +313,9 @@ end
 #!
 #! - num_publishers: publishers whose entry is within `max_age` and is part of the median.
 #! - median_price, decimals: median of those prices (average of the two middle ones for an even
-#!   count) and the decimals of the median entry. 0, 0 when num_publishers is 0.
-#! - last_updated: timestamp of the newest entry ever published by any publisher for the pair,
+#!   count) and the decimals of the median entry. 0, 0 when num_publishers is 0, which is also the
+#!   answer when the fresh entries disagree on decimals (num_publishers is then 0 too).
+#! - last_updated: timestamp of the newest valid entry ever published by any publisher for the pair,
 #!   fresh or not, 0 if nobody ever published it. num_publishers = 0 with last_updated > 0 means
 #!   "late"; both 0 means the pair was never published (unknown key).
 proc read_prices
@@ -315,6 +327,7 @@ proc read_prices
 
     push.0 mem_store.COUNT_PTR
     push.0 mem_store.NEWEST_TS_PTR
+    push.0 mem_store.DECIMALS_MISMATCH_PTR
 
     push.NEXT_PUBLISHER_INDEX_SLOT[0..2] exec.active_account::get_item
     movdn.3 drop drop drop
@@ -345,35 +358,74 @@ proc read_prices
             exec.call_publisher_get_entry
             # => [ts, decimals, price, num_sources, current_slot, next_slot]
 
-            # Track the newest timestamp over every published entry, fresh or not.
-            dup mem_load.NEWEST_TS_PTR exec.felt_is_lower
-            # => [newest < ts, newest, ts, ts, decimals, price, num_sources, ...]
+            # An entry that was never published (ts = 0) or that carries no price is not a quote:
+            # it must not count as a source, nor as the last update.
+            dup eq.0 dup.3 eq.0 or
+            # => [invalid, ts, decimals, price, num_sources, current_slot, next_slot]
             if.true
-                drop
-                # => [ts, ts, decimals, price, num_sources, ...]
-                mem_store.NEWEST_TS_PTR
+                drop drop drop drop
             else
-                drop drop
-            end
-            # => [ts, decimals, price, num_sources, current_slot, next_slot]
+                exec.tx::get_block_timestamp
+                # => [now, ts, decimals, price, num_sources, ...]
 
-            # Staleness check against the caller's bound.
-            exec.tx::get_block_timestamp
-            # => [now, ts, decimals, price, num_sources, ...]
-            dup.1 sub
-            # => [age, ts, decimals, price, num_sources, ...]
-            mem_load.MAX_AGE_PTR exec.felt_is_lower
-            # => [is_stale=(max_age < age), max_age, age, ts, decimals, price, num_sources, ...]
+                # Ignore an entry dated further ahead of the block than the clock-skew margin.
+                dup push.CLOCK_SKEW_SECONDS add dup.2 swap gt
+                # => [too_far_ahead = ts > now + margin, now, ts, decimals, price, num_sources, ...]
+                if.true
+                    drop drop drop drop drop
+                else
+                    # Age of the entry, 0 when it is slightly ahead of the block.
+                    dup.1 dup.1 gt
+                    # => [ts > now, now, ts, ...]
+                    if.true
+                        drop push.0
+                    else
+                        dup.1 sub
+                    end
+                    # => [age, ts, decimals, price, num_sources, current_slot, next_slot]
 
-            if.true
-                # Stale: drop max_age, age, ts, decimals, price, num_sources (6 felts).
-                drop drop drop drop drop drop
-            else
-                # Fresh: drop max_age, age, keep [ts, decimals, price, num_sources] for the RAM.
-                drop drop
-                mem_load.COUNT_PTR mul.4
-                mem_storew_be dropw
-                mem_load.COUNT_PTR add.1 mem_store.COUNT_PTR
+                    # Track the newest timestamp over every valid entry, fresh or not.
+                    swap
+                    # => [ts, age, decimals, price, num_sources, ...]
+                    dup mem_load.NEWEST_TS_PTR exec.felt_is_lower
+                    # => [newest < ts, newest, ts, ts, age, ...]
+                    if.true
+                        drop
+                        # => [ts, ts, age, ...]
+                        mem_store.NEWEST_TS_PTR
+                    else
+                        drop drop
+                    end
+                    swap
+                    # => [age, ts, decimals, price, num_sources, current_slot, next_slot]
+
+                    # Staleness check against the caller's bound.
+                    mem_load.MAX_AGE_PTR exec.felt_is_lower
+                    # => [is_stale=(max_age < age), max_age, age, ts, decimals, price, num_sources, ...]
+
+                    if.true
+                        # Stale: drop max_age, age, ts, decimals, price, num_sources (6 felts).
+                        drop drop drop drop drop drop
+                    else
+                        # Fresh: drop max_age, age, keep [ts, decimals, price, num_sources] for the RAM.
+                        drop drop
+
+                        # Every fresh entry must use the decimals of the first one.
+                        mem_load.COUNT_PTR eq.0
+                        if.true
+                            dup.1 mem_store.DECIMALS_PTR
+                        else
+                            dup.1 mem_load.DECIMALS_PTR neq
+                            if.true
+                                push.1 mem_store.DECIMALS_MISMATCH_PTR
+                            end
+                        end
+
+                        mem_load.COUNT_PTR mul.4
+                        mem_storew_be dropw
+                        mem_load.COUNT_PTR add.1 mem_store.COUNT_PTR
+                    end
+                end
             end
             # => [current_slot, next_slot]
         end
@@ -385,15 +437,14 @@ proc read_prices
     drop drop
     # => []
 
-    mem_load.COUNT_PTR
-    dup eq.0
+    mem_load.COUNT_PTR eq.0 mem_load.DECIMALS_MISMATCH_PTR or
     if.true
-        # Nothing fresh: no median, no decimals.
-        drop
+        # Nothing fresh, or fresh entries that disagree on decimals: no median, no decimals.
+        push.0 mem_store.COUNT_PTR
         push.0 push.0
         # => [median_price, decimals]
     else
-        dup
+        mem_load.COUNT_PTR dup
         # => [N, N]
         exec.ram_bubble_sort
         exec.ram_get_median
